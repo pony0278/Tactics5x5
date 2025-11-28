@@ -1,4 +1,4 @@
-# WS_PROTOCOL_V1 — 5x5 Tactics WebSocket Protocol (Version 1)
+# WS_PROTOCOL_V1 — 5x5 Tactics WebSocket Protocol (Version 1, Updated)
 
 ## 1. Scope
 
@@ -6,35 +6,29 @@ This document defines the **WebSocket communication protocol** for **5x5 Tactics
 
 It covers:
 
-- Connection flow  
-- Message types  
-- Client → Server action messages  
-- Server → Client state updates  
-- Error handling  
-- Serialization formats  
+- Connection flow
+- Message types
+- Client → Server action messages
+- Server → Client state updates
+- Error handling
+- Serialization formats
 
-This protocol must be followed by:
+This protocol must not contradict:
 
-- WebSocket server implementation  
-- Clients (UI/Front-end)  
-- Any debugging or automation tools  
-
-This protocol must **not** contradict:
-
-- Game rules (GAME_RULES_V1)  
-- Engine structure (ENGINE_SKELETON_V1)  
-- Architecture rules (TECH_ARCH)  
+- GAME_RULES_V1
+- ENGINE_SKELETON_V1
+- TECH_ARCH
 
 ---
 
 ## 2. General WebSocket Rules
 
-- Communication is **JSON-only**.  
-- All messages contain a field: `"type"`  
-- Server is **authoritative**; the client **never simulates GameState**.  
-- All state changes come from the server.
+- Communication is **JSON-only**
+- All messages have `"type"` + `"payload"`
+- Server is authoritative
+- Client must never simulate GameState
 
-All messages follow this base structure:
+Base structure:
 
 ```json
 {
@@ -48,20 +42,20 @@ All messages follow this base structure:
 ## 3. Message Types (Summary)
 
 ### Client → Server
-| Message Type            | Description |
-|------------------------|-------------|
-| `join_match`           | Join or create a match |
-| `action`               | Player requests an in-game action |
-| `ping`                 | Client heartbeat (optional) |
+| Type | Description |
+|------|-------------|
+| `join_match` | Join or create a match |
+| `action` | Player issues an in-game action |
+| `ping` | Heartbeat |
 
 ### Server → Client
-| Message Type             | Description |
-|-------------------------|-------------|
-| `match_joined`          | Confirmation and initial state |
-| `state_update`          | Full GameState after any applied action |
-| `validation_error`      | Action rejected |
-| `game_over`             | Match ended |
-| `pong`                  | Server heartbeat response |
+| Type | Description |
+|------|-------------|
+| `match_joined` | Initial state after join |
+| `state_update` | Full GameState after a valid action |
+| `validation_error` | Action rejected |
+| `game_over` | Match ended |
+| `pong` | Heartbeat response |
 
 ---
 
@@ -70,8 +64,6 @@ All messages follow this base structure:
 ---
 
 ### 4.1 `join_match`
-
-Sent when client connects or wants to enter a match.
 
 ```json
 {
@@ -83,16 +75,11 @@ Sent when client connects or wants to enter a match.
 }
 ```
 
-#### Rules
-- `playerId` must match the player's assigned identity.  
-- Server responds with `match_joined`.
-
 ---
 
-### 4.2 `action`
+### 4.2 `action` (Updated Target Rules)
 
-Client requests an in-game action.  
-This maps **1:1** to the Engine's `Action` structure.
+This maps directly to Engine's `Action`.
 
 ```json
 {
@@ -101,25 +88,33 @@ This maps **1:1** to the Engine's `Action` structure.
     "playerId": "<string>",
     "action": {
       "type": "MOVE | ATTACK | MOVE_AND_ATTACK | END_TURN",
-      "targetPosition": { "x": 1, "y": 2 },     // nullable
-      "targetUnitId": "<string or null>"        // nullable
+      "targetPosition": { "x": 1, "y": 2 },     // Required for MOVE, MOVE_AND_ATTACK, ATTACK
+      "targetUnitId": "<string or null>"        // Required for ATTACK, MOVE_AND_ATTACK
     }
   }
 }
 ```
 
-#### Rules
-- `playerId` must match the user sending the action.
-- `targetPosition` must be included for MOVE / MOVE_AND_ATTACK.
-- `targetUnitId` must be included for ATTACK.
-- Server will:
-  - Validate the action via `RuleEngine.validateAction`
-  - Apply action if valid  
-  - Respond with either `state_update` or `validation_error`
+### Required Rules
+
+#### MOVE
+- Requires `targetPosition`
+- `targetUnitId` must be null
+
+#### ATTACK
+- Requires `targetPosition`
+- Requires `targetUnitId`
+
+#### MOVE_AND_ATTACK
+- Requires `targetPosition` (movement)
+- Requires `targetUnitId` (attack target)
+
+#### END_TURN
+- No targets required
 
 ---
 
-### 4.3 `ping` (optional)
+### 4.3 `ping`
 
 ```json
 {
@@ -138,8 +133,6 @@ Server responds with `pong`.
 
 ### 5.1 `match_joined`
 
-Sent once after the client joins a match.
-
 ```json
 {
   "type": "match_joined",
@@ -155,8 +148,6 @@ Sent once after the client joins a match.
 
 ### 5.2 `state_update`
 
-Sent when the state changes due to a valid action.
-
 ```json
 {
   "type": "state_update",
@@ -166,43 +157,23 @@ Sent when the state changes due to a valid action.
 }
 ```
 
-GameState is encoded via:
-
-```
-GameStateSerializer.toJsonMap(GameState)
-```
-
-This is the **only** source of truth for clients.
-
 ---
 
 ### 5.3 `validation_error`
-
-Sent when an invalid action was attempted.
 
 ```json
 {
   "type": "validation_error",
   "payload": {
     "message": "<string>",
-    "action": {
-      "type": "...",
-      "targetPosition": { "x": 0, "y": 0 },
-      "targetUnitId": "unit_01"
-    }
+    "action": { ... Original Action JSON ... }
   }
 }
 ```
 
-#### Notes
-- The client should display the message but not modify GameState.  
-- Errors originate from `ValidationResult`.
-
 ---
 
 ### 5.4 `game_over`
-
-Sent when a winner is determined.
 
 ```json
 {
@@ -213,11 +184,6 @@ Sent when a winner is determined.
   }
 }
 ```
-
-Clients should:
-
-- Display winner  
-- Stop sending actions  
 
 ---
 
@@ -230,26 +196,21 @@ Clients should:
 }
 ```
 
-Used for heartbeat maintenance.
-
 ---
 
 ## 6. GameState Serialization Format
 
-GameState is always sent as:
+The server always sends full state:
 
 ```
 GameStateSerializer.toJsonMap(GameState)
 ```
 
-Required JSON fields:
+Example:
 
 ```json
 {
-  "board": {
-    "width": 5,
-    "height": 5
-  },
+  "board": { "width": 5, "height": 5 },
   "units": [
     {
       "id": "u1",
@@ -266,24 +227,16 @@ Required JSON fields:
 }
 ```
 
-Must match ENGINE_SKELETON_V1 exactly.
-
 ---
 
-## 7. Error Handling & Enforcement
+## 7. Error Handling
 
-### 7.1 Validation Errors
-- Always sent as `validation_error`  
-- Server does not modify GameState  
+### Validation Errors
+- Sent via `validation_error`
+- GameState is NOT modified
 
-### 7.2 Illegal Messages
-If the client sends malformed JSON or unknown fields:
-
-- Server may ignore  
-- Or respond with `validation_error`  
-
-### 7.3 Out-of-Turn Actions
-Must return:
+### Out-of-Turn Actions
+Server returns:
 
 ```json
 {
@@ -294,28 +247,25 @@ Must return:
 
 ---
 
-## 8. State Update Ordering Guarantees
+## 8. State Update Ordering
 
-Server must ensure:
+Server must guarantee:
 
-1. All clients receive state updates in **the same order**.  
-2. State updates are **authoritative**.  
-3. No incremental patches; always send the full GameState.  
+1. All clients receive updates in the same order
+2. Updates are authoritative
+3. Always send full GameState, never diffs
 
 ---
 
-## 9. Notes for Future Protocol Versions
+## 9. Future Extensions
 
-Future versions may include:
+V2 may include:
 
-- Partial diff updates  
-- Player chat  
-- Spectator mode  
-- Match metadata  
-- Turn timers  
-- Action IDs for replay synchronization  
-
-V1 intentionally keeps everything **minimal and robust**.
+- Partial updates
+- Action IDs for replay
+- Player chat
+- Timers
+- Spectator mode
 
 ---
 
