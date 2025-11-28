@@ -1,10 +1,14 @@
 package com.tactics.server.core;
 
 import com.tactics.engine.action.Action;
+import com.tactics.engine.model.Board;
 import com.tactics.engine.model.GameState;
 import com.tactics.engine.model.PlayerId;
 import com.tactics.engine.rules.RuleEngine;
+import com.tactics.engine.rules.ValidationResult;
 import com.tactics.engine.util.GameStateSerializer;
+
+import java.util.ArrayList;
 
 /**
  * High-level service for orchestrating match operations.
@@ -36,20 +40,62 @@ public class MatchService {
     }
 
     public Match getOrCreateMatch(String matchId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Match existing = matchRegistry.getMatch(matchId);
+        if (existing != null) {
+            return existing;
+        }
+        // Create initial GameState per SERVER_TECH_ARCH_V1:
+        // - 5x5 board
+        // - Empty units list (predefined placements optional for prototype)
+        // - currentPlayer = P1
+        // - isGameOver = false
+        // - winner = null
+        Board board = new Board(5, 5);
+        GameState initialState = new GameState(
+            board,
+            new ArrayList<>(),
+            new PlayerId("P1"),
+            false,
+            null
+        );
+        return matchRegistry.createMatch(matchId, initialState);
     }
 
     public Match findMatch(String matchId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return matchRegistry.getMatch(matchId);
     }
 
     public GameState getCurrentState(String matchId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Match match = matchRegistry.getMatch(matchId);
+        if (match == null) {
+            return null;
+        }
+        return match.getState();
     }
 
     public GameState applyAction(String matchId,
                                  PlayerId playerId,
                                  Action action) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        // Look up match
+        Match match = matchRegistry.getMatch(matchId);
+        if (match == null) {
+            throw new IllegalArgumentException("Unknown match: " + matchId);
+        }
+
+        GameState currentState = match.getState();
+
+        // Validate action using RuleEngine
+        ValidationResult validation = ruleEngine.validateAction(currentState, action);
+        if (!validation.isValid()) {
+            throw new IllegalArgumentException(validation.getErrorMessage());
+        }
+
+        // Apply action using RuleEngine (returns new immutable GameState)
+        GameState newState = ruleEngine.applyAction(currentState, action);
+
+        // Update match in registry with new state
+        matchRegistry.updateMatchState(matchId, newState);
+
+        return newState;
     }
 }

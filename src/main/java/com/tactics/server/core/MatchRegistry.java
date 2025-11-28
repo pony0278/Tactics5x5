@@ -22,18 +22,26 @@ public class MatchRegistry {
     }
 
     public Match getMatch(String matchId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return matches.get(matchId);
     }
 
     public Match createMatch(String matchId, GameState initialState) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        MatchId id = new MatchId(matchId);
+        Map<ClientSlot, com.tactics.server.ws.ClientConnection> connections = new java.util.HashMap<>();
+        Match match = new Match(id, initialState, connections);
+        matches.put(matchId, match);
+        return match;
     }
 
     public void updateMatchState(String matchId, GameState newState) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Match existing = matches.get(matchId);
+        if (existing != null) {
+            Match updated = new Match(existing.getMatchId(), newState, existing.getConnections());
+            matches.put(matchId, updated);
+        }
     }
 
     public Collection<Match> listMatches() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return matches.values();
     }
 }
