@@ -18,14 +18,14 @@ public class ConnectionRegistry {
     }
 
     public void register(ClientConnection connection) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        connections.put(connection.getId(), connection);
     }
 
     public void unregister(ClientConnection connection) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        connections.remove(connection.getId());
     }
 
     public ClientConnection findById(String id) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return connections.get(id);
     }
 }
