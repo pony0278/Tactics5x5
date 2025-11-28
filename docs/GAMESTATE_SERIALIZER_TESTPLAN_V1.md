@@ -77,6 +77,18 @@ Standard test data:
 - Unit example: `Unit("u1", PlayerId("P1"), 10, 3, Position(2, 2), true)`
 - Current player: `PlayerId("P1")` or `PlayerId("P2")`
 
+### 2.5 Conceptual Test Mappings
+
+| Concept ID | Description |
+|------------|-------------|
+| GS-SIMPLE | A minimal valid GameState: 5x5 board, empty units, P1 current player, not game over, no winner |
+| GS-WITH-UNIT | GameState with at least one unit present |
+| GS-GAME-OVER | GameState with `isGameOver = true` and a winner set |
+| GS-DRAW | GameState with `isGameOver = true` but `winner = null` |
+| GS-ROUNDTRIP | `original → toJsonMap → fromJsonMap → reconstructed` preserves all fields |
+| MAP-VALID | A complete map with all required keys: `board`, `units`, `currentPlayer`, `gameOver`, `winner` |
+| MAP-INVALID | A map missing one or more required keys, or containing invalid values |
+
 ---
 
 ## 3. toJsonMap Tests (TJM-Series)
@@ -232,6 +244,8 @@ Standard test data:
 ---
 
 ## 4. fromJsonMap Tests (FJM-Series)
+
+All tests in this section use **complete, valid maps** (MAP-VALID) containing all required keys with correctly typed values. Invalid inputs are covered in the Edge Case Tests (EC-Series).
 
 ### FJM1 — Board Deserialization
 
@@ -453,6 +467,8 @@ Standard test data:
 
 ## 6. Edge Case Tests (EC-Series)
 
+This section tests **invalid inputs** (MAP-INVALID) and null handling. The serializer must fail fast with clear exceptions rather than returning null or silently ignoring errors.
+
 ### EC1 — Null GameState to toJsonMap
 
 - **Given**:
@@ -460,8 +476,7 @@ Standard test data:
 - **When**:
   - `toJsonMap(null)`
 - **Then**:
-  - Returns `null` **or** throws `NullPointerException` or `IllegalArgumentException`
-  - Test must assert whichever behavior is implemented
+  - Throws `IllegalArgumentException` with message `"GameState cannot be null"`
 
 ---
 
@@ -472,8 +487,7 @@ Standard test data:
 - **When**:
   - `fromJsonMap(null)`
 - **Then**:
-  - Returns `null` **or** throws exception
-  - Test must assert chosen behavior
+  - Throws `IllegalArgumentException` with message `"Map cannot be null"`
 
 ---
 
@@ -484,8 +498,7 @@ Standard test data:
 - **When**:
   - `fromJsonMap(map)`
 - **Then**:
-  - Throws exception **or** returns null/default
-  - Test must assert chosen behavior
+  - Throws `IllegalArgumentException` with message indicating the missing field
 
 ---
 
