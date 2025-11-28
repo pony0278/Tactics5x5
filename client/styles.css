@@ -1,0 +1,304 @@
+/**
+ * 5x5 Tactics - Minimal Web Client Styles
+ * Following CLIENT_WIREFRAME_V1 specification
+ */
+
+/* =============================================================================
+   Base Styles
+   ============================================================================= */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+    min-height: 100vh;
+}
+
+/* =============================================================================
+   Header / Top Bar
+   ============================================================================= */
+
+#header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background-color: #333;
+    color: white;
+}
+
+#header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+#connection-status {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    background-color: #666;
+    font-size: 0.875rem;
+}
+
+/* =============================================================================
+   Main Layout
+   ============================================================================= */
+
+#main {
+    display: flex;
+    gap: 2rem;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* =============================================================================
+   Board Section
+   ============================================================================= */
+
+#board-section {
+    flex-shrink: 0;
+}
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+    width: 350px;
+    height: 350px;
+    background-color: #666;
+    border: 2px solid #333;
+}
+
+/* =============================================================================
+   Cell Styles
+   ============================================================================= */
+
+.cell {
+    background-color: #e0e0e0;
+    border: 1px solid #999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.cell:hover {
+    background-color: #d0d0d0;
+}
+
+/* Cell states */
+.cell.selected {
+    background-color: #ffeb3b;
+    border: 2px solid #ffc107;
+}
+
+.cell.p1-unit {
+    border: 2px solid #2196f3;
+}
+
+.cell.p2-unit {
+    border: 2px solid #f44336;
+}
+
+.cell.highlight {
+    background-color: #c8e6c9;
+}
+
+/* =============================================================================
+   Controls Panel
+   ============================================================================= */
+
+#controls-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-width: 300px;
+}
+
+/* Player Info */
+#player-info {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+#player-info > div {
+    margin-bottom: 0.5rem;
+}
+
+#player-info > div:last-child {
+    margin-bottom: 0;
+}
+
+#local-player-id,
+#current-player {
+    font-weight: 600;
+}
+
+/* Status Area */
+#status {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    font-size: 0.875rem;
+}
+
+#status > div {
+    margin-bottom: 0.25rem;
+}
+
+/* Action Buttons */
+#action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+#action-buttons button {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+#btn-move {
+    background-color: #4caf50;
+    color: white;
+}
+
+#btn-move:hover:not(:disabled) {
+    background-color: #43a047;
+}
+
+#btn-attack {
+    background-color: #f44336;
+    color: white;
+}
+
+#btn-attack:hover:not(:disabled) {
+    background-color: #e53935;
+}
+
+#btn-move-attack {
+    background-color: #ff9800;
+    color: white;
+}
+
+#btn-move-attack:hover:not(:disabled) {
+    background-color: #fb8c00;
+}
+
+#btn-end-turn {
+    background-color: #607d8b;
+    color: white;
+}
+
+#btn-end-turn:hover:not(:disabled) {
+    background-color: #546e7a;
+}
+
+#action-buttons button:disabled {
+    background-color: #bdbdbd;
+    cursor: not-allowed;
+}
+
+/* Error Section */
+#error-section {
+    background-color: #ffebee;
+    padding: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ffcdd2;
+}
+
+#error-section h3 {
+    font-size: 0.875rem;
+    color: #c62828;
+    margin-bottom: 0.5rem;
+}
+
+#error {
+    color: #c62828;
+    font-size: 0.875rem;
+    min-height: 1.5rem;
+}
+
+/* Game Over Banner */
+#game-over {
+    background-color: #333;
+    color: white;
+    padding: 1.5rem;
+    border-radius: 4px;
+    text-align: center;
+}
+
+#game-over h2 {
+    margin-bottom: 0.5rem;
+}
+
+#game-over.hidden {
+    display: none;
+}
+
+/* Log Section */
+#log-section {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+#log-section h3 {
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    color: #666;
+}
+
+#log {
+    font-family: monospace;
+    font-size: 0.75rem;
+    max-height: 150px;
+    overflow-y: auto;
+    color: #666;
+}
+
+#log > div {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+/* =============================================================================
+   Utility Classes
+   ============================================================================= */
+
+.hidden {
+    display: none !important;
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 768px) {
+    #main {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    #controls-panel {
+        max-width: 350px;
+        width: 100%;
+    }
+}
