@@ -1,294 +1,309 @@
-# TECH_ARCH – 5x5 Tactics Engine & Server Architecture  
-Version: 1.0  
-Status: Approved for Implementation  
-Author: (Your Name)  
-Purpose: Provide a fully modular technical architecture for a reusable, standalone tactics engine that can integrate with other games such as SPD.
+# TECH_ARCH — 5x5 Tactics Architecture Specification
+
+## 1. Overview
+
+5x5 Tactics is a deterministic, server-authoritative, turn-based tactics game.
+The system is divided into three cleanly separated layers:
+
+- **Engine** — Pure simulation and game logic  
+- **Server** — Authoritative match controller  
+- **Client** — UI only; renders state from the server  
+
+Each layer has strict boundaries and may not depend on layers above it.
 
 ---
 
-# 1. High-Level Goals
+## 2. High-Level Architecture
 
-The project consists of **two main layers**:
+```
+Client → Server → Engine
+```
 
-1. **Tactics Engine (Core Library)**
-   - Pure Java module
-   - Contains all game rules, state, actions, resolution, serialization
-   - 100% independent from networking, UI, and frameworks
-   - Deterministic execution to support replay, simulation, and AI bots
-   - Usable by:
-     - Web PvP server
-     - SPD (Shattered Pixel Dungeon) for cross-game integration
-     - Offline testing tools
-     - Any future client or platform
+### Engine
+- Pure logic, deterministic, immutable  
+- No I/O  
+- No networking  
+- No randomness except via injected RNG  
+- Fully serializable  
+- No global state  
 
-2. **Tactics Server (WebSocket)**
-   - Spring Boot WebSocket service
-   - Acts as an adapter between clients and the engine
-   - Translates JSON ↔ Action ↔ GameState
-   - Room/match management
-   - Stateless except for in-memory matches
+### Server
+- Hosts WebSocket endpoint  
+- Maintains GameState  
+- Validates actions  
+- Applies actions via RuleEngine  
+- Broadcasts updates to all clients  
 
-Future possible clients:
-- Web browser (HTML/JS)
-- Desktop/CLI simulation
-- Mobile app
-- SPD integration mode
-
----
-
-# 2. Repository Structure
-tactics5x5/
-engine/ # Pure Java library (game logic)
-src/main/java/com/tactics/engine/...
-src/test/java/com/tactics/engine/...
-server/ # Spring Boot WebSocket backend
-src/main/java/com/tactics/server/...
-client/ 
-
-# Minimal HTML/JS reference client
-index.html
-game.js
-style.css
-docs/ 
-# All specs (architecture, protocol, rules)
-TECH_ARCH.md
-GAME_RULES_V1.md
-WS_PROTOCOL_V1.md
-tools/ 
-
-# Optional simulation / analysis tools
+### Client
+- Renders UI  
+- Sends user actions  
+- Receives authoritative state updates  
+- No duplicated rules  
+- No prediction logic  
 
 ---
 
-# 3. Module Responsibilities
+## 3. Determinism Requirements
 
-## 3.1 Tactics Engine (Core Logic)
+Determinism is a core requirement.
 
-**Location:** `/engine/`  
-**Package root:** `com.tactics.engine`
+Given:
+- Initial GameState  
+- RNG seed (if used)  
+- Sequence of player actions  
 
-### Engine responsibilities:
-- Define the **complete domain model**:
-  - `GameState`
-  - `Board`
-  - `Unit`
-  - `Action`
-  - `ActionType`
-  - `PlayerId`
-- Implement all **game rules** inside `RuleEngine`
-  - Movement rules
-  - Attack rules
-  - Target selection
-  - Turn rotation
-  - Win/loss condition
-- Provide deterministic behavior:
-  - All randomness (if added later) must come from injected RNG providers
-- Provide core utilities:
-  - Deep-copy of state (`GameState.clone()`)
-  - Serialization (JSON-friendly representation)
-  - Replay support (sequence of `Action` objects)
+The entire match must always produce the same output.
 
-### Engine restrictions:
-- Must **not** import:
-  - Spring
-  - WebSocket APIs
-  - UI libraries
-- Must be:
-  - Deterministic
-  - Pure logic
-  - Serializable
+Therefore, the Engine must:
+- Be pure  
+- Avoid side effects  
+- Return new GameState for every change  
+- Avoid system time  
+- Avoid non-deterministic operations  
 
-### Engine future extension points:
-- Hero classes (Warrior/Archer/Mage/Rogue)
-- Minion roles (Tank/Assassin/Ranger)
-- Skill system
-- Buff system
-- Terrain & obstacles
-- Shrinking zone mechanic
-- SPD cross-game integration
+This enables:
+- Replay  
+- Debugging  
+- Server-side resimulation  
+- Future bot training  
+- Competitive fairness  
 
 ---
 
-## 3.2 Tactics Server (WebSocket Server)
-**Location:** `/server/`  
-**Package root:** `com.tactics.server`
+## 4. Engine Responsibilities
 
-### Responsibilities:
-- WebSocket connection handling
-- Assign players into GameRooms (2 players per match)
-- Translate incoming JSON → `Action`
-- Call Engine:
-  - `validateAction()`
-  - `applyAction()`
-- Broadcast:
-  - Updated `GameState`
-  - Error messages
-  - Game over messages
+The Engine includes:
 
-### Server restrictions:
-- Server does **not** contain game rules
-- All rule decisions come strictly from Engine
-- Server must be stateless outside GameRoom objects
+### Core Models
+- GameState  
+- Unit  
+- Board  
+- Position  
+- PlayerId  
 
-A GameRoom contains:
-```java
-class GameRoom {
-    String roomId;
-    Session player1;
-    Session player2;
-    GameState state;
-}
+### Action System
+- Action  
+- ActionType  
 
-3.3 Client (Reference Web UI)
-Location: /client/
-Responsibilities:
-Connect to WebSocket server
-Render 5×5 board
-Handle click interactions:
-Select unit
-Select target tile
-Build JSON action request
-Receive game_state update and re-render
+### Rules
+- RuleEngine  
+- ValidationResult  
 
-Restrictions:
-No rule computation
-No game logic beyond UI behaviors
+### Utilities
+- Serialization  
+- Deterministic RNG wrapper  
 
-4. Engine Architecture Details
-4.1 Recommended Package Layout
-com.tactics.engine/
-  model/          # Data structures only (Unit, GameState, Board)
-  rules/          # RuleEngine, validation logic
-  action/         # Action, validators, transformers
-  util/           # Serialization, deep-copy, RNG providers
-  sim/            # Optional: bots, search, playout tools
+Engine must not:
+- Perform I/O  
+- Use WebSocket logic  
+- Use configuration files  
+- Use reflection or system-level operations  
 
-4.2 Core Classes (V1)
+---
 
-GameState
-Immutable preferred (return new state after each action)
+## 5. Server Responsibilities
+
+Server is the authoritative orchestrator.
+
+Server must:
+- Maintain one GameState per active match  
+- Accept player actions  
+- Call `validateAction`  
+- Call `applyAction`  
+- Reject illegal commands  
+- Send updated GameState to clients  
+
+Server must not:
+- Implement movement rules  
+- Implement attack rules  
+- Calculate damage  
+- Determine turn order  
+
+All gameplay logic resides in the Engine.
+
+---
+
+## 6. Client Responsibilities
+
+Client is a thin rendering layer.
+
+Client must:
+- Display the game board  
+- Display units & status  
+- Allow user input  
+- Send WebSocket messages  
+- Receive state updates  
+- Render GameState  
+
+Client must not:
+- Decide legal moves  
+- Apply damage  
+- Run simulation  
+- Predict turns  
+
+Client is always fully dependent on the Server.
+
+---
+
+## 7. Core Engine Data Models
+
+### GameState
+Represents full match state:
+- Board  
+- Units list  
+- Current player  
+- Game-over flag  
+- Winner  
+
+GameState is immutable.
+
+### Board
+Represents a 5×5 grid.
+
+### Unit
 Contains:
-Board dimensions
-List of Units
-Whose turn it is
-Game over flag and winner
-Round counter (optional but recommended)
+- id  
+- owner  
+- hp  
+- attack  
+- position  
+- alive  
 
-Must be serializable (JSON mapping friendly)
+No additional fields allowed unless added to the design documents.
 
-Unit
-Contains:
-id
-owner
-hp
-attack
-position
-alive
-Action
+### PlayerId
+Strongly typed identifier for players.
 
-Represents player intention:
-MOVE
-ATTACK
-MOVE_AND_ATTACK
-END_TURN
-RuleEngine
-Core validating and state-transition logic
+---
 
-Required methods:
-ValidationResult validateAction(GameState state, Action action);
-GameState applyAction(GameState state, Action action);
+## 8. Action System
 
-5. Determinism Requirements
-To support simulations, replays, and SPD integration:
-Engine execution must be deterministic given:
-Initial GameState
-Sequence of Action objects
-All randomness (future features):
-Must use injected RandomGenerator
-Never use new Random() inside Engine
+### ActionType
+Allowed values:
+- MOVE  
+- ATTACK  
+- MOVE_AND_ATTACK  
+- END_TURN  
 
-This allows:
-Replay system
-Turn-by-turn logging
-Predictable AI simulations
-SPD → Tactics battle → SPD result round trip
+### Action
+Fields:
+- type  
+- playerId  
+- targetPosition (nullable)  
+- targetUnitId (nullable)  
 
-6. Serialization & Replay
-Engine should optionally provide:
-GameStateSerializer
-JSON encode/decode
-Useful for:
-Saving match logs
-Debugging
-SPD integration
-ReplayRecord
+Action only expresses intent.  
+No logic inside Action classes.
 
-Contains:
-Initial state snapshot
-Sequence<Action>
+---
 
-Usage:
-Server logs actions
-Client can request replay
-SPD can embed a Tactics match and replay it later
+## 9. RuleEngine Specification
 
-7. Integration With Other Games (SPD Example)
-The Engine must allow external games to interact by providing:
-Adapter pattern workflow:
-SPD converts its combatants into Tactics Units
-SPD creates a custom initial GameState
-SPD executes:
-RuleEngine.applyAction(...)
-Engine returns results (winner, HP changes, logs)
-SPD converts results back into its own domain (loot, XP, HP changes)
-This requires:
-No dependency on SPD for Engine
-Clean and stable public API
-Determinism guaranteed
+`RuleEngine` is the only way to mutate GameState.
 
-8. Data Flow Diagram
-[Browser Client] → JSON Action → [Server] → Action → [Engine]
-                                   ↓                   ↑
-                                   JSON GameState ←─────
+Methods:
+```
+ValidationResult validateAction(GameState state, Action action)
+GameState applyAction(GameState state, Action action)
+```
 
-9. Testing Strategy
-Engine tests:
-100% deterministic unit tests
-Test:
-Move validation
-Attack validation
-Turn switching
-Win condition
-Illegal action handling
-Server tests:
-WebSocket connection tests
-Room assignment tests
-Client tests:
-Manual/UI only (prototype stage)
+Engine must:
+- Never modify GameState in-place  
+- Apply rules strictly based on GAME_RULES_V1  
+- Keep validation consistent with the WebSocket Protocol  
 
-10. Future Extensions
-The architecture supports gradual expansion:
-Gameplay:
-Hero classes
-Minion classes
-Buffs & obstacles
-Cooldowns
-Cards/abilities
-Fog of war
-Shrinking battlefield
-PvP matchmaking
-Ranking MMR
-Technical:
-Database persistence
-Cloud deployment
-Play-by-play replay UI
-AI agents
+---
 
-11. Summary
-This architecture ensures:
-Engine is completely independent and reusable
-Server is thin and stateless
-Clients are replaceable
-Future games (e.g., SPD) can easily integrate via adapters
-Development can proceed via vibecoding workflows
-This document defines the foundation for immediate implementation.
+## 10. Serialization Requirements
+
+`GameStateSerializer` must:
+- Convert GameState → JSON-safe Map  
+- Convert Map → GameState  
+- Produce deterministic output  
+- Be stable across versions  
+- Contain no logic outside serialization  
+
+Used for:
+- WebSocket transmission  
+- Replays  
+- Debugging tools  
+- Testing  
+
+---
+
+## 11. Replay System Requirements
+
+A match must be fully reproducible from:
+
+- Initial GameState  
+- RNG seed  
+- Ordered list of Actions  
+
+This enables:
+- Tournament logs  
+- Spectator mode  
+- Server resimulation  
+- AI training  
+- Anti-cheat comparison  
+
+---
+
+## 12. Security Model
+
+- The Server is always authoritative  
+- Client input is never trusted  
+- All validation occurs server-side  
+- Engine must assume inputs are hostile  
+- Replay logs are the single source of truth  
+
+---
+
+## 13. Extensibility Strategy
+
+Architecture must support future modules:
+
+- New unit types  
+- Item & equipment system  
+- Buff & debuff system  
+- Terrain system  
+- Fog-of-war  
+- SPD bridging / shared arena  
+- Bots & AI players  
+
+All must integrate **without breaking determinism**.
+
+ENGINE should remain stable and unchanged unless strictly necessary.
+
+---
+
+## 14. Development Principles
+
+- Engine first, server second, client last  
+- No rules outside Engine  
+- No state mutation outside RuleEngine  
+- Determinism over convenience  
+- Strong modular boundaries  
+- No duplication of logic  
+- Prefer composition over inheritance  
+- Everything must be serializable  
+- Avoid magic numbers  
+- Never violate Action or GameState formats  
+
+---
+
+## 15. Summary
+
+This TECH_ARCH defines:
+- The responsibilities of Engine, Server, and Client  
+- Determinism and replay requirements  
+- The allowed data models  
+- The action system design  
+- The role of RuleEngine  
+- The serialization contract  
+- Long-term extensibility strategy  
+
+All other documents (ENGINE_SKELETON_V1, GAME_RULES_V1, WS_PROTOCOL_V1) must conform to this architecture.
+
+---
+
+# End of TECH_ARCH.md
