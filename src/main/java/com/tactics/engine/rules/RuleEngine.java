@@ -287,7 +287,222 @@ public class RuleEngine {
     }
 
     public GameState applyAction(GameState state, Action action) {
-        // Logic to be implemented
+        ActionType type = action.getType();
+
+        if (type == ActionType.END_TURN) {
+            // Switch current player
+            String current = state.getCurrentPlayer().getValue();
+            String next = current.equals("P1") ? "P2" : "P1";
+            return new GameState(
+                state.getBoard(),
+                state.getUnits(),
+                new com.tactics.engine.model.PlayerId(next),
+                state.isGameOver(),
+                state.getWinner()
+            );
+        }
+
+        if (type == ActionType.MOVE) {
+            Position targetPos = action.getTargetPosition();
+
+            // Find the unique mover (alive friendly unit adjacent to target)
+            Unit mover = null;
+            for (Unit u : state.getUnits()) {
+                if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+                    int dx = targetPos.getX() - u.getPosition().getX();
+                    int dy = targetPos.getY() - u.getPosition().getY();
+                    if ((dx == 0 && (dy == 1 || dy == -1)) || (dy == 0 && (dx == 1 || dx == -1))) {
+                        mover = u;
+                        break;
+                    }
+                }
+            }
+
+            // Create new units list with updated position
+            java.util.List<Unit> newUnits = new java.util.ArrayList<>();
+            for (Unit u : state.getUnits()) {
+                if (u.getId().equals(mover.getId())) {
+                    newUnits.add(new Unit(u.getId(), u.getOwner(), u.getHp(), u.getAttack(), targetPos, u.isAlive()));
+                } else {
+                    newUnits.add(u);
+                }
+            }
+
+            // Check game over (no change expected from MOVE, but be consistent)
+            boolean isGameOver = false;
+            com.tactics.engine.model.PlayerId winner = null;
+            boolean p1HasAlive = false;
+            boolean p2HasAlive = false;
+            for (Unit u : newUnits) {
+                if (u.isAlive()) {
+                    if (u.getOwner().getValue().equals("P1")) {
+                        p1HasAlive = true;
+                    } else {
+                        p2HasAlive = true;
+                    }
+                }
+            }
+            if (!p1HasAlive) {
+                isGameOver = true;
+                winner = new com.tactics.engine.model.PlayerId("P2");
+            } else if (!p2HasAlive) {
+                isGameOver = true;
+                winner = new com.tactics.engine.model.PlayerId("P1");
+            }
+
+            // MOVE does not switch turn
+            return new GameState(
+                state.getBoard(),
+                newUnits,
+                state.getCurrentPlayer(),
+                isGameOver,
+                winner
+            );
+        }
+
+        if (type == ActionType.ATTACK) {
+            String targetUnitId = action.getTargetUnitId();
+            Position targetPos = action.getTargetPosition();
+
+            // Find target unit and attacker
+            Unit targetUnit = null;
+            Unit attacker = null;
+            for (Unit u : state.getUnits()) {
+                if (u.getId().equals(targetUnitId)) {
+                    targetUnit = u;
+                }
+                if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+                    int dx = targetPos.getX() - u.getPosition().getX();
+                    int dy = targetPos.getY() - u.getPosition().getY();
+                    if ((dx == 0 && (dy == 1 || dy == -1)) || (dy == 0 && (dx == 1 || dx == -1))) {
+                        attacker = u;
+                    }
+                }
+            }
+
+            // Calculate new HP
+            int newHp = targetUnit.getHp() - attacker.getAttack();
+            boolean alive = newHp > 0;
+
+            // Create new units list
+            java.util.List<Unit> newUnits = new java.util.ArrayList<>();
+            for (Unit u : state.getUnits()) {
+                if (u.getId().equals(targetUnitId)) {
+                    newUnits.add(new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(), u.getPosition(), alive));
+                } else {
+                    newUnits.add(u);
+                }
+            }
+
+            // Check game over
+            boolean isGameOver = false;
+            com.tactics.engine.model.PlayerId winner = null;
+            boolean p1HasAlive = false;
+            boolean p2HasAlive = false;
+            for (Unit u : newUnits) {
+                if (u.isAlive()) {
+                    if (u.getOwner().getValue().equals("P1")) {
+                        p1HasAlive = true;
+                    } else {
+                        p2HasAlive = true;
+                    }
+                }
+            }
+            if (!p1HasAlive) {
+                isGameOver = true;
+                winner = new com.tactics.engine.model.PlayerId("P2");
+            } else if (!p2HasAlive) {
+                isGameOver = true;
+                winner = new com.tactics.engine.model.PlayerId("P1");
+            }
+
+            // ATTACK does not switch turn
+            return new GameState(
+                state.getBoard(),
+                newUnits,
+                state.getCurrentPlayer(),
+                isGameOver,
+                winner
+            );
+        }
+
+        if (type == ActionType.MOVE_AND_ATTACK) {
+            Position targetPos = action.getTargetPosition();
+            String targetUnitId = action.getTargetUnitId();
+
+            // Find mover
+            Unit mover = null;
+            for (Unit u : state.getUnits()) {
+                if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+                    int dx = targetPos.getX() - u.getPosition().getX();
+                    int dy = targetPos.getY() - u.getPosition().getY();
+                    if ((dx == 0 && (dy == 1 || dy == -1)) || (dy == 0 && (dx == 1 || dx == -1))) {
+                        mover = u;
+                        break;
+                    }
+                }
+            }
+
+            // Find target
+            Unit targetUnit = null;
+            for (Unit u : state.getUnits()) {
+                if (u.getId().equals(targetUnitId)) {
+                    targetUnit = u;
+                    break;
+                }
+            }
+
+            // Calculate new HP for target
+            int newHp = targetUnit.getHp() - mover.getAttack();
+            boolean targetAlive = newHp > 0;
+
+            // Create new units list with mover at new position and target with new HP
+            java.util.List<Unit> newUnits = new java.util.ArrayList<>();
+            for (Unit u : state.getUnits()) {
+                if (u.getId().equals(mover.getId())) {
+                    newUnits.add(new Unit(u.getId(), u.getOwner(), u.getHp(), u.getAttack(), targetPos, u.isAlive()));
+                } else if (u.getId().equals(targetUnitId)) {
+                    newUnits.add(new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(), u.getPosition(), targetAlive));
+                } else {
+                    newUnits.add(u);
+                }
+            }
+
+            // Check game over
+            boolean isGameOver = false;
+            com.tactics.engine.model.PlayerId winner = null;
+            boolean p1HasAlive = false;
+            boolean p2HasAlive = false;
+            for (Unit u : newUnits) {
+                if (u.isAlive()) {
+                    if (u.getOwner().getValue().equals("P1")) {
+                        p1HasAlive = true;
+                    } else {
+                        p2HasAlive = true;
+                    }
+                }
+            }
+            if (!p1HasAlive) {
+                isGameOver = true;
+                winner = new com.tactics.engine.model.PlayerId("P2");
+            } else if (!p2HasAlive) {
+                isGameOver = true;
+                winner = new com.tactics.engine.model.PlayerId("P1");
+            }
+
+            // MOVE_AND_ATTACK switches turn
+            String current = state.getCurrentPlayer().getValue();
+            String next = current.equals("P1") ? "P2" : "P1";
+            return new GameState(
+                state.getBoard(),
+                newUnits,
+                new com.tactics.engine.model.PlayerId(next),
+                isGameOver,
+                winner
+            );
+        }
+
+        // Should not reach here if validation passed
         return null;
     }
 }
