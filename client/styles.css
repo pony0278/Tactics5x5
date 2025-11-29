@@ -121,6 +121,20 @@ body {
     background-color: #a5d6a7;
 }
 
+.cell.attack-target {
+    background-color: #ffcdd2;
+    border: 2px dashed #f44336;
+}
+
+.cell.attack-target:hover {
+    background-color: #ef9a9a;
+}
+
+.cell.move-destination {
+    background-color: #bbdefb;
+    border: 2px solid #2196f3;
+}
+
 /* =============================================================================
    Unit Styles
    ============================================================================= */
@@ -194,6 +208,23 @@ body {
     font-weight: 600;
 }
 
+/* Turn indicator - highlight current turn */
+#current-turn {
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+#current-turn.my-turn {
+    background-color: #c8e6c9;
+    border: 2px solid #4caf50;
+}
+
+#current-turn.opponent-turn {
+    background-color: #ffecb3;
+    border: 2px solid #ffc107;
+}
+
 /* Status Area */
 #status {
     background-color: white;
@@ -262,6 +293,11 @@ body {
 #action-buttons button:disabled {
     background-color: #bdbdbd;
     cursor: not-allowed;
+}
+
+#action-buttons button.active {
+    box-shadow: 0 0 0 3px #333;
+    transform: scale(1.02);
 }
 
 /* Error Section */

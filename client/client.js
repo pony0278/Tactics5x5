@@ -190,14 +190,26 @@ function handleMatchJoined(payload) {
  * @param {object} payload - { state }
  */
 function handleStateUpdate(payload) {
-    // TODO: Implement handleStateUpdate
     console.log("State update:", payload);
     clientState.gameState = payload.state;
     clientState.pendingActionType = null;
+    clientState.moveTarget = null;
     clientState.lastErrorMessage = null;
 
+    // Clear selection if the selected unit is no longer alive
+    if (clientState.selectedUnitId && clientState.gameState.units) {
+        const selectedUnit = clientState.gameState.units.find(u => u.id === clientState.selectedUnitId);
+        if (!selectedUnit || !selectedUnit.alive) {
+            clientState.selectedUnitId = null;
+        }
+    }
+
+    clearError();
     renderBoard();
     renderControls();
+
+    // Log turn change
+    logMessage("Turn: " + (clientState.gameState.currentPlayer || "--"));
 }
 
 /**
@@ -205,11 +217,18 @@ function handleStateUpdate(payload) {
  * @param {object} payload - { message, action }
  */
 function handleValidationError(payload) {
-    // TODO: Implement handleValidationError
     console.log("Validation error:", payload);
     clientState.lastErrorMessage = payload.message;
 
+    // Clear pending action on error so user can try again
+    clientState.pendingActionType = null;
+    clientState.moveTarget = null;
+
     renderError(payload.message);
+    renderBoard();
+    renderControls();
+
+    logMessage("Error: " + payload.message);
 }
 
 /**
@@ -285,6 +304,14 @@ function renderBoard() {
                     cell.classList.add("selected");
                 }
 
+                // Mark enemy units as attack targets when ATTACK is pending
+                if (clientState.pendingActionType === "ATTACK" ||
+                    clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET") {
+                    if (unit.owner !== clientState.playerId) {
+                        cell.classList.add("attack-target");
+                    }
+                }
+
                 // Show unit info
                 unitEl.innerHTML = `
                     <div class="unit-id">${unit.id}</div>
@@ -304,25 +331,51 @@ function renderBoard() {
     if (clientState.pendingActionType === "MOVE" && clientState.selectedUnitId) {
         highlightValidMoves();
     }
+
+    // Highlight valid move targets for MOVE_AND_ATTACK
+    if (clientState.pendingActionType === "MOVE_AND_ATTACK" && clientState.selectedUnitId) {
+        highlightValidMoves();
+    }
+
+    // Highlight the selected move destination during MOVE_AND_ATTACK target selection
+    if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET" && clientState.moveTarget) {
+        const moveCell = document.querySelector(
+            `.cell[data-x="${clientState.moveTarget.x}"][data-y="${clientState.moveTarget.y}"]`
+        );
+        if (moveCell) {
+            moveCell.classList.add("move-destination");
+        }
+    }
 }
 
 /**
  * Render the controls panel (status, player info, etc.).
  */
 function renderControls() {
-    // TODO: Implement renderControls
     console.log("renderControls called");
 
     // Update local player display
     const localPlayerEl = document.getElementById("local-player-id");
     if (localPlayerEl) {
-        localPlayerEl.textContent = clientState.playerId;
+        localPlayerEl.textContent = clientState.playerId || "--";
     }
 
     // Update current turn display
     const currentPlayerEl = document.getElementById("current-player");
+    const currentTurnEl = document.getElementById("current-turn");
     if (currentPlayerEl && clientState.gameState) {
         currentPlayerEl.textContent = clientState.gameState.currentPlayer || "--";
+
+        // Add turn indicator styling
+        if (currentTurnEl) {
+            const isMyTurn = clientState.gameState.currentPlayer === clientState.playerId;
+            currentTurnEl.classList.remove("my-turn", "opponent-turn");
+            if (isMyTurn) {
+                currentTurnEl.classList.add("my-turn");
+            } else {
+                currentTurnEl.classList.add("opponent-turn");
+            }
+        }
     }
 
     // Update match ID display
@@ -340,7 +393,61 @@ function renderControls() {
     // Update pending action display
     const pendingActionEl = document.getElementById("pending-action");
     if (pendingActionEl) {
-        pendingActionEl.textContent = clientState.pendingActionType || "None";
+        let pendingText = clientState.pendingActionType || "None";
+        if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET") {
+            pendingText = "MOVE_AND_ATTACK (select target)";
+        }
+        pendingActionEl.textContent = pendingText;
+    }
+
+    // Update button states
+    updateButtonStates();
+}
+
+/**
+ * Update action button enabled/disabled states.
+ */
+function updateButtonStates() {
+    const btnMove = document.getElementById("btn-move");
+    const btnAttack = document.getElementById("btn-attack");
+    const btnMoveAttack = document.getElementById("btn-move-attack");
+    const btnEndTurn = document.getElementById("btn-end-turn");
+
+    // Determine if it's this player's turn
+    const isMyTurn = clientState.gameState &&
+        clientState.gameState.currentPlayer === clientState.playerId;
+
+    // Determine if game is over
+    const isGameOver = clientState.gameState &&
+        (clientState.gameState.isGameOver || clientState.gameState.gameOver);
+
+    // Determine if a unit is selected
+    const hasSelection = clientState.selectedUnitId !== null;
+
+    // MOVE, ATTACK, MOVE+ATTACK require: my turn, not game over, unit selected
+    const canAct = isMyTurn && !isGameOver && hasSelection;
+
+    if (btnMove) {
+        btnMove.disabled = !canAct;
+        // Highlight if this is the pending action
+        btnMove.classList.toggle("active", clientState.pendingActionType === "MOVE");
+    }
+
+    if (btnAttack) {
+        btnAttack.disabled = !canAct;
+        btnAttack.classList.toggle("active", clientState.pendingActionType === "ATTACK");
+    }
+
+    if (btnMoveAttack) {
+        btnMoveAttack.disabled = !canAct;
+        btnMoveAttack.classList.toggle("active",
+            clientState.pendingActionType === "MOVE_AND_ATTACK" ||
+            clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET");
+    }
+
+    // END TURN only requires: my turn, not game over
+    if (btnEndTurn) {
+        btnEndTurn.disabled = !(isMyTurn && !isGameOver);
     }
 }
 
@@ -436,6 +543,9 @@ function handleCellClick(event) {
     const cell = event.target.closest(".cell");
     if (!cell) return;
 
+    // Ignore clicks if no game state
+    if (!clientState.gameState) return;
+
     const x = parseInt(cell.dataset.x, 10);
     const y = parseInt(cell.dataset.y, 10);
 
@@ -445,24 +555,49 @@ function handleCellClick(event) {
     // Find unit at clicked position
     const unitAtCell = findUnitAt(x, y);
 
-    // If no pending action, clicking a friendly unit selects it
+    // Check if it's this player's turn
+    const isMyTurn = clientState.gameState.currentPlayer === clientState.playerId;
+
+    // If no pending action, handle unit selection
     if (!clientState.pendingActionType) {
         if (unitAtCell && unitAtCell.owner === clientState.playerId && unitAtCell.alive) {
+            // Select this unit
             clientState.selectedUnitId = unitAtCell.id;
             renderBoard();
             renderControls();
             logMessage("Selected unit: " + unitAtCell.id);
+        } else if (unitAtCell) {
+            // Clicked on enemy unit - just show info
+            logMessage("Enemy unit: " + unitAtCell.id + " (HP:" + unitAtCell.hp + ")");
+        } else {
+            // Clicked empty cell - deselect
+            if (clientState.selectedUnitId) {
+                clientState.selectedUnitId = null;
+                renderBoard();
+                renderControls();
+            }
         }
         return;
     }
 
     // Handle pending MOVE action
     if (clientState.pendingActionType === "MOVE") {
+        // Clicking own unit changes selection
+        if (unitAtCell && unitAtCell.owner === clientState.playerId && unitAtCell.alive) {
+            clientState.selectedUnitId = unitAtCell.id;
+            renderBoard();
+            renderControls();
+            logMessage("Changed selection to: " + unitAtCell.id);
+            return;
+        }
+
         if (!unitAtCell) {
             // Empty cell - send move action
+            logMessage("Moving to (" + x + "," + y + ")");
             sendAction("MOVE", x, y, null);
-            clientState.selectedUnitId = null;
+            // Keep selection but clear pending action (server will update state)
             clientState.pendingActionType = null;
+            renderBoard();
             renderControls();
         } else {
             renderError("Cannot move to occupied cell");
@@ -472,10 +607,21 @@ function handleCellClick(event) {
 
     // Handle pending ATTACK action
     if (clientState.pendingActionType === "ATTACK") {
+        // Clicking own unit changes selection
+        if (unitAtCell && unitAtCell.owner === clientState.playerId && unitAtCell.alive) {
+            clientState.selectedUnitId = unitAtCell.id;
+            renderBoard();
+            renderControls();
+            logMessage("Changed selection to: " + unitAtCell.id);
+            return;
+        }
+
         if (unitAtCell && unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
+            logMessage("Attacking " + unitAtCell.id);
             sendAction("ATTACK", x, y, unitAtCell.id);
-            clientState.selectedUnitId = null;
+            // Keep selection but clear pending action
             clientState.pendingActionType = null;
+            renderBoard();
             renderControls();
         } else {
             renderError("Select an enemy unit to attack");
@@ -483,35 +629,45 @@ function handleCellClick(event) {
         return;
     }
 
-    // Handle pending MOVE_AND_ATTACK action
+    // Handle pending MOVE_AND_ATTACK action (step 1: select move destination)
     if (clientState.pendingActionType === "MOVE_AND_ATTACK") {
-        // First click selects move destination (empty cell)
-        // For simplicity, we'll require selecting an empty cell, then prompting for target
-        // In a more complete implementation, this would be a two-step process
+        // Clicking own unit changes selection
+        if (unitAtCell && unitAtCell.owner === clientState.playerId && unitAtCell.alive) {
+            clientState.selectedUnitId = unitAtCell.id;
+            renderBoard();
+            renderControls();
+            logMessage("Changed selection to: " + unitAtCell.id);
+            return;
+        }
+
         if (!unitAtCell) {
             // Store the move target temporarily
             clientState.moveTarget = { x, y };
             clientState.pendingActionType = "MOVE_AND_ATTACK_SELECT_TARGET";
-            renderError("Now click an enemy unit to attack");
+            logMessage("Move destination: (" + x + "," + y + "). Now select enemy to attack.");
+            renderBoard();
             renderControls();
         } else if (unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
-            // Direct attack without move (fallback)
-            sendAction("MOVE_AND_ATTACK", x, y, unitAtCell.id);
-            clientState.selectedUnitId = null;
-            clientState.pendingActionType = null;
-            renderControls();
+            // Clicked enemy - can't directly attack without moving first
+            renderError("First select an empty cell to move to, then select enemy");
         }
         return;
     }
 
-    // Handle MOVE_AND_ATTACK target selection
+    // Handle MOVE_AND_ATTACK target selection (step 2: select enemy)
     if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET") {
         if (unitAtCell && unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
+            logMessage("Move+Attack: moving to (" + clientState.moveTarget.x + "," + clientState.moveTarget.y + ") then attacking " + unitAtCell.id);
             sendAction("MOVE_AND_ATTACK", clientState.moveTarget.x, clientState.moveTarget.y, unitAtCell.id);
-            clientState.selectedUnitId = null;
             clientState.pendingActionType = null;
             clientState.moveTarget = null;
+            renderBoard();
             renderControls();
+        } else if (!unitAtCell) {
+            // Clicked empty - change move destination
+            clientState.moveTarget = { x, y };
+            logMessage("Changed move destination to: (" + x + "," + y + "). Now select enemy to attack.");
+            renderBoard();
         } else {
             renderError("Select an enemy unit to attack");
         }
@@ -571,37 +727,57 @@ function highlightValidMoves() {
  * Handle Move button click.
  */
 function handleMoveClick() {
+    if (!clientState.selectedUnitId) {
+        renderError("Select a unit first");
+        return;
+    }
     clientState.pendingActionType = "MOVE";
+    clearError();
+    renderBoard();
     renderControls();
-    console.log("Move action selected");
+    logMessage("Action: MOVE - click an empty cell");
 }
 
 /**
  * Handle Attack button click.
  */
 function handleAttackClick() {
+    if (!clientState.selectedUnitId) {
+        renderError("Select a unit first");
+        return;
+    }
     clientState.pendingActionType = "ATTACK";
+    clearError();
+    renderBoard();
     renderControls();
-    console.log("Attack action selected");
+    logMessage("Action: ATTACK - click an enemy unit");
 }
 
 /**
  * Handle Move+Attack button click.
  */
 function handleMoveAttackClick() {
+    if (!clientState.selectedUnitId) {
+        renderError("Select a unit first");
+        return;
+    }
     clientState.pendingActionType = "MOVE_AND_ATTACK";
+    clearError();
+    renderBoard();
     renderControls();
-    console.log("Move+Attack action selected");
+    logMessage("Action: MOVE+ATTACK - click empty cell, then enemy");
 }
 
 /**
  * Handle End Turn button click.
  */
 function handleEndTurnClick() {
+    logMessage("Ending turn...");
     sendAction("END_TURN", null, null, null);
     clientState.pendingActionType = null;
+    clientState.selectedUnitId = null;
+    renderBoard();
     renderControls();
-    console.log("End Turn sent");
 }
 
 // =============================================================================
