@@ -9,13 +9,15 @@ import com.tactics.server.ws.MatchWebSocketHandler;
 import com.tactics.server.ws.TacticsWebSocketEndpoint;
 
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.ContextHandler;
 import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.handler.ResourceHandler;
-import org.eclipse.jetty.websocket.server.WebSocketUpgradeHandler;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.websocket.server.config.JettyWebSocketServletContainerInitializer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.time.Duration;
 
 /**
  * Main entry point for the Tactics 5x5 server.
@@ -48,25 +50,26 @@ public class Main {
         // Create Jetty server
         Server server = new Server(port);
 
+        // Create servlet context handler for WebSocket
+        ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
+        context.setContextPath("/");
+
+        // Configure WebSocket
+        JettyWebSocketServletContainerInitializer.configure(context, (servletContext, wsContainer) -> {
+            wsContainer.setIdleTimeout(Duration.ofMinutes(10));
+            wsContainer.addMapping("/ws", (req, resp) -> new TacticsWebSocketEndpoint(wsHandler, connectionRegistry));
+        });
+
         // Static file handler for client files
         ResourceHandler resourceHandler = new ResourceHandler();
         resourceHandler.setDirectoriesListed(false);
         resourceHandler.setWelcomeFiles(new String[]{"index.html"});
         resourceHandler.setResourceBase("client");
 
-        ContextHandler staticContext = new ContextHandler("/");
-        staticContext.setHandler(resourceHandler);
-
-        // WebSocket handler
-        WebSocketUpgradeHandler wsUpgradeHandler = WebSocketUpgradeHandler.from(server, container -> {
-            container.setIdleTimeout(java.time.Duration.ofMinutes(10));
-            container.addMapping("/ws", (req, resp) -> new TacticsWebSocketEndpoint(wsHandler, connectionRegistry));
-        });
-
-        // Combine handlers
+        // Combine handlers - context first for WebSocket, then static files
         HandlerList handlers = new HandlerList();
-        handlers.addHandler(wsUpgradeHandler);
-        handlers.addHandler(staticContext);
+        handlers.addHandler(context);
+        handlers.addHandler(resourceHandler);
 
         server.setHandler(handlers);
 
