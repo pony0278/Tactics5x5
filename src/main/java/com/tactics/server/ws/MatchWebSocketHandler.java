@@ -176,8 +176,8 @@ public class MatchWebSocketHandler {
             return;
         }
 
-        // Build engine Action from ActionPayload
-        Action action = buildAction(actionPayload);
+        // Build engine Action from ActionPayload (include playerId for validation)
+        Action action = buildAction(actionPayload, playerId);
         if (action == null) {
             sendValidationError(connection, "Invalid action type: " + actionPayload.getType(), actionPayload);
             return;
@@ -219,7 +219,7 @@ public class MatchWebSocketHandler {
         return new ActionPayload(type, targetX, targetY, targetUnitId);
     }
 
-    private Action buildAction(ActionPayload actionPayload) {
+    private Action buildAction(ActionPayload actionPayload, String playerId) {
         ActionType actionType;
         try {
             actionType = ActionType.valueOf(actionPayload.getType());
@@ -232,9 +232,8 @@ public class MatchWebSocketHandler {
             targetPosition = new Position(actionPayload.getTargetX(), actionPayload.getTargetY());
         }
 
-        // Note: Action constructor expects PlayerId, but we pass null here
-        // The playerId is passed separately to MatchService.applyAction
-        return new Action(actionType, null, targetPosition, actionPayload.getTargetUnitId());
+        // Include playerId in Action for RuleEngine validation
+        return new Action(actionType, new PlayerId(playerId), targetPosition, actionPayload.getTargetUnitId());
     }
 
     private void broadcastToMatch(String matchId, String jsonMessage) {
