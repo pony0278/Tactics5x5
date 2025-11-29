@@ -20,6 +20,8 @@ public class TacticsWebSocketEndpoint implements WebSocketListener, ClientConnec
     private final MatchWebSocketHandler handler;
     private final ConnectionRegistry connectionRegistry;
     private Session session;
+    private String matchId;
+    private String playerId;
 
     public TacticsWebSocketEndpoint(MatchWebSocketHandler handler, ConnectionRegistry connectionRegistry) {
         this.id = UUID.randomUUID().toString();
@@ -72,6 +74,26 @@ public class TacticsWebSocketEndpoint implements WebSocketListener, ClientConnec
     @Override
     public String getId() {
         return id;
+    }
+
+    @Override
+    public String getMatchId() {
+        return matchId;
+    }
+
+    @Override
+    public void setMatchId(String matchId) {
+        this.matchId = matchId;
+    }
+
+    @Override
+    public String getPlayerId() {
+        return playerId;
+    }
+
+    @Override
+    public void setPlayerId(String playerId) {
+        this.playerId = playerId;
     }
 
     @Override

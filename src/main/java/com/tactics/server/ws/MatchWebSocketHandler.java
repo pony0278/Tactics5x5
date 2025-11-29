@@ -40,6 +40,23 @@ public class MatchWebSocketHandler {
 
     public void onClose(ClientConnection connection) {
         connectionRegistry.unregister(connection);
+
+        // Remove from match if joined
+        String matchId = connection.getMatchId();
+        String playerId = connection.getPlayerId();
+        if (matchId != null && playerId != null) {
+            Match match = matchService.findMatch(matchId);
+            if (match != null) {
+                ClientSlot slot = "P1".equals(playerId) ? ClientSlot.P1 : ClientSlot.P2;
+                match.getConnections().remove(slot);
+
+                // Notify remaining player
+                OutgoingMessage disconnectMsg = new OutgoingMessage("player_disconnected",
+                    java.util.Map.of("playerId", playerId));
+                String json = JsonHelper.toJson(disconnectMsg);
+                broadcastToMatch(matchId, json);
+            }
+        }
     }
 
     public void onMessage(ClientConnection connection, String text) {
@@ -80,29 +97,59 @@ public class MatchWebSocketHandler {
     }
 
     private void handleJoinMatch(ClientConnection connection, Map<String, Object> payload) {
-        // Extract matchId and playerId from payload
+        // Extract matchId from payload
         String matchId = getStringFromPayload(payload, "matchId");
-        String playerId = getStringFromPayload(payload, "playerId");
 
-        if (matchId == null || playerId == null) {
-            sendValidationError(connection, "Missing matchId or playerId in join_match", null);
+        if (matchId == null) {
+            sendValidationError(connection, "Missing matchId in join_match", null);
             return;
         }
 
         // Get or create match
         Match match = matchService.getOrCreateMatch(matchId);
+        Map<ClientSlot, ClientConnection> connections = match.getConnections();
+
+        // Assign player to first available slot
+        String assignedPlayerId;
+        ClientSlot assignedSlot;
+
+        if (!connections.containsKey(ClientSlot.P1)) {
+            assignedSlot = ClientSlot.P1;
+            assignedPlayerId = "P1";
+            connections.put(ClientSlot.P1, connection);
+        } else if (!connections.containsKey(ClientSlot.P2)) {
+            assignedSlot = ClientSlot.P2;
+            assignedPlayerId = "P2";
+            connections.put(ClientSlot.P2, connection);
+        } else {
+            sendValidationError(connection, "Match is full", null);
+            return;
+        }
+
+        // Store match/player info on the connection for cleanup on disconnect
+        connection.setMatchId(matchId);
+        connection.setPlayerId(assignedPlayerId);
+
         GameState state = match.getState();
 
         // Serialize the GameState
         Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(state);
 
-        // Build MatchJoinedPayload
-        MatchJoinedPayload responsePayload = new MatchJoinedPayload(matchId, playerId, stateMap);
+        // Build MatchJoinedPayload with server-assigned playerId
+        MatchJoinedPayload responsePayload = new MatchJoinedPayload(matchId, assignedPlayerId, stateMap);
         OutgoingMessage response = new OutgoingMessage("match_joined", responsePayload);
 
-        // Send only to this connection
+        // Send to this connection
         String jsonResponse = JsonHelper.toJson(response);
         connection.sendMessage(jsonResponse);
+
+        // Notify if both players are now connected
+        if (connections.size() == 2) {
+            OutgoingMessage gameReady = new OutgoingMessage("game_ready",
+                java.util.Map.of("message", "Both players connected. Game starting!"));
+            String readyJson = JsonHelper.toJson(gameReady);
+            broadcastToMatch(matchId, readyJson);
+        }
     }
 
     private void handleAction(ClientConnection connection, Map<String, Object> payload) {

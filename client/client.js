@@ -15,7 +15,7 @@ const WS_URL = "ws://localhost:8080/ws"; // Placeholder URL
 
 const clientState = {
     matchId: "match-1",       // Hard-coded for V1
-    playerId: "P1",           // Hard-coded for V1 (can be toggled to "P2")
+    playerId: null,           // Server-assigned (P1 or P2)
     connected: false,
     gameState: null,          // Last GameState from server
     selectedUnitId: null,     // String or null
@@ -74,12 +74,10 @@ function connectWebSocket() {
  * Send join_match message to server.
  */
 function sendJoinMatch() {
-    // TODO: Implement sendJoinMatch
     const message = {
         type: "join_match",
         payload: {
-            matchId: clientState.matchId,
-            playerId: clientState.playerId
+            matchId: clientState.matchId
         }
     };
 
@@ -152,6 +150,12 @@ function handleServerMessage(data) {
             case "game_over":
                 handleGameOver(payload);
                 break;
+            case "game_ready":
+                handleGameReady(payload);
+                break;
+            case "player_disconnected":
+                handlePlayerDisconnected(payload);
+                break;
             default:
                 console.warn("Unknown message type:", type);
         }
@@ -165,12 +169,17 @@ function handleServerMessage(data) {
  * @param {object} payload - { matchId, playerId, state }
  */
 function handleMatchJoined(payload) {
-    // TODO: Implement handleMatchJoined
     console.log("Match joined:", payload);
+
+    // Store server-assigned playerId
+    clientState.playerId = payload.playerId;
+    clientState.matchId = payload.matchId;
     clientState.gameState = payload.state;
     clientState.selectedUnitId = null;
     clientState.pendingActionType = null;
     clientState.lastErrorMessage = null;
+
+    logMessage("Joined as " + payload.playerId);
 
     renderBoard();
     renderControls();
@@ -208,13 +217,31 @@ function handleValidationError(payload) {
  * @param {object} payload - { winner, state }
  */
 function handleGameOver(payload) {
-    // TODO: Implement handleGameOver
     console.log("Game over:", payload);
     clientState.gameState = payload.state;
 
     renderBoard();
     renderControls();
     showGameOver(payload.winner);
+}
+
+/**
+ * Handle game_ready message (both players connected).
+ * @param {object} payload - { message }
+ */
+function handleGameReady(payload) {
+    console.log("Game ready:", payload);
+    logMessage(payload.message || "Both players connected!");
+}
+
+/**
+ * Handle player_disconnected message.
+ * @param {object} payload - { playerId }
+ */
+function handlePlayerDisconnected(payload) {
+    console.log("Player disconnected:", payload);
+    logMessage("Player " + payload.playerId + " disconnected");
+    renderError("Opponent disconnected");
 }
 
 // =============================================================================
