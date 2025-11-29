@@ -1,14 +1,12 @@
 package com.tactics.server.core;
 
 import com.tactics.engine.action.Action;
-import com.tactics.engine.model.Board;
 import com.tactics.engine.model.GameState;
 import com.tactics.engine.model.PlayerId;
 import com.tactics.engine.rules.RuleEngine;
 import com.tactics.engine.rules.ValidationResult;
+import com.tactics.engine.util.GameStateFactory;
 import com.tactics.engine.util.GameStateSerializer;
-
-import java.util.ArrayList;
 
 /**
  * High-level service for orchestrating match operations.
@@ -44,20 +42,8 @@ public class MatchService {
         if (existing != null) {
             return existing;
         }
-        // Create initial GameState per SERVER_TECH_ARCH_V1:
-        // - 5x5 board
-        // - Empty units list (predefined placements optional for prototype)
-        // - currentPlayer = P1
-        // - isGameOver = false
-        // - winner = null
-        Board board = new Board(5, 5);
-        GameState initialState = new GameState(
-            board,
-            new ArrayList<>(),
-            new PlayerId("P1"),
-            false,
-            null
-        );
+        // Create initial GameState with standard unit placement
+        GameState initialState = GameStateFactory.createStandardGame();
         return matchRegistry.createMatch(matchId, initialState);
     }
 

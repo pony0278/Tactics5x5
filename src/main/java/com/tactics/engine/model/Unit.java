@@ -1,5 +1,7 @@
 package com.tactics.engine.model;
 
+import java.util.Objects;
+
 /**
  * Represents a unit on the board.
  */
@@ -43,5 +45,30 @@ public class Unit {
 
     public boolean isAlive() {
         return alive;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Unit unit = (Unit) o;
+        return hp == unit.hp &&
+               attack == unit.attack &&
+               alive == unit.alive &&
+               Objects.equals(id, unit.id) &&
+               Objects.equals(owner, unit.owner) &&
+               Objects.equals(position, unit.position);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, owner, hp, attack, position, alive);
+    }
+
+    @Override
+    public String toString() {
+        return "Unit{id='" + id + "', owner=" + owner +
+               ", hp=" + hp + ", attack=" + attack +
+               ", position=" + position + ", alive=" + alive + "}";
     }
 }

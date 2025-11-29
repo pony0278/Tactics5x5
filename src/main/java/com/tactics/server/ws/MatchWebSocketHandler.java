@@ -43,10 +43,23 @@ public class MatchWebSocketHandler {
     }
 
     public void onMessage(ClientConnection connection, String text) {
-        // Parse JSON
-        IncomingMessage message = JsonHelper.parseIncomingMessage(text);
+        // Validate input
+        if (text == null || text.trim().isEmpty()) {
+            sendValidationError(connection, "Empty message received", null);
+            return;
+        }
+
+        // Parse JSON with error handling
+        IncomingMessage message;
+        try {
+            message = JsonHelper.parseIncomingMessage(text);
+        } catch (Exception e) {
+            sendValidationError(connection, "Failed to parse JSON: " + e.getMessage(), null);
+            return;
+        }
+
         if (message == null || message.getType() == null) {
-            sendValidationError(connection, "Invalid JSON format", null);
+            sendValidationError(connection, "Invalid message format: missing 'type' field", null);
             return;
         }
 

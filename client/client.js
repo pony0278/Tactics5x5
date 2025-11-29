@@ -225,7 +225,6 @@ function handleGameOver(payload) {
  * Render the 5x5 board based on current gameState.
  */
 function renderBoard() {
-    // TODO: Implement renderBoard
     console.log("renderBoard called");
 
     // Clear all cells
@@ -237,7 +236,46 @@ function renderBoard() {
 
     // Render units if gameState exists
     if (clientState.gameState && clientState.gameState.units) {
-        // TODO: Render units in cells
+        clientState.gameState.units.forEach(unit => {
+            if (!unit.alive) return; // Don't render dead units
+
+            const x = unit.position.x;
+            const y = unit.position.y;
+            const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+
+            if (cell) {
+                // Create unit element
+                const unitEl = document.createElement("div");
+                unitEl.className = "unit";
+                unitEl.dataset.unitId = unit.id;
+
+                // Add owner class for styling
+                unitEl.classList.add(unit.owner === "P1" ? "player1" : "player2");
+
+                // Add selected class if this unit is selected
+                if (clientState.selectedUnitId === unit.id) {
+                    unitEl.classList.add("selected");
+                    cell.classList.add("selected");
+                }
+
+                // Show unit info
+                unitEl.innerHTML = `
+                    <div class="unit-id">${unit.id}</div>
+                    <div class="unit-stats">HP:${unit.hp} ATK:${unit.attack}</div>
+                `;
+
+                cell.appendChild(unitEl);
+
+                // Mark cell as occupied
+                cell.classList.add("occupied");
+                cell.classList.add(unit.owner === "P1" ? "p1-unit" : "p2-unit");
+            }
+        });
+    }
+
+    // Highlight valid move targets if MOVE is pending
+    if (clientState.pendingActionType === "MOVE" && clientState.selectedUnitId) {
+        highlightValidMoves();
     }
 }
 
@@ -375,7 +413,131 @@ function handleCellClick(event) {
     const y = parseInt(cell.dataset.y, 10);
 
     console.log("Cell clicked:", x, y);
-    // TODO: Implement cell click logic
+    clearError();
+
+    // Find unit at clicked position
+    const unitAtCell = findUnitAt(x, y);
+
+    // If no pending action, clicking a friendly unit selects it
+    if (!clientState.pendingActionType) {
+        if (unitAtCell && unitAtCell.owner === clientState.playerId && unitAtCell.alive) {
+            clientState.selectedUnitId = unitAtCell.id;
+            renderBoard();
+            renderControls();
+            logMessage("Selected unit: " + unitAtCell.id);
+        }
+        return;
+    }
+
+    // Handle pending MOVE action
+    if (clientState.pendingActionType === "MOVE") {
+        if (!unitAtCell) {
+            // Empty cell - send move action
+            sendAction("MOVE", x, y, null);
+            clientState.selectedUnitId = null;
+            clientState.pendingActionType = null;
+            renderControls();
+        } else {
+            renderError("Cannot move to occupied cell");
+        }
+        return;
+    }
+
+    // Handle pending ATTACK action
+    if (clientState.pendingActionType === "ATTACK") {
+        if (unitAtCell && unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
+            sendAction("ATTACK", x, y, unitAtCell.id);
+            clientState.selectedUnitId = null;
+            clientState.pendingActionType = null;
+            renderControls();
+        } else {
+            renderError("Select an enemy unit to attack");
+        }
+        return;
+    }
+
+    // Handle pending MOVE_AND_ATTACK action
+    if (clientState.pendingActionType === "MOVE_AND_ATTACK") {
+        // First click selects move destination (empty cell)
+        // For simplicity, we'll require selecting an empty cell, then prompting for target
+        // In a more complete implementation, this would be a two-step process
+        if (!unitAtCell) {
+            // Store the move target temporarily
+            clientState.moveTarget = { x, y };
+            clientState.pendingActionType = "MOVE_AND_ATTACK_SELECT_TARGET";
+            renderError("Now click an enemy unit to attack");
+            renderControls();
+        } else if (unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
+            // Direct attack without move (fallback)
+            sendAction("MOVE_AND_ATTACK", x, y, unitAtCell.id);
+            clientState.selectedUnitId = null;
+            clientState.pendingActionType = null;
+            renderControls();
+        }
+        return;
+    }
+
+    // Handle MOVE_AND_ATTACK target selection
+    if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET") {
+        if (unitAtCell && unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
+            sendAction("MOVE_AND_ATTACK", clientState.moveTarget.x, clientState.moveTarget.y, unitAtCell.id);
+            clientState.selectedUnitId = null;
+            clientState.pendingActionType = null;
+            clientState.moveTarget = null;
+            renderControls();
+        } else {
+            renderError("Select an enemy unit to attack");
+        }
+        return;
+    }
+}
+
+/**
+ * Find a unit at the given position.
+ * @param {number} x - X coordinate
+ * @param {number} y - Y coordinate
+ * @returns {object|null} Unit at position or null
+ */
+function findUnitAt(x, y) {
+    if (!clientState.gameState || !clientState.gameState.units) return null;
+
+    return clientState.gameState.units.find(unit =>
+        unit.position.x === x && unit.position.y === y && unit.alive
+    ) || null;
+}
+
+/**
+ * Highlight valid move positions for the selected unit.
+ */
+function highlightValidMoves() {
+    if (!clientState.selectedUnitId || !clientState.gameState) return;
+
+    const selectedUnit = clientState.gameState.units.find(u => u.id === clientState.selectedUnitId);
+    if (!selectedUnit) return;
+
+    const { x, y } = selectedUnit.position;
+
+    // Adjacent positions (orthogonal only)
+    const adjacent = [
+        { x: x - 1, y: y },
+        { x: x + 1, y: y },
+        { x: x, y: y - 1 },
+        { x: x, y: y + 1 }
+    ];
+
+    adjacent.forEach(pos => {
+        // Check bounds
+        if (pos.x < 0 || pos.x >= 5 || pos.y < 0 || pos.y >= 5) return;
+
+        // Check if occupied
+        if (findUnitAt(pos.x, pos.y)) return;
+
+        // Highlight cell
+        const cell = document.querySelector(`.cell[data-x="${pos.x}"][data-y="${pos.y}"]`);
+        if (cell) {
+            cell.classList.add("valid-move");
+        }
+    });
 }
 
 /**

@@ -112,6 +112,55 @@ body {
     background-color: #c8e6c9;
 }
 
+.cell.valid-move {
+    background-color: #c8e6c9;
+    border: 2px dashed #4caf50;
+}
+
+.cell.valid-move:hover {
+    background-color: #a5d6a7;
+}
+
+/* =============================================================================
+   Unit Styles
+   ============================================================================= */
+
+.unit {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.unit.player1 {
+    background-color: #2196f3;
+    color: white;
+}
+
+.unit.player2 {
+    background-color: #f44336;
+    color: white;
+}
+
+.unit.selected {
+    box-shadow: 0 0 0 3px #ffc107;
+}
+
+.unit-id {
+    font-size: 0.65rem;
+    opacity: 0.9;
+}
+
+.unit-stats {
+    font-size: 0.55rem;
+    opacity: 0.8;
+}
+
 /* =============================================================================
    Controls Panel
    ============================================================================= */
