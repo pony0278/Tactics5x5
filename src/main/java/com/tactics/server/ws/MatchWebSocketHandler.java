@@ -40,13 +40,43 @@ public class MatchWebSocketHandler {
 
     public void onClose(ClientConnection connection) {
         connectionRegistry.unregister(connection);
+
+        // Remove from match if joined
+        String matchId = connection.getMatchId();
+        String playerId = connection.getPlayerId();
+        if (matchId != null && playerId != null) {
+            Match match = matchService.findMatch(matchId);
+            if (match != null) {
+                ClientSlot slot = "P1".equals(playerId) ? ClientSlot.P1 : ClientSlot.P2;
+                match.getConnections().remove(slot);
+
+                // Notify remaining player
+                OutgoingMessage disconnectMsg = new OutgoingMessage("player_disconnected",
+                    java.util.Map.of("playerId", playerId));
+                String json = JsonHelper.toJson(disconnectMsg);
+                broadcastToMatch(matchId, json);
+            }
+        }
     }
 
     public void onMessage(ClientConnection connection, String text) {
-        // Parse JSON
-        IncomingMessage message = JsonHelper.parseIncomingMessage(text);
+        // Validate input
+        if (text == null || text.trim().isEmpty()) {
+            sendValidationError(connection, "Empty message received", null);
+            return;
+        }
+
+        // Parse JSON with error handling
+        IncomingMessage message;
+        try {
+            message = JsonHelper.parseIncomingMessage(text);
+        } catch (Exception e) {
+            sendValidationError(connection, "Failed to parse JSON: " + e.getMessage(), null);
+            return;
+        }
+
         if (message == null || message.getType() == null) {
-            sendValidationError(connection, "Invalid JSON format", null);
+            sendValidationError(connection, "Invalid message format: missing 'type' field", null);
             return;
         }
 
@@ -67,29 +97,59 @@ public class MatchWebSocketHandler {
     }
 
     private void handleJoinMatch(ClientConnection connection, Map<String, Object> payload) {
-        // Extract matchId and playerId from payload
+        // Extract matchId from payload
         String matchId = getStringFromPayload(payload, "matchId");
-        String playerId = getStringFromPayload(payload, "playerId");
 
-        if (matchId == null || playerId == null) {
-            sendValidationError(connection, "Missing matchId or playerId in join_match", null);
+        if (matchId == null) {
+            sendValidationError(connection, "Missing matchId in join_match", null);
             return;
         }
 
         // Get or create match
         Match match = matchService.getOrCreateMatch(matchId);
+        Map<ClientSlot, ClientConnection> connections = match.getConnections();
+
+        // Assign player to first available slot
+        String assignedPlayerId;
+        ClientSlot assignedSlot;
+
+        if (!connections.containsKey(ClientSlot.P1)) {
+            assignedSlot = ClientSlot.P1;
+            assignedPlayerId = "P1";
+            connections.put(ClientSlot.P1, connection);
+        } else if (!connections.containsKey(ClientSlot.P2)) {
+            assignedSlot = ClientSlot.P2;
+            assignedPlayerId = "P2";
+            connections.put(ClientSlot.P2, connection);
+        } else {
+            sendValidationError(connection, "Match is full", null);
+            return;
+        }
+
+        // Store match/player info on the connection for cleanup on disconnect
+        connection.setMatchId(matchId);
+        connection.setPlayerId(assignedPlayerId);
+
         GameState state = match.getState();
 
         // Serialize the GameState
         Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(state);
 
-        // Build MatchJoinedPayload
-        MatchJoinedPayload responsePayload = new MatchJoinedPayload(matchId, playerId, stateMap);
+        // Build MatchJoinedPayload with server-assigned playerId
+        MatchJoinedPayload responsePayload = new MatchJoinedPayload(matchId, assignedPlayerId, stateMap);
         OutgoingMessage response = new OutgoingMessage("match_joined", responsePayload);
 
-        // Send only to this connection
+        // Send to this connection
         String jsonResponse = JsonHelper.toJson(response);
         connection.sendMessage(jsonResponse);
+
+        // Notify if both players are now connected
+        if (connections.size() == 2) {
+            OutgoingMessage gameReady = new OutgoingMessage("game_ready",
+                java.util.Map.of("message", "Both players connected. Game starting!"));
+            String readyJson = JsonHelper.toJson(gameReady);
+            broadcastToMatch(matchId, readyJson);
+        }
     }
 
     private void handleAction(ClientConnection connection, Map<String, Object> payload) {
@@ -116,8 +176,8 @@ public class MatchWebSocketHandler {
             return;
         }
 
-        // Build engine Action from ActionPayload
-        Action action = buildAction(actionPayload);
+        // Build engine Action from ActionPayload (include playerId for validation)
+        Action action = buildAction(actionPayload, playerId);
         if (action == null) {
             sendValidationError(connection, "Invalid action type: " + actionPayload.getType(), actionPayload);
             return;
@@ -159,7 +219,7 @@ public class MatchWebSocketHandler {
         return new ActionPayload(type, targetX, targetY, targetUnitId);
     }
 
-    private Action buildAction(ActionPayload actionPayload) {
+    private Action buildAction(ActionPayload actionPayload, String playerId) {
         ActionType actionType;
         try {
             actionType = ActionType.valueOf(actionPayload.getType());
@@ -172,9 +232,8 @@ public class MatchWebSocketHandler {
             targetPosition = new Position(actionPayload.getTargetX(), actionPayload.getTargetY());
         }
 
-        // Note: Action constructor expects PlayerId, but we pass null here
-        // The playerId is passed separately to MatchService.applyAction
-        return new Action(actionType, null, targetPosition, actionPayload.getTargetUnitId());
+        // Include playerId in Action for RuleEngine validation
+        return new Action(actionType, new PlayerId(playerId), targetPosition, actionPayload.getTargetUnitId());
     }
 
     private void broadcastToMatch(String matchId, String jsonMessage) {

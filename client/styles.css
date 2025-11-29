@@ -112,6 +112,69 @@ body {
     background-color: #c8e6c9;
 }
 
+.cell.valid-move {
+    background-color: #c8e6c9;
+    border: 2px dashed #4caf50;
+}
+
+.cell.valid-move:hover {
+    background-color: #a5d6a7;
+}
+
+.cell.attack-target {
+    background-color: #ffcdd2;
+    border: 2px dashed #f44336;
+}
+
+.cell.attack-target:hover {
+    background-color: #ef9a9a;
+}
+
+.cell.move-destination {
+    background-color: #bbdefb;
+    border: 2px solid #2196f3;
+}
+
+/* =============================================================================
+   Unit Styles
+   ============================================================================= */
+
+.unit {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.unit.player1 {
+    background-color: #2196f3;
+    color: white;
+}
+
+.unit.player2 {
+    background-color: #f44336;
+    color: white;
+}
+
+.unit.selected {
+    box-shadow: 0 0 0 3px #ffc107;
+}
+
+.unit-id {
+    font-size: 0.65rem;
+    opacity: 0.9;
+}
+
+.unit-stats {
+    font-size: 0.55rem;
+    opacity: 0.8;
+}
+
 /* =============================================================================
    Controls Panel
    ============================================================================= */
@@ -143,6 +206,23 @@ body {
 #local-player-id,
 #current-player {
     font-weight: 600;
+}
+
+/* Turn indicator - highlight current turn */
+#current-turn {
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+#current-turn.my-turn {
+    background-color: #c8e6c9;
+    border: 2px solid #4caf50;
+}
+
+#current-turn.opponent-turn {
+    background-color: #ffecb3;
+    border: 2px solid #ffc107;
 }
 
 /* Status Area */
@@ -213,6 +293,11 @@ body {
 #action-buttons button:disabled {
     background-color: #bdbdbd;
     cursor: not-allowed;
+}
+
+#action-buttons button.active {
+    box-shadow: 0 0 0 3px #333;
+    transform: scale(1.02);
 }
 
 /* Error Section */

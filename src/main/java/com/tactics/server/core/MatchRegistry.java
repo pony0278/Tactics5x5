@@ -13,6 +13,10 @@ public class MatchRegistry {
 
     private final Map<String, Match> matches;
 
+    public MatchRegistry() {
+        this.matches = new java.util.concurrent.ConcurrentHashMap<>();
+    }
+
     public MatchRegistry(Map<String, Match> matches) {
         this.matches = matches;
     }
