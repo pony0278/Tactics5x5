@@ -130,6 +130,25 @@ body {
     background-color: #ef9a9a;
 }
 
+/* V2 Range Highlighting */
+.cell.cell-move-range {
+    background-color: rgba(33, 150, 243, 0.25); /* Subtle blue overlay */
+    border: 2px dashed #2196f3;
+}
+
+.cell.cell-move-range:hover {
+    background-color: rgba(33, 150, 243, 0.4);
+}
+
+.cell.cell-attack-range {
+    background-color: rgba(244, 67, 54, 0.25); /* Subtle red/orange overlay */
+    border: 2px dashed #f44336;
+}
+
+.cell.cell-attack-range:hover {
+    background-color: rgba(244, 67, 54, 0.4);
+}
+
 .cell.move-destination {
     background-color: #bbdefb;
     border: 2px solid #2196f3;
