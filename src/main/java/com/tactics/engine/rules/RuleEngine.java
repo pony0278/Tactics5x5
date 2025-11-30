@@ -13,6 +13,9 @@ import java.util.List;
 
 /**
  * Validates and applies actions.
+ *
+ * V2 Update: Validation now uses unit.moveRange and unit.attackRange
+ * for distance checks instead of fixed distance=1.
  */
 public class RuleEngine {
 
@@ -25,11 +28,59 @@ public class RuleEngine {
 
     /**
      * Check if two positions are orthogonally adjacent (exactly 1 tile apart).
+     * Used by applyAction methods for V1-compatible unit finding.
      */
     private boolean isAdjacent(Position a, Position b) {
         int dx = b.getX() - a.getX();
         int dy = b.getY() - a.getY();
         return (dx == 0 && (dy == 1 || dy == -1)) || (dy == 0 && (dx == 1 || dx == -1));
+    }
+
+    /**
+     * Calculate Manhattan distance between two positions.
+     * distance = abs(x1 - x2) + abs(y1 - y2)
+     */
+    private int manhattanDistance(Position a, Position b) {
+        int dx = Math.abs(b.getX() - a.getX());
+        int dy = Math.abs(b.getY() - a.getY());
+        return dx + dy;
+    }
+
+    /**
+     * Check if movement between two positions is orthogonal (horizontal or vertical only).
+     * Returns true if the positions differ by only one axis (not diagonal, not same position).
+     * Orthogonal: (dx == 0 && dy != 0) || (dx != 0 && dy == 0)
+     */
+    private boolean isOrthogonal(Position a, Position b) {
+        int dx = Math.abs(b.getX() - a.getX());
+        int dy = Math.abs(b.getY() - a.getY());
+        // Must move in exactly one direction (horizontal XOR vertical)
+        return (dx == 0 && dy > 0) || (dx > 0 && dy == 0);
+    }
+
+    /**
+     * Check if a unit can move from its current position to target within its moveRange.
+     * Movement must be orthogonal and within range: 1 <= distance <= moveRange
+     */
+    private boolean canMoveToPosition(Unit unit, Position target) {
+        Position from = unit.getPosition();
+        if (!isOrthogonal(from, target)) {
+            return false;
+        }
+        int distance = manhattanDistance(from, target);
+        return distance >= 1 && distance <= unit.getMoveRange();
+    }
+
+    /**
+     * Check if a unit can attack a target position from a given attacker position within its attackRange.
+     * Attack must be orthogonal and within range: 1 <= distance <= attackRange
+     */
+    private boolean canAttackFromPosition(Unit unit, Position attackerPos, Position targetPos) {
+        if (!isOrthogonal(attackerPos, targetPos)) {
+            return false;
+        }
+        int distance = manhattanDistance(attackerPos, targetPos);
+        return distance >= 1 && distance <= unit.getAttackRange();
     }
 
     /**
@@ -112,7 +163,7 @@ public class RuleEngine {
     }
 
     // =========================================================================
-    // Validation
+    // Validation (V2: Uses moveRange and attackRange from Unit)
     // =========================================================================
 
     public ValidationResult validateAction(GameState state, Action action) {
@@ -155,6 +206,10 @@ public class RuleEngine {
         return new ValidationResult(false, "Invalid action type");
     }
 
+    /**
+     * Validate MOVE action using V2 moveRange logic.
+     * Movement must be orthogonal and within unit's moveRange.
+     */
     private ValidationResult validateMove(GameState state, Action action) {
         // M8: MOVE with targetUnitId non-null is protocol misuse
         if (action.getTargetUnitId() != null) {
@@ -176,11 +231,12 @@ public class RuleEngine {
             return new ValidationResult(false, "Target tile is occupied");
         }
 
-        // Find units that can move to targetPos
+        // Find units that can move to targetPos using V2 moveRange logic
+        // V2: canMoveToPosition checks orthogonal movement AND distance <= moveRange
         int moverCount = 0;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-                if (isAdjacent(u.getPosition(), targetPos)) {
+                if (canMoveToPosition(u, targetPos)) {
                     moverCount++;
                 }
             }
@@ -197,6 +253,10 @@ public class RuleEngine {
         return new ValidationResult(true, null);
     }
 
+    /**
+     * Validate ATTACK action using V2 attackRange logic.
+     * Attack must be orthogonal and within attacker's attackRange.
+     */
     private ValidationResult validateAttack(GameState state, Action action) {
         // A7: Missing targetUnitId
         if (action.getTargetUnitId() == null) {
@@ -235,11 +295,12 @@ public class RuleEngine {
             return new ValidationResult(false, "Target position does not match target unit position");
         }
 
-        // Find attackers: alive friendly units adjacent to target
+        // Find attackers: alive friendly units within attack range of target (V2 logic)
+        // V2: canAttackFromPosition checks orthogonal attack AND distance <= attackRange
         int attackerCount = 0;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-                if (isAdjacent(u.getPosition(), targetUnit.getPosition())) {
+                if (canAttackFromPosition(u, u.getPosition(), targetUnit.getPosition())) {
                     attackerCount++;
                 }
             }
@@ -256,6 +317,11 @@ public class RuleEngine {
         return new ValidationResult(true, null);
     }
 
+    /**
+     * Validate MOVE_AND_ATTACK action using V2 moveRange and attackRange logic.
+     * MOVE step must be orthogonal and within moveRange.
+     * ATTACK step (from post-move position) must be orthogonal and within attackRange.
+     */
     private ValidationResult validateMoveAndAttack(GameState state, Action action) {
         // MA5: Missing targetPosition
         if (action.getTargetPosition() == null) {
@@ -297,12 +363,12 @@ public class RuleEngine {
             return new ValidationResult(false, "Cannot attack own unit");
         }
 
-        // Find mover: unit that can move to targetPos
+        // Find mover: unit that can move to targetPos using V2 moveRange logic
         Unit mover = null;
         int moverCount = 0;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-                if (isAdjacent(u.getPosition(), targetPos)) {
+                if (canMoveToPosition(u, targetPos)) {
                     mover = u;
                     moverCount++;
                 }
@@ -317,17 +383,17 @@ public class RuleEngine {
             return new ValidationResult(false, "Ambiguous move");
         }
 
-        // MA3: After moving, check if target unit is adjacent to new position
-        if (!isAdjacent(targetPos, targetUnit.getPosition())) {
+        // MA3: After moving, check if target unit is within attack range using V2 attackRange logic
+        if (!canAttackFromPosition(mover, targetPos, targetUnit.getPosition())) {
             return new ValidationResult(false, "Target not adjacent after movement");
         }
 
-        // MA6: Check for ambiguous attacker after move
+        // MA6: Check for ambiguous attacker after move using V2 attackRange logic
         int attackerCountAfterMove = 0;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
                 Position unitPos = u.getId().equals(mover.getId()) ? targetPos : u.getPosition();
-                if (isAdjacent(unitPos, targetUnit.getPosition())) {
+                if (canAttackFromPosition(u, unitPos, targetUnit.getPosition())) {
                     attackerCountAfterMove++;
                 }
             }
@@ -341,7 +407,7 @@ public class RuleEngine {
     }
 
     // =========================================================================
-    // Apply Action
+    // Apply Action (Unchanged - uses V1 isAdjacent for unit finding)
     // =========================================================================
 
     public GameState applyAction(GameState state, Action action) {
