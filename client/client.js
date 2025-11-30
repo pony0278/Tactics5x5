@@ -23,7 +23,8 @@ const clientState = {
     lastErrorMessage: null,   // String or null
     highlightedCells: [],     // Array of { x, y, type } where type is "move" or "attack"
     actedUnitIds: [],         // Bug 3: Track units that have acted this turn
-    lastKnownPlayer: null     // Track player turn to detect turn changes
+    lastKnownPlayer: null,    // Track player turn to detect turn changes
+    pendingActionUnitId: null // Bug 3 fix: Track which unit's action is being sent to server
 };
 
 // =============================================================================
@@ -95,6 +96,12 @@ function sendJoinMatch() {
  * @param {string|null} targetUnitId - Target unit ID
  */
 function sendAction(actionType, targetX, targetY, targetUnitId) {
+    // Bug 3 fix: Track which unit is performing this action
+    // This persists until state_update or validation_error is received
+    if (actionType !== "END_TURN") {
+        clientState.pendingActionUnitId = clientState.selectedUnitId;
+    }
+
     const message = {
         type: "action",
         payload: {
@@ -183,6 +190,7 @@ function handleMatchJoined(payload) {
     clientState.lastErrorMessage = null;
     clientState.actedUnitIds = [];  // Bug 3: Reset acted units on match join
     clientState.lastKnownPlayer = payload.state?.currentPlayer || null;
+    clientState.pendingActionUnitId = null;
     clearRangeHighlights();
 
     logMessage("Joined as " + payload.playerId);
@@ -208,11 +216,12 @@ function handleStateUpdate(payload) {
     }
     clientState.lastKnownPlayer = newPlayer;
 
-    // Bug 3: Mark selected unit as acted (action succeeded)
-    if (clientState.selectedUnitId && clientState.pendingActionType !== null) {
-        if (!clientState.actedUnitIds.includes(clientState.selectedUnitId)) {
-            clientState.actedUnitIds.push(clientState.selectedUnitId);
+    // Bug 3 fix: Mark the unit that just acted (using pendingActionUnitId)
+    if (clientState.pendingActionUnitId) {
+        if (!clientState.actedUnitIds.includes(clientState.pendingActionUnitId)) {
+            clientState.actedUnitIds.push(clientState.pendingActionUnitId);
         }
+        clientState.pendingActionUnitId = null; // Clear after marking
     }
 
     clientState.gameState = payload.state;
@@ -245,6 +254,7 @@ function handleValidationError(payload) {
     // Clear pending action and highlights on error (same as Cancel)
     clientState.pendingActionType = null;
     clientState.moveTarget = null;
+    clientState.pendingActionUnitId = null; // Bug 3 fix: Don't mark as acted on error
     clearRangeHighlights();
 
     renderError(payload.message);
@@ -503,6 +513,8 @@ function renderSelectedUnitInfo() {
  */
 function onCancelActionClick() {
     clearError();
+    // Bug 3 fix: Clear pending action unit if canceling before server responds
+    clientState.pendingActionUnitId = null;
 
     if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET") {
         // Step back to MOVE_AND_ATTACK (clear move target, keep pending action)
