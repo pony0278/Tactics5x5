@@ -35,6 +35,8 @@ class MatchWebSocketHandlerTest {
      */
     static class FakeClientConnection implements ClientConnection {
         private final String id;
+        private String matchId;
+        private String playerId;
         public final List<String> sentMessages = new ArrayList<>();
 
         FakeClientConnection(String id) {
@@ -44,6 +46,26 @@ class MatchWebSocketHandlerTest {
         @Override
         public String getId() {
             return id;
+        }
+
+        @Override
+        public String getMatchId() {
+            return matchId;
+        }
+
+        @Override
+        public void setMatchId(String matchId) {
+            this.matchId = matchId;
+        }
+
+        @Override
+        public String getPlayerId() {
+            return playerId;
+        }
+
+        @Override
+        public void setPlayerId(String playerId) {
+            this.playerId = playerId;
         }
 
         @Override
