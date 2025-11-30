@@ -407,7 +407,7 @@ public class RuleEngine {
     }
 
     // =========================================================================
-    // Apply Action (Unchanged - uses V1 isAdjacent for unit finding)
+    // Apply Action (V2: Uses canMoveToPosition and canAttackFromPosition)
     // =========================================================================
 
     public GameState applyAction(GameState state, Action action) {
@@ -442,11 +442,11 @@ public class RuleEngine {
     private GameState applyMove(GameState state, Action action) {
         Position targetPos = action.getTargetPosition();
 
-        // Find the unique mover
+        // Find the unique mover using V2 moveRange logic
         Unit mover = null;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-                if (isAdjacent(u.getPosition(), targetPos)) {
+                if (canMoveToPosition(u, targetPos)) {
                     mover = u;
                     break;
                 }
@@ -480,12 +480,12 @@ public class RuleEngine {
         String targetUnitId = action.getTargetUnitId();
         Position targetPos = action.getTargetPosition();
 
-        // Find target unit and attacker
+        // Find target unit and attacker using V2 attackRange logic
         Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
         Unit attacker = null;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-                if (isAdjacent(u.getPosition(), targetPos)) {
+                if (canAttackFromPosition(u, u.getPosition(), targetPos)) {
                     attacker = u;
                     break;
                 }
@@ -523,11 +523,11 @@ public class RuleEngine {
         Position targetPos = action.getTargetPosition();
         String targetUnitId = action.getTargetUnitId();
 
-        // Find mover
+        // Find mover using V2 moveRange logic
         Unit mover = null;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-                if (isAdjacent(u.getPosition(), targetPos)) {
+                if (canMoveToPosition(u, targetPos)) {
                     mover = u;
                     break;
                 }
