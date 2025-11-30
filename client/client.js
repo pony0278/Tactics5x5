@@ -21,7 +21,9 @@ const clientState = {
     selectedUnitId: null,     // String or null
     pendingActionType: null,  // "MOVE", "ATTACK", "MOVE_AND_ATTACK", or null
     lastErrorMessage: null,   // String or null
-    highlightedCells: []      // Array of { x, y, type } where type is "move" or "attack"
+    highlightedCells: [],     // Array of { x, y, type } where type is "move" or "attack"
+    actedUnitIds: [],         // Bug 3: Track units that have acted this turn
+    lastKnownPlayer: null     // Track player turn to detect turn changes
 };
 
 // =============================================================================
@@ -93,7 +95,6 @@ function sendJoinMatch() {
  * @param {string|null} targetUnitId - Target unit ID
  */
 function sendAction(actionType, targetX, targetY, targetUnitId) {
-    // TODO: Implement sendAction
     const message = {
         type: "action",
         payload: {
@@ -101,6 +102,7 @@ function sendAction(actionType, targetX, targetY, targetUnitId) {
             playerId: clientState.playerId,
             action: {
                 type: actionType,
+                unitId: clientState.selectedUnitId,  // Bug 1 fix: Include acting unit ID
                 targetX: targetX,
                 targetY: targetY,
                 targetUnitId: targetUnitId
@@ -179,6 +181,8 @@ function handleMatchJoined(payload) {
     clientState.selectedUnitId = null;
     clientState.pendingActionType = null;
     clientState.lastErrorMessage = null;
+    clientState.actedUnitIds = [];  // Bug 3: Reset acted units on match join
+    clientState.lastKnownPlayer = payload.state?.currentPlayer || null;
     clearRangeHighlights();
 
     logMessage("Joined as " + payload.playerId);
@@ -193,6 +197,24 @@ function handleMatchJoined(payload) {
  */
 function handleStateUpdate(payload) {
     console.log("State update:", payload);
+
+    const previousPlayer = clientState.lastKnownPlayer;
+    const newPlayer = payload.state?.currentPlayer;
+
+    // Bug 3: Detect turn change and reset acted units
+    if (previousPlayer !== newPlayer) {
+        clientState.actedUnitIds = [];
+        logMessage("Turn changed: " + (newPlayer || "--"));
+    }
+    clientState.lastKnownPlayer = newPlayer;
+
+    // Bug 3: Mark selected unit as acted (action succeeded)
+    if (clientState.selectedUnitId && clientState.pendingActionType !== null) {
+        if (!clientState.actedUnitIds.includes(clientState.selectedUnitId)) {
+            clientState.actedUnitIds.push(clientState.selectedUnitId);
+        }
+    }
+
     clientState.gameState = payload.state;
     clientState.pendingActionType = null;
     clientState.moveTarget = null;
@@ -210,9 +232,6 @@ function handleStateUpdate(payload) {
     clearError();
     renderBoard();
     renderControls();
-
-    // Log turn change
-    logMessage("Turn: " + (clientState.gameState.currentPlayer || "--"));
 }
 
 /**
@@ -318,6 +337,12 @@ function renderBoard() {
                 if (clientState.selectedUnitId === unit.id) {
                     unitEl.classList.add("selected");
                     cell.classList.add("selected");
+                }
+
+                // Bug 3: Mark units that have already acted this turn
+                if (clientState.actedUnitIds.includes(unit.id)) {
+                    unitEl.classList.add("acted");
+                    cell.classList.add("unit-acted");
                 }
 
                 // Mark enemy units as attack targets when ATTACK is pending
@@ -461,22 +486,53 @@ function renderSelectedUnitInfo() {
     if (attackEl) attackEl.textContent = unit.attack;
     if (moveRangeEl) moveRangeEl.textContent = unit.moveRange || 1;
     if (attackRangeEl) attackRangeEl.textContent = unit.attackRange || 1;
+
+    // Bug 3: Show acted status
+    const hasActed = clientState.actedUnitIds.includes(unit.id);
+    if (hasActed) {
+        typeEl.textContent = unitType + " (acted)";
+    }
 }
 
 /**
  * Handle Cancel button click.
- * Clears selection, pending action, and highlights.
+ * Bug 2 fix: Step-back behavior instead of full reset.
+ * MOVE_AND_ATTACK_SELECT_TARGET → MOVE_AND_ATTACK (clear moveTarget)
+ * MOVE_AND_ATTACK / MOVE / ATTACK → clear pending action (keep selection)
+ * No pending action → clear selection
  */
 function onCancelActionClick() {
+    clearError();
+
+    if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET") {
+        // Step back to MOVE_AND_ATTACK (clear move target, keep pending action)
+        clientState.moveTarget = null;
+        clientState.pendingActionType = "MOVE_AND_ATTACK";
+        updateRangeHighlights();
+        renderBoard();
+        renderControls();
+        logMessage("Cancelled target selection - select move destination");
+        return;
+    }
+
+    if (clientState.pendingActionType !== null) {
+        // Step back: clear pending action but keep selection
+        clientState.pendingActionType = null;
+        clientState.moveTarget = null;
+        clearRangeHighlights();
+        renderBoard();
+        renderControls();
+        logMessage("Action cancelled - unit still selected");
+        return;
+    }
+
+    // No pending action - clear selection entirely
     clientState.selectedUnitId = null;
-    clientState.pendingActionType = null;
-    clientState.moveTarget = null;
     clientState.lastErrorMessage = null;
     clearRangeHighlights();
-    clearError();
     renderBoard();
     renderControls();
-    logMessage("Action cancelled");
+    logMessage("Selection cleared");
 }
 
 /**
@@ -503,8 +559,12 @@ function updateButtonStates() {
     // Determine if there's a pending action
     const hasPendingAction = clientState.pendingActionType !== null;
 
-    // MOVE, ATTACK, MOVE+ATTACK require: my turn, not game over, unit selected
-    const canAct = isMyTurn && !isGameOver && hasSelection;
+    // Bug 3: Check if selected unit has already acted this turn
+    const hasActed = clientState.selectedUnitId !== null &&
+        clientState.actedUnitIds.includes(clientState.selectedUnitId);
+
+    // MOVE, ATTACK, MOVE+ATTACK require: my turn, not game over, unit selected, unit hasn't acted
+    const canAct = isMyTurn && !isGameOver && hasSelection && !hasActed;
 
     if (btnMove) {
         btnMove.disabled = !canAct;
@@ -649,7 +709,12 @@ function handleCellClick(event) {
             clientState.selectedUnitId = unitAtCell.id;
             renderBoard();
             renderControls();
-            logMessage("Selected unit: " + unitAtCell.id);
+            // Bug 3: Warn if unit has already acted
+            if (clientState.actedUnitIds.includes(unitAtCell.id)) {
+                logMessage("Selected unit: " + unitAtCell.id + " (already acted this turn)");
+            } else {
+                logMessage("Selected unit: " + unitAtCell.id);
+            }
         } else if (unitAtCell) {
             // Clicked on enemy unit - just show info
             logMessage("Enemy unit: " + unitAtCell.id + " (HP:" + unitAtCell.hp + ")");
@@ -695,6 +760,7 @@ function handleCellClick(event) {
         // Clicking own unit changes selection
         if (unitAtCell && unitAtCell.owner === clientState.playerId && unitAtCell.alive) {
             clientState.selectedUnitId = unitAtCell.id;
+            updateRangeHighlights();  // Update highlights for new selection
             renderBoard();
             renderControls();
             logMessage("Changed selection to: " + unitAtCell.id);
@@ -702,6 +768,13 @@ function handleCellClick(event) {
         }
 
         if (unitAtCell && unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
+            // Bug 1 fix: Validate attack range on client side
+            if (!isInAttackRange(x, y)) {
+                const unit = getSelectedUnit();
+                const attackRange = unit?.attackRange || 1;
+                renderError("Target out of range (attack range: " + attackRange + ")");
+                return;
+            }
             logMessage("Attacking " + unitAtCell.id);
             sendAction("ATTACK", x, y, unitAtCell.id);
             // Keep selection but clear pending action
@@ -744,6 +817,17 @@ function handleCellClick(event) {
     // Handle MOVE_AND_ATTACK target selection (step 2: select enemy)
     if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET") {
         if (unitAtCell && unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
+            // Bug 1 fix: Validate attack range from move destination
+            const unit = getSelectedUnit();
+            const tempUnit = {
+                ...unit,
+                position: { x: clientState.moveTarget.x, y: clientState.moveTarget.y }
+            };
+            if (!isInAttackRange(x, y, tempUnit)) {
+                const attackRange = unit?.attackRange || 1;
+                renderError("Target out of range from move destination (attack range: " + attackRange + ")");
+                return;
+            }
             logMessage("Move+Attack: moving to (" + clientState.moveTarget.x + "," + clientState.moveTarget.y + ") then attacking " + unitAtCell.id);
             sendAction("MOVE_AND_ATTACK", clientState.moveTarget.x, clientState.moveTarget.y, unitAtCell.id);
             clientState.pendingActionType = null;
@@ -836,6 +920,29 @@ function isCellOccupied(x, y) {
     return clientState.gameState.units.some(u =>
         u.position.x === x && u.position.y === y && u.alive
     );
+}
+
+/**
+ * Bug 1 fix: Check if a target position is within attack range of the selected unit.
+ * Uses V2 rules: Manhattan distance, orthogonal only.
+ * @param {number} targetX - Target X coordinate
+ * @param {number} targetY - Target Y coordinate
+ * @param {object} fromUnit - Optional unit to check from (defaults to selected unit)
+ * @returns {boolean} True if target is in attack range
+ */
+function isInAttackRange(targetX, targetY, fromUnit = null) {
+    const unit = fromUnit || getSelectedUnit();
+    if (!unit || !unit.position) return false;
+
+    const { x: ux, y: uy } = unit.position;
+    const attackRange = unit.attackRange || 1;
+
+    const dx = Math.abs(targetX - ux);
+    const dy = Math.abs(targetY - uy);
+    const distance = dx + dy;
+
+    // Must be within attack range and orthogonal (not diagonal)
+    return distance > 0 && distance <= attackRange && (dx === 0 || dy === 0);
 }
 
 /**

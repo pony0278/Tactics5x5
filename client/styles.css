@@ -184,6 +184,15 @@ body {
     box-shadow: 0 0 0 3px #ffc107;
 }
 
+/* Bug 3: Acted units (already performed action this turn) */
+.unit.acted {
+    opacity: 0.6;
+}
+
+.cell.unit-acted {
+    background-color: #e0e0e0;
+}
+
 .unit-id {
     font-size: 0.65rem;
     opacity: 0.9;
