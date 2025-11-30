@@ -1,5 +1,8 @@
 package com.tactics.engine.util;
 
+import com.tactics.engine.buff.BuffFlags;
+import com.tactics.engine.buff.BuffInstance;
+import com.tactics.engine.buff.BuffModifier;
 import com.tactics.engine.model.Board;
 import com.tactics.engine.model.GameState;
 import com.tactics.engine.model.PlayerId;
@@ -12,6 +15,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1014,6 +1019,342 @@ class GameStateSerializerTest {
             assertEquals(true, result.get("gameOver"));
             assertTrue(result.containsKey("winner"));
             assertNull(result.get("winner"));
+        }
+    }
+
+    // =========================================================================
+    // BS-Series: Buff Serialization Tests (BUFF_SYSTEM_V1_TESTPLAN.md)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Buff Serialization Tests (BS-Series)")
+    class BuffSerializationTests {
+
+        private BuffInstance createRageBuff(String sourceUnitId) {
+            BuffModifier modifiers = new BuffModifier(0, 2, 0, 0);
+            BuffFlags flags = new BuffFlags(false, false, false, false, false);
+            return new BuffInstance("RAGE", sourceUnitId, 1, false, modifiers, flags);
+        }
+
+        private BuffInstance createPoisonBuff(String sourceUnitId) {
+            BuffModifier modifiers = new BuffModifier(0, 0, 0, 0);
+            BuffFlags flags = new BuffFlags(false, false, true, false, false);
+            return new BuffInstance("POISON", sourceUnitId, 2, true, modifiers, flags);
+        }
+
+        private BuffInstance createStunBuff(String sourceUnitId) {
+            BuffModifier modifiers = new BuffModifier(0, 0, 0, 0);
+            BuffFlags flags = new BuffFlags(true, false, false, false, false);
+            return new BuffInstance("STUN", sourceUnitId, 1, false, modifiers, flags);
+        }
+
+        private BuffInstance createHasteBuff(String sourceUnitId) {
+            BuffModifier modifiers = new BuffModifier(0, 0, 1, 0);
+            BuffFlags flags = new BuffFlags(false, false, false, false, false);
+            return new BuffInstance("HASTE", sourceUnitId, 1, false, modifiers, flags);
+        }
+
+        @Test
+        @DisplayName("BS1 - toJsonMap includes unitBuffs key")
+        void bs1_toJsonMapIncludesUnitBuffs() {
+            // Given: GameState with one unit having one BuffInstance
+            List<Unit> units = new ArrayList<>();
+            units.add(new Unit("u1_p1", new PlayerId("P1"), 10, 3, 1, 1, new Position(0, 0), true));
+
+            Map<String, List<BuffInstance>> unitBuffs = new HashMap<>();
+            unitBuffs.put("u1_p1", Arrays.asList(createRageBuff("u2_p1")));
+
+            GameState state = new GameState(
+                new Board(5, 5),
+                units,
+                new PlayerId("P1"),
+                false,
+                null,
+                unitBuffs
+            );
+
+            // When
+            Map<String, Object> result = serializer.toJsonMap(state);
+
+            // Then
+            assertNotNull(result);
+            assertTrue(result.containsKey("unitBuffs"));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> buffsMap = (Map<String, Object>) result.get("unitBuffs");
+            assertNotNull(buffsMap);
+            assertTrue(buffsMap.containsKey("u1_p1"));
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> buffList = (List<Map<String, Object>>) buffsMap.get("u1_p1");
+            assertNotNull(buffList);
+            assertEquals(1, buffList.size());
+        }
+
+        @Test
+        @DisplayName("BS2 - Buff serializes all fields")
+        void bs2_buffSerializesAllFields() {
+            // Given: GameState with a buff that has all fields set
+            List<Unit> units = new ArrayList<>();
+            units.add(new Unit("u1_p1", new PlayerId("P1"), 10, 3, 1, 1, new Position(0, 0), true));
+
+            BuffModifier modifiers = new BuffModifier(5, 2, 1, 3);
+            BuffFlags flags = new BuffFlags(true, true, true, true, true);
+            BuffInstance buff = new BuffInstance("TEST_BUFF", "u2_p1", 3, true, modifiers, flags);
+
+            Map<String, List<BuffInstance>> unitBuffs = new HashMap<>();
+            unitBuffs.put("u1_p1", Arrays.asList(buff));
+
+            GameState state = new GameState(
+                new Board(5, 5),
+                units,
+                new PlayerId("P1"),
+                false,
+                null,
+                unitBuffs
+            );
+
+            // When
+            Map<String, Object> result = serializer.toJsonMap(state);
+
+            // Then
+            @SuppressWarnings("unchecked")
+            Map<String, Object> buffsMap = (Map<String, Object>) result.get("unitBuffs");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> buffList = (List<Map<String, Object>>) buffsMap.get("u1_p1");
+            Map<String, Object> buffMap = buffList.get(0);
+
+            // Verify buff fields
+            assertEquals("TEST_BUFF", buffMap.get("buffId"));
+            assertEquals("u2_p1", buffMap.get("sourceUnitId"));
+            assertEquals(3, buffMap.get("duration"));
+            assertEquals(true, buffMap.get("stackable"));
+
+            // Verify modifiers
+            @SuppressWarnings("unchecked")
+            Map<String, Object> modifiersMap = (Map<String, Object>) buffMap.get("modifiers");
+            assertNotNull(modifiersMap);
+            assertEquals(5, modifiersMap.get("bonusHp"));
+            assertEquals(2, modifiersMap.get("bonusAttack"));
+            assertEquals(1, modifiersMap.get("bonusMoveRange"));
+            assertEquals(3, modifiersMap.get("bonusAttackRange"));
+
+            // Verify flags
+            @SuppressWarnings("unchecked")
+            Map<String, Object> flagsMap = (Map<String, Object>) buffMap.get("flags");
+            assertNotNull(flagsMap);
+            assertEquals(true, flagsMap.get("stunned"));
+            assertEquals(true, flagsMap.get("rooted"));
+            assertEquals(true, flagsMap.get("poison"));
+            assertEquals(true, flagsMap.get("silenced"));
+            assertEquals(true, flagsMap.get("taunted"));
+        }
+
+        @Test
+        @DisplayName("BS3 - Roundtrip preserves buffs")
+        void bs3_roundtripPreservesBuffs() {
+            // Given: GameState with 2 units, each with 1-2 BuffInstances
+            List<Unit> units = new ArrayList<>();
+            units.add(new Unit("u1_p1", new PlayerId("P1"), 10, 3, 1, 1, new Position(0, 0), true));
+            units.add(new Unit("u2_p2", new PlayerId("P2"), 8, 4, 1, 2, new Position(4, 4), true));
+
+            Map<String, List<BuffInstance>> unitBuffs = new HashMap<>();
+            unitBuffs.put("u1_p1", Arrays.asList(createRageBuff("u2_p2"), createHasteBuff(null)));
+            unitBuffs.put("u2_p2", Arrays.asList(createPoisonBuff("u1_p1")));
+
+            GameState original = new GameState(
+                new Board(5, 5),
+                units,
+                new PlayerId("P1"),
+                false,
+                null,
+                unitBuffs
+            );
+
+            // When: Roundtrip
+            Map<String, Object> map = serializer.toJsonMap(original);
+            GameState reconstructed = serializer.fromJsonMap(map);
+
+            // Then: Verify unitBuffs match
+            assertNotNull(reconstructed.getUnitBuffs());
+            assertEquals(2, reconstructed.getUnitBuffs().size());
+
+            // Verify u1_p1 buffs
+            List<BuffInstance> u1Buffs = reconstructed.getUnitBuffs().get("u1_p1");
+            assertNotNull(u1Buffs);
+            assertEquals(2, u1Buffs.size());
+
+            BuffInstance rageBuff = u1Buffs.get(0);
+            assertEquals("RAGE", rageBuff.getBuffId());
+            assertEquals("u2_p2", rageBuff.getSourceUnitId());
+            assertEquals(1, rageBuff.getDuration());
+            assertFalse(rageBuff.isStackable());
+            assertEquals(2, rageBuff.getModifiers().getBonusAttack());
+            assertFalse(rageBuff.getFlags().isStunned());
+
+            BuffInstance hasteBuff = u1Buffs.get(1);
+            assertEquals("HASTE", hasteBuff.getBuffId());
+            assertNull(hasteBuff.getSourceUnitId());
+            assertEquals(1, hasteBuff.getModifiers().getBonusMoveRange());
+
+            // Verify u2_p2 buffs
+            List<BuffInstance> u2Buffs = reconstructed.getUnitBuffs().get("u2_p2");
+            assertNotNull(u2Buffs);
+            assertEquals(1, u2Buffs.size());
+
+            BuffInstance poisonBuff = u2Buffs.get(0);
+            assertEquals("POISON", poisonBuff.getBuffId());
+            assertEquals("u1_p1", poisonBuff.getSourceUnitId());
+            assertEquals(2, poisonBuff.getDuration());
+            assertTrue(poisonBuff.isStackable());
+            assertTrue(poisonBuff.getFlags().isPoison());
+        }
+
+        @Test
+        @DisplayName("BS4 - Empty buff map serializes and deserializes correctly")
+        void bs4_emptyBuffMapSerialization() {
+            // Given: GameState with empty unitBuffs
+            GameState original = new GameState(
+                new Board(5, 5),
+                new ArrayList<>(),
+                new PlayerId("P1"),
+                false,
+                null,
+                Collections.emptyMap()
+            );
+
+            // When
+            Map<String, Object> result = serializer.toJsonMap(original);
+
+            // Then: unitBuffs should exist and be empty
+            assertTrue(result.containsKey("unitBuffs"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> buffsMap = (Map<String, Object>) result.get("unitBuffs");
+            assertNotNull(buffsMap);
+            assertTrue(buffsMap.isEmpty());
+
+            // Roundtrip should give empty map again
+            GameState reconstructed = serializer.fromJsonMap(result);
+            assertNotNull(reconstructed.getUnitBuffs());
+            assertTrue(reconstructed.getUnitBuffs().isEmpty());
+        }
+
+        @Test
+        @DisplayName("BS5 - Unknown fields in JSON are ignored")
+        void bs5_unknownFieldsIgnored() {
+            // Given: Valid map with buff containing unknown fields
+            Map<String, Object> map = createValidMap();
+
+            // Create buff map with extra unknown fields
+            Map<String, Object> buffMap = new HashMap<>();
+            buffMap.put("buffId", "RAGE");
+            buffMap.put("sourceUnitId", "u2_p1");
+            buffMap.put("duration", 1);
+            buffMap.put("stackable", false);
+            buffMap.put("unknownField1", "should be ignored");
+            buffMap.put("futureExtension", 12345);
+
+            Map<String, Object> modifiersMap = new HashMap<>();
+            modifiersMap.put("bonusHp", 0);
+            modifiersMap.put("bonusAttack", 2);
+            modifiersMap.put("bonusMoveRange", 0);
+            modifiersMap.put("bonusAttackRange", 0);
+            modifiersMap.put("unknownModifier", 999);
+            buffMap.put("modifiers", modifiersMap);
+
+            Map<String, Object> flagsMap = new HashMap<>();
+            flagsMap.put("stunned", false);
+            flagsMap.put("rooted", false);
+            flagsMap.put("poison", false);
+            flagsMap.put("silenced", false);
+            flagsMap.put("taunted", false);
+            flagsMap.put("unknownFlag", true);
+            buffMap.put("flags", flagsMap);
+
+            List<Map<String, Object>> buffList = new ArrayList<>();
+            buffList.add(buffMap);
+
+            Map<String, Object> unitBuffsMap = new HashMap<>();
+            unitBuffsMap.put("u1_p1", buffList);
+            map.put("unitBuffs", unitBuffsMap);
+
+            // When
+            GameState result = serializer.fromJsonMap(map);
+
+            // Then: Should successfully deserialize without errors
+            assertNotNull(result);
+            assertNotNull(result.getUnitBuffs());
+            assertEquals(1, result.getUnitBuffs().size());
+
+            List<BuffInstance> buffs = result.getUnitBuffs().get("u1_p1");
+            assertNotNull(buffs);
+            assertEquals(1, buffs.size());
+
+            BuffInstance buff = buffs.get(0);
+            assertEquals("RAGE", buff.getBuffId());
+            assertEquals(2, buff.getModifiers().getBonusAttack());
+            assertFalse(buff.getFlags().isStunned());
+        }
+
+        @Test
+        @DisplayName("BS5b - Missing unitBuffs key treated as empty map (forward compatibility)")
+        void bs5b_missingUnitBuffsKeyTreatedAsEmpty() {
+            // Given: Valid map without unitBuffs key (e.g., old format)
+            Map<String, Object> map = createValidMap();
+            // Ensure unitBuffs is NOT present
+            map.remove("unitBuffs");
+
+            // When
+            GameState result = serializer.fromJsonMap(map);
+
+            // Then: Should successfully deserialize with empty unitBuffs
+            assertNotNull(result);
+            assertNotNull(result.getUnitBuffs());
+            assertTrue(result.getUnitBuffs().isEmpty());
+        }
+
+        @Test
+        @DisplayName("BS5c - Missing silenced/taunted flags default to false")
+        void bs5c_missingFlagsDefaultToFalse() {
+            // Given: Buff with only V1 flags (missing silenced/taunted)
+            Map<String, Object> map = createValidMap();
+
+            Map<String, Object> buffMap = new HashMap<>();
+            buffMap.put("buffId", "STUN");
+            buffMap.put("sourceUnitId", null);
+            buffMap.put("duration", 1);
+            buffMap.put("stackable", false);
+
+            Map<String, Object> modifiersMap = new HashMap<>();
+            modifiersMap.put("bonusHp", 0);
+            modifiersMap.put("bonusAttack", 0);
+            modifiersMap.put("bonusMoveRange", 0);
+            modifiersMap.put("bonusAttackRange", 0);
+            buffMap.put("modifiers", modifiersMap);
+
+            // Only V1 flags, missing silenced and taunted
+            Map<String, Object> flagsMap = new HashMap<>();
+            flagsMap.put("stunned", true);
+            flagsMap.put("rooted", false);
+            flagsMap.put("poison", false);
+            // silenced and taunted are missing
+            buffMap.put("flags", flagsMap);
+
+            List<Map<String, Object>> buffList = new ArrayList<>();
+            buffList.add(buffMap);
+
+            Map<String, Object> unitBuffsMap = new HashMap<>();
+            unitBuffsMap.put("u1_p1", buffList);
+            map.put("unitBuffs", unitBuffsMap);
+
+            // When
+            GameState result = serializer.fromJsonMap(map);
+
+            // Then: silenced and taunted should default to false
+            BuffInstance buff = result.getUnitBuffs().get("u1_p1").get(0);
+            assertTrue(buff.getFlags().isStunned());
+            assertFalse(buff.getFlags().isSilenced());
+            assertFalse(buff.getFlags().isTaunted());
         }
     }
 }
