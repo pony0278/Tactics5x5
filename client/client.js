@@ -223,9 +223,10 @@ function handleValidationError(payload) {
     console.log("Validation error:", payload);
     clientState.lastErrorMessage = payload.message;
 
-    // Clear pending action on error so user can try again
+    // Clear pending action and highlights on error (same as Cancel)
     clientState.pendingActionType = null;
     clientState.moveTarget = null;
+    clearRangeHighlights();
 
     renderError(payload.message);
     renderBoard();
@@ -417,6 +418,65 @@ function renderControls() {
 
     // Update button states
     updateButtonStates();
+
+    // Update selected unit info panel (Task 1 & 2)
+    renderSelectedUnitInfo();
+}
+
+/**
+ * Render detailed info for the currently selected unit.
+ * Shows type, owner, position, HP, ATK, moveRange, attackRange.
+ */
+function renderSelectedUnitInfo() {
+    const infoPanel = document.getElementById("selected-unit-info");
+    if (!infoPanel) return;
+
+    const unit = getSelectedUnit();
+
+    if (!unit) {
+        // No unit selected - hide panel
+        infoPanel.classList.add("hidden");
+        return;
+    }
+
+    // Show the panel
+    infoPanel.classList.remove("hidden");
+
+    // Infer unit type
+    const unitType = inferUnitType(unit);
+
+    // Update all info fields
+    const typeEl = document.getElementById("info-unit-type");
+    const ownerEl = document.getElementById("info-unit-owner");
+    const positionEl = document.getElementById("info-unit-position");
+    const hpEl = document.getElementById("info-unit-hp");
+    const attackEl = document.getElementById("info-unit-attack");
+    const moveRangeEl = document.getElementById("info-unit-move-range");
+    const attackRangeEl = document.getElementById("info-unit-attack-range");
+
+    if (typeEl) typeEl.textContent = unitType;
+    if (ownerEl) ownerEl.textContent = unit.owner;
+    if (positionEl) positionEl.textContent = `(${unit.position.x}, ${unit.position.y})`;
+    if (hpEl) hpEl.textContent = unit.hp;
+    if (attackEl) attackEl.textContent = unit.attack;
+    if (moveRangeEl) moveRangeEl.textContent = unit.moveRange || 1;
+    if (attackRangeEl) attackRangeEl.textContent = unit.attackRange || 1;
+}
+
+/**
+ * Handle Cancel button click.
+ * Clears selection, pending action, and highlights.
+ */
+function onCancelActionClick() {
+    clientState.selectedUnitId = null;
+    clientState.pendingActionType = null;
+    clientState.moveTarget = null;
+    clientState.lastErrorMessage = null;
+    clearRangeHighlights();
+    clearError();
+    renderBoard();
+    renderControls();
+    logMessage("Action cancelled");
 }
 
 /**
@@ -427,6 +487,7 @@ function updateButtonStates() {
     const btnAttack = document.getElementById("btn-attack");
     const btnMoveAttack = document.getElementById("btn-move-attack");
     const btnEndTurn = document.getElementById("btn-end-turn");
+    const btnCancel = document.getElementById("btn-cancel");
 
     // Determine if it's this player's turn
     const isMyTurn = clientState.gameState &&
@@ -438,6 +499,9 @@ function updateButtonStates() {
 
     // Determine if a unit is selected
     const hasSelection = clientState.selectedUnitId !== null;
+
+    // Determine if there's a pending action
+    const hasPendingAction = clientState.pendingActionType !== null;
 
     // MOVE, ATTACK, MOVE+ATTACK require: my turn, not game over, unit selected
     const canAct = isMyTurn && !isGameOver && hasSelection;
@@ -463,6 +527,11 @@ function updateButtonStates() {
     // END TURN only requires: my turn, not game over
     if (btnEndTurn) {
         btnEndTurn.disabled = !(isMyTurn && !isGameOver);
+    }
+
+    // CANCEL is enabled when there's a selection or pending action
+    if (btnCancel) {
+        btnCancel.disabled = isGameOver || (!hasSelection && !hasPendingAction);
     }
 }
 
@@ -721,8 +790,58 @@ function getSelectedUnit() {
 }
 
 /**
+ * Infer unit type from stats based on UNIT_TYPES_V1.md.
+ * @param {object} unit - Unit object with hp, attack, moveRange, attackRange
+ * @returns {string} Unit type name: "Swordsman", "Archer", "Tank", or "Unknown"
+ */
+function inferUnitType(unit) {
+    if (!unit) return "Unknown";
+
+    const { hp, attack, moveRange, attackRange } = unit;
+
+    // SWORDSMAN: hp=10, attack=3, moveRange=1, attackRange=1
+    if (hp === 10 && attack === 3 && moveRange === 1 && attackRange === 1) {
+        return "Swordsman";
+    }
+
+    // ARCHER: hp=8, attack=3, moveRange=1, attackRange=2
+    if (hp === 8 && attack === 3 && moveRange === 1 && attackRange === 2) {
+        return "Archer";
+    }
+
+    // TANK: hp=16, attack=2, moveRange=1, attackRange=1
+    if (hp === 16 && attack === 2 && moveRange === 1 && attackRange === 1) {
+        return "Tank";
+    }
+
+    // Fallback: try to match by key distinguishing stats
+    // Archer is unique with attackRange=2
+    if (attackRange === 2) return "Archer";
+    // Tank is unique with hp=16
+    if (hp === 16) return "Tank";
+    // Swordsman is the default melee
+    if (hp === 10) return "Swordsman";
+
+    return "Unknown";
+}
+
+/**
+ * Check if a cell is occupied by any alive unit.
+ * @param {number} x - X coordinate
+ * @param {number} y - Y coordinate
+ * @returns {boolean} True if cell is occupied
+ */
+function isCellOccupied(x, y) {
+    if (!clientState.gameState || !clientState.gameState.units) return false;
+    return clientState.gameState.units.some(u =>
+        u.position.x === x && u.position.y === y && u.alive
+    );
+}
+
+/**
  * Compute valid move range cells for a unit based on V2 rules.
  * Uses Manhattan distance, orthogonal-only movement, within moveRange.
+ * Filters out occupied cells.
  * @param {object} unit - The unit object with position and moveRange
  * @param {number} boardWidth - Board width (default 5)
  * @param {number} boardHeight - Board height (default 5)
@@ -751,6 +870,9 @@ function computeMoveRange(unit, boardWidth = 5, boardHeight = 5) {
 
             // Must be orthogonal (either dx == 0 OR dy == 0, not both non-zero)
             if (dx !== 0 && dy !== 0) continue;
+
+            // Skip occupied cells (Task 3)
+            if (isCellOccupied(x, y)) continue;
 
             cells.push({ x, y });
         }
@@ -958,6 +1080,7 @@ function init() {
     document.getElementById("btn-attack")?.addEventListener("click", handleAttackClick);
     document.getElementById("btn-move-attack")?.addEventListener("click", handleMoveAttackClick);
     document.getElementById("btn-end-turn")?.addEventListener("click", handleEndTurnClick);
+    document.getElementById("btn-cancel")?.addEventListener("click", onCancelActionClick);
 
     // Initial render
     renderBoard();
