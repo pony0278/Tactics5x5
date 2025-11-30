@@ -70,11 +70,17 @@ class GameStateSerializerTest {
     }
 
     private Map<String, Object> createUnitMap(String id, String owner, int hp, int attack, int x, int y, boolean alive) {
+        return createUnitMap(id, owner, hp, attack, 1, 1, x, y, alive);
+    }
+
+    private Map<String, Object> createUnitMap(String id, String owner, int hp, int attack, int moveRange, int attackRange, int x, int y, boolean alive) {
         Map<String, Object> unitMap = new HashMap<>();
         unitMap.put("id", id);
         unitMap.put("owner", owner);
         unitMap.put("hp", hp);
         unitMap.put("attack", attack);
+        unitMap.put("moveRange", moveRange);
+        unitMap.put("attackRange", attackRange);
         Map<String, Object> posMap = new HashMap<>();
         posMap.put("x", x);
         posMap.put("y", y);
@@ -266,7 +272,7 @@ class GameStateSerializerTest {
         void tjm9_singleUnitSerialization() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1_p1", new PlayerId("P1"), 10, 3, new Position(2, 2), true));
+            units.add(new Unit("u1_p1", new PlayerId("P1"), 10, 3, 1, 1, new Position(2, 2), true));
             GameState state = new GameState(
                 new Board(5, 5),
                 units,
@@ -290,6 +296,8 @@ class GameStateSerializerTest {
             assertEquals("P1", unitMap.get("owner"));
             assertEquals(10, unitMap.get("hp"));
             assertEquals(3, unitMap.get("attack"));
+            assertEquals(1, unitMap.get("moveRange"));
+            assertEquals(1, unitMap.get("attackRange"));
             assertEquals(true, unitMap.get("alive"));
 
             @SuppressWarnings("unchecked")
@@ -304,8 +312,8 @@ class GameStateSerializerTest {
         void tjm10_multipleUnitsSerialization() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, new Position(0, 0), true));
-            units.add(new Unit("u2", new PlayerId("P2"), 8, 4, new Position(4, 4), true));
+            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, 1, 1, new Position(0, 0), true));
+            units.add(new Unit("u2", new PlayerId("P2"), 8, 4, 1, 1, new Position(4, 4), true));
             GameState state = new GameState(
                 new Board(5, 5),
                 units,
@@ -354,7 +362,7 @@ class GameStateSerializerTest {
         void tjm11_deadUnitSerialization() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P1"), 0, 3, new Position(1, 1), false));
+            units.add(new Unit("u1", new PlayerId("P1"), 0, 3, 1, 1, new Position(1, 1), false));
             GameState state = new GameState(
                 new Board(5, 5),
                 units,
@@ -383,7 +391,7 @@ class GameStateSerializerTest {
         void tjm12_positionSerialization() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, new Position(3, 4), true));
+            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, 1, 1, new Position(3, 4), true));
             GameState state = new GameState(
                 new Board(5, 5),
                 units,
@@ -538,6 +546,8 @@ class GameStateSerializerTest {
             assertEquals("P1", unit.getOwner().getValue());
             assertEquals(10, unit.getHp());
             assertEquals(3, unit.getAttack());
+            assertEquals(1, unit.getMoveRange());
+            assertEquals(1, unit.getAttackRange());
             assertEquals(2, unit.getPosition().getX());
             assertEquals(3, unit.getPosition().getY());
             assertTrue(unit.isAlive());
@@ -643,7 +653,7 @@ class GameStateSerializerTest {
         void rt2_roundtripWithSingleUnit() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, new Position(2, 2), true));
+            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, 1, 1, new Position(2, 2), true));
             GameState original = new GameState(
                 new Board(5, 5),
                 units,
@@ -665,6 +675,8 @@ class GameStateSerializerTest {
             assertEquals("P1", unit.getOwner().getValue());
             assertEquals(10, unit.getHp());
             assertEquals(3, unit.getAttack());
+            assertEquals(1, unit.getMoveRange());
+            assertEquals(1, unit.getAttackRange());
             assertEquals(2, unit.getPosition().getX());
             assertEquals(2, unit.getPosition().getY());
             assertTrue(unit.isAlive());
@@ -675,9 +687,9 @@ class GameStateSerializerTest {
         void rt3_roundtripWithMultipleUnits() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, new Position(0, 0), true));
-            units.add(new Unit("u2", new PlayerId("P1"), 8, 2, new Position(1, 1), true));
-            units.add(new Unit("u3", new PlayerId("P2"), 12, 4, new Position(4, 4), true));
+            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, 1, 1, new Position(0, 0), true));
+            units.add(new Unit("u2", new PlayerId("P1"), 8, 2, 1, 1, new Position(1, 1), true));
+            units.add(new Unit("u3", new PlayerId("P2"), 12, 4, 1, 1, new Position(4, 4), true));
             GameState original = new GameState(
                 new Board(5, 5),
                 units,
@@ -751,7 +763,7 @@ class GameStateSerializerTest {
         void rt5_roundtripWithDeadUnit() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P2"), 0, 3, new Position(1, 1), false));
+            units.add(new Unit("u1", new PlayerId("P2"), 0, 3, 1, 1, new Position(1, 1), false));
             GameState original = new GameState(
                 new Board(5, 5),
                 units,
@@ -799,9 +811,9 @@ class GameStateSerializerTest {
         void rt7_roundtripPreservesUnitOrder() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, new Position(0, 0), true));
-            units.add(new Unit("u2", new PlayerId("P1"), 8, 2, new Position(1, 1), true));
-            units.add(new Unit("u3", new PlayerId("P2"), 12, 4, new Position(4, 4), true));
+            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, 1, 1, new Position(0, 0), true));
+            units.add(new Unit("u2", new PlayerId("P1"), 8, 2, 1, 1, new Position(1, 1), true));
+            units.add(new Unit("u3", new PlayerId("P2"), 12, 4, 1, 1, new Position(4, 4), true));
             GameState original = new GameState(
                 new Board(5, 5),
                 units,
@@ -910,7 +922,7 @@ class GameStateSerializerTest {
         void ec5_unitAtEdgePositionZeroZero() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, new Position(0, 0), true));
+            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, 1, 1, new Position(0, 0), true));
             GameState original = new GameState(
                 new Board(5, 5),
                 units,
@@ -936,7 +948,7 @@ class GameStateSerializerTest {
         void ec6_unitAtEdgePositionFourFour() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, new Position(4, 4), true));
+            units.add(new Unit("u1", new PlayerId("P1"), 10, 3, 1, 1, new Position(4, 4), true));
             GameState original = new GameState(
                 new Board(5, 5),
                 units,
@@ -962,7 +974,7 @@ class GameStateSerializerTest {
         void ec7_unitWithZeroAttack() {
             // Given
             List<Unit> units = new ArrayList<>();
-            units.add(new Unit("u1", new PlayerId("P1"), 10, 0, new Position(1, 1), true));
+            units.add(new Unit("u1", new PlayerId("P1"), 10, 0, 1, 1, new Position(1, 1), true));
             GameState original = new GameState(
                 new Board(5, 5),
                 units,

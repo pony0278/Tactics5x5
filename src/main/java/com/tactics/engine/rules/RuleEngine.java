@@ -391,7 +391,8 @@ public class RuleEngine {
         List<Unit> newUnits = new ArrayList<>();
         for (Unit u : state.getUnits()) {
             if (u.getId().equals(mover.getId())) {
-                newUnits.add(new Unit(u.getId(), u.getOwner(), u.getHp(), u.getAttack(), targetPos, u.isAlive()));
+                newUnits.add(new Unit(u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive()));
             } else {
                 newUnits.add(u);
             }
@@ -433,7 +434,8 @@ public class RuleEngine {
         List<Unit> newUnits = new ArrayList<>();
         for (Unit u : state.getUnits()) {
             if (u.getId().equals(targetUnitId)) {
-                newUnits.add(new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(), u.getPosition(), alive));
+                newUnits.add(new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive));
             } else {
                 newUnits.add(u);
             }
@@ -477,9 +479,11 @@ public class RuleEngine {
         List<Unit> newUnits = new ArrayList<>();
         for (Unit u : state.getUnits()) {
             if (u.getId().equals(mover.getId())) {
-                newUnits.add(new Unit(u.getId(), u.getOwner(), u.getHp(), u.getAttack(), targetPos, u.isAlive()));
+                newUnits.add(new Unit(u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive()));
             } else if (u.getId().equals(targetUnitId)) {
-                newUnits.add(new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(), u.getPosition(), targetAlive));
+                newUnits.add(new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), targetAlive));
             } else {
                 newUnits.add(u);
             }

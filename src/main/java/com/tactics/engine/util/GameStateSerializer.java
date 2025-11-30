@@ -29,6 +29,8 @@ public class GameStateSerializer {
     private static final String KEY_OWNER = "owner";
     private static final String KEY_HP = "hp";
     private static final String KEY_ATTACK = "attack";
+    private static final String KEY_MOVE_RANGE = "moveRange";
+    private static final String KEY_ATTACK_RANGE = "attackRange";
     private static final String KEY_POSITION = "position";
     private static final String KEY_ALIVE = "alive";
     private static final String KEY_X = "x";
@@ -125,6 +127,8 @@ public class GameStateSerializer {
         unitMap.put(KEY_OWNER, unit.getOwner().getValue());
         unitMap.put(KEY_HP, unit.getHp());
         unitMap.put(KEY_ATTACK, unit.getAttack());
+        unitMap.put(KEY_MOVE_RANGE, unit.getMoveRange());
+        unitMap.put(KEY_ATTACK_RANGE, unit.getAttackRange());
         unitMap.put(KEY_ALIVE, unit.isAlive());
 
         // Serialize position
@@ -178,11 +182,13 @@ public class GameStateSerializer {
         String ownerStr = (String) unitMap.get(KEY_OWNER);
         int hp = toInt(unitMap.get(KEY_HP));
         int attack = toInt(unitMap.get(KEY_ATTACK));
+        int moveRange = toInt(unitMap.get(KEY_MOVE_RANGE));
+        int attackRange = toInt(unitMap.get(KEY_ATTACK_RANGE));
         boolean alive = (Boolean) unitMap.get(KEY_ALIVE);
 
         Position position = deserializePosition(unitMap.get(KEY_POSITION));
 
-        return new Unit(id, new PlayerId(ownerStr), hp, attack, position, alive);
+        return new Unit(id, new PlayerId(ownerStr), hp, attack, moveRange, attackRange, position, alive);
     }
 
     @SuppressWarnings("unchecked")

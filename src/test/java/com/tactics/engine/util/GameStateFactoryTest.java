@@ -31,14 +31,20 @@ class GameStateFactoryTest {
     // SWORDSMAN stats
     private static final int SWORDSMAN_HP = 10;
     private static final int SWORDSMAN_ATK = 3;
+    private static final int SWORDSMAN_MOVE_RANGE = 1;
+    private static final int SWORDSMAN_ATTACK_RANGE = 1;
 
     // ARCHER stats
     private static final int ARCHER_HP = 8;
     private static final int ARCHER_ATK = 3;
+    private static final int ARCHER_MOVE_RANGE = 1;
+    private static final int ARCHER_ATTACK_RANGE = 2;
 
     // TANK stats (defined but not used in default lineup)
     private static final int TANK_HP = 16;
     private static final int TANK_ATK = 2;
+    private static final int TANK_MOVE_RANGE = 1;
+    private static final int TANK_ATTACK_RANGE = 1;
 
     // Expected positions from UNIT_TYPES_V1.md default lineup
     private static final int U1_P1_X = 1;
@@ -189,11 +195,15 @@ class GameStateFactoryTest {
             // Then: u1_p1 has SWORDSMAN stats
             assertEquals(SWORDSMAN_HP, u1_p1.getHp(), "u1_p1 (SWORDSMAN) HP should be 10");
             assertEquals(SWORDSMAN_ATK, u1_p1.getAttack(), "u1_p1 (SWORDSMAN) attack should be 3");
+            assertEquals(SWORDSMAN_MOVE_RANGE, u1_p1.getMoveRange(), "u1_p1 (SWORDSMAN) moveRange should be 1");
+            assertEquals(SWORDSMAN_ATTACK_RANGE, u1_p1.getAttackRange(), "u1_p1 (SWORDSMAN) attackRange should be 1");
             assertTrue(u1_p1.isAlive(), "u1_p1 should be alive");
 
             // Then: u1_p2 has SWORDSMAN stats
             assertEquals(SWORDSMAN_HP, u1_p2.getHp(), "u1_p2 (SWORDSMAN) HP should be 10");
             assertEquals(SWORDSMAN_ATK, u1_p2.getAttack(), "u1_p2 (SWORDSMAN) attack should be 3");
+            assertEquals(SWORDSMAN_MOVE_RANGE, u1_p2.getMoveRange(), "u1_p2 (SWORDSMAN) moveRange should be 1");
+            assertEquals(SWORDSMAN_ATTACK_RANGE, u1_p2.getAttackRange(), "u1_p2 (SWORDSMAN) attackRange should be 1");
             assertTrue(u1_p2.isAlive(), "u1_p2 should be alive");
         }
 
@@ -209,11 +219,15 @@ class GameStateFactoryTest {
             // Then: u2_p1 has ARCHER stats
             assertEquals(ARCHER_HP, u2_p1.getHp(), "u2_p1 (ARCHER) HP should be 8");
             assertEquals(ARCHER_ATK, u2_p1.getAttack(), "u2_p1 (ARCHER) attack should be 3");
+            assertEquals(ARCHER_MOVE_RANGE, u2_p1.getMoveRange(), "u2_p1 (ARCHER) moveRange should be 1");
+            assertEquals(ARCHER_ATTACK_RANGE, u2_p1.getAttackRange(), "u2_p1 (ARCHER) attackRange should be 2");
             assertTrue(u2_p1.isAlive(), "u2_p1 should be alive");
 
             // Then: u2_p2 has ARCHER stats
             assertEquals(ARCHER_HP, u2_p2.getHp(), "u2_p2 (ARCHER) HP should be 8");
             assertEquals(ARCHER_ATK, u2_p2.getAttack(), "u2_p2 (ARCHER) attack should be 3");
+            assertEquals(ARCHER_MOVE_RANGE, u2_p2.getMoveRange(), "u2_p2 (ARCHER) moveRange should be 1");
+            assertEquals(ARCHER_ATTACK_RANGE, u2_p2.getAttackRange(), "u2_p2 (ARCHER) attackRange should be 2");
             assertTrue(u2_p2.isAlive(), "u2_p2 should be alive");
         }
 
