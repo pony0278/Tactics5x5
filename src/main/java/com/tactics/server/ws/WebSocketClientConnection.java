@@ -10,6 +10,8 @@ public class WebSocketClientConnection implements ClientConnection {
 
     private final String id;
     private final WebSocket webSocket;
+    private String matchId;
+    private String playerId;
 
     /**
      * Create a new WebSocketClientConnection.
@@ -25,6 +27,26 @@ public class WebSocketClientConnection implements ClientConnection {
     @Override
     public String getId() {
         return id;
+    }
+
+    @Override
+    public String getMatchId() {
+        return matchId;
+    }
+
+    @Override
+    public void setMatchId(String matchId) {
+        this.matchId = matchId;
+    }
+
+    @Override
+    public String getPlayerId() {
+        return playerId;
+    }
+
+    @Override
+    public void setPlayerId(String playerId) {
+        this.playerId = playerId;
     }
 
     @Override

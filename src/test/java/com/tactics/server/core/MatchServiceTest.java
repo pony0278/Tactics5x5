@@ -85,7 +85,8 @@ class MatchServiceTest {
             assertNotNull(state);
             assertEquals(5, state.getBoard().getWidth());
             assertEquals(5, state.getBoard().getHeight());
-            assertTrue(state.getUnits().isEmpty());
+            // GameStateFactory.createStandardGame() creates 4 units (2 per player)
+            assertEquals(4, state.getUnits().size());
             assertEquals("P1", state.getCurrentPlayer().getValue());
             assertFalse(state.isGameOver());
             assertNull(state.getWinner());

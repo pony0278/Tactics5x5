@@ -75,6 +75,16 @@ The game engine, server, and client are functional with V2 rules supporting:
 | Done | RuleEngine V2 | 95991ab | V2 validation with ranges |
 | Done | Client Range Display | b23406c | Visual move/attack range highlights |
 
+### Phase 6: Build & Test Fixes
+
+| Status | Component | Description |
+|--------|-----------|-------------|
+| Done | Java-WebSocket Dependency | Added missing `org.java-websocket:Java-WebSocket:1.5.4` to pom.xml |
+| Done | WebSocketClientConnection | Implemented missing `ClientConnection` interface methods (matchId, playerId) |
+| Done | JUnit Stub Cleanup | Removed conflicting custom JUnit stubs from test directory |
+| Done | Test Expectations | Updated tests to match current `GameStateFactory` behavior (4 units) |
+| Done | Test Expectations | Fixed player slot assignment test expectations |
+
 ---
 
 ## Test Coverage Summary
@@ -84,11 +94,14 @@ The game engine, server, and client are functional with V2 rules supporting:
 | RuleEngineValidateActionTest | V1 action validation | Done |
 | RuleEngineApplyActionTest | Action application | Done |
 | RuleEngineValidateActionV2Test | V2 range validation | Done |
+| RuleEngineBuffFlowTest | Buff system validation & apply | Done |
 | MatchRegistryTest | Match management | Done |
 | MatchServiceTest | Game orchestration | Done |
 | MatchWebSocketHandlerTest | WebSocket messages | Done |
 | GameStateSerializerTest | JSON serialization | Done |
 | GameStateFactoryTest | Unit type creation | Done |
+
+**Total: 235 tests passing**
 
 ---
 
@@ -172,9 +185,10 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| V2.0 | Current | Ranged attacks, client range visualization |
+| V2.1 | 2025-12-02 | Build fixes, 235 tests passing, buff system tests |
+| V2.0 | Earlier | Ranged attacks, client range visualization |
 | V1.0 | Earlier | Basic game with melee-only combat |
 
 ---
 
-*Last updated: 2025-11-30*
+*Last updated: 2025-12-02*

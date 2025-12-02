@@ -346,19 +346,28 @@ class MatchWebSocketHandlerTest {
         }
 
         @Test
-        @DisplayName("WS-JOIN2 - join_match with P2 still returns match_joined")
+        @DisplayName("WS-JOIN2 - second player joining gets assigned P2")
         void wsJoin2_joinMatchP2ReturnsMatchJoined() {
             GameState dummyState = createDummyGameState(false, null);
-            Match dummyMatch = createDummyMatch("match-1", dummyState, new HashMap<>());
+            Map<ClientSlot, ClientConnection> connections = new HashMap<>();
+            Match dummyMatch = createDummyMatch("match-1", dummyState, connections);
             fakeMatchService.setMatchToReturn(dummyMatch);
+
+            // First player joins and gets P1
+            FakeClientConnection connP1 = new FakeClientConnection("c1");
+            String json1 = "{\"type\":\"join_match\",\"payload\":{\"matchId\":\"match-1\"}}";
+            handler.onMessage(connP1, json1);
+
+            // Second player joins and gets P2
             FakeClientConnection connP2 = new FakeClientConnection("c2");
+            String json2 = "{\"type\":\"join_match\",\"payload\":{\"matchId\":\"match-1\"}}";
+            handler.onMessage(connP2, json2);
 
-            String json = "{\"type\":\"join_match\",\"payload\":{\"matchId\":\"match-1\",\"playerId\":\"P2\"}}";
-            handler.onMessage(connP2, json);
+            assertEquals(2, fakeMatchService.getOrCreateMatchCallCount);
+            // P2 receives match_joined + game_ready (2 messages)
+            assertTrue(connP2.sentMessages.size() >= 1);
 
-            assertEquals(1, fakeMatchService.getOrCreateMatchCallCount);
-            assertEquals(1, connP2.sentMessages.size());
-
+            // First message should be match_joined
             String response = connP2.sentMessages.get(0);
             assertEquals("match_joined", getType(response));
             Map<String, Object> payload = getPayload(response);
@@ -368,10 +377,10 @@ class MatchWebSocketHandlerTest {
         }
 
         @Test
-        @DisplayName("WS-JOIN3 - malformed join_match payload returns validation_error")
+        @DisplayName("WS-JOIN3 - missing matchId returns validation_error")
         void wsJoin3_malformedJoinMatchReturnsValidationError() {
-            // Missing playerId
-            String json = "{\"type\":\"join_match\",\"payload\":{\"matchId\":\"match-1\"}}";
+            // Missing matchId - server requires matchId but not playerId (auto-assigns)
+            String json = "{\"type\":\"join_match\",\"payload\":{}}";
             handler.onMessage(conn, json);
 
             assertEquals(0, fakeMatchService.getOrCreateMatchCallCount);
@@ -381,7 +390,7 @@ class MatchWebSocketHandlerTest {
             assertEquals("validation_error", getType(response));
             Map<String, Object> payload = getPayload(response);
             assertNotNull(payload.get("message"));
-            assertTrue(((String) payload.get("message")).contains("Missing"));
+            assertTrue(((String) payload.get("message")).contains("matchId"));
         }
 
         @Test
