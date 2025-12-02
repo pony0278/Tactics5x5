@@ -66,12 +66,48 @@
                 <div>Pending Action: <span id="pending-action">None</span></div>
             </div>
 
+            <!-- Selected Unit Info (Task 1 & 2) -->
+            <div id="selected-unit-info" class="hidden">
+                <h3>Selected Unit</h3>
+                <div class="unit-info-grid">
+                    <div class="info-row">
+                        <span class="info-label">Type:</span>
+                        <span id="info-unit-type" class="info-value">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Owner:</span>
+                        <span id="info-unit-owner" class="info-value">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Position:</span>
+                        <span id="info-unit-position" class="info-value">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">HP:</span>
+                        <span id="info-unit-hp" class="info-value">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">ATK:</span>
+                        <span id="info-unit-attack" class="info-value">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Move Range:</span>
+                        <span id="info-unit-move-range" class="info-value">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Attack Range:</span>
+                        <span id="info-unit-attack-range" class="info-value">--</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Action Buttons -->
             <div id="action-buttons">
                 <button id="btn-move" type="button">Move</button>
                 <button id="btn-attack" type="button">Attack</button>
                 <button id="btn-move-attack" type="button">Move + Attack</button>
                 <button id="btn-end-turn" type="button">End Turn</button>
+                <button id="btn-cancel" type="button">Cancel</button>
             </div>
 
             <!-- Error Log -->

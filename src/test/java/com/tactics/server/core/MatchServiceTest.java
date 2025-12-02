@@ -21,7 +21,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * JUnit 5 tests for MatchService
@@ -163,8 +170,8 @@ class MatchServiceTest {
         @DisplayName("MSA1 - applyAction applies valid MOVE and updates state")
         void msa1_applyActionAppliesValidMoveAndUpdatesState() {
             // Given: match with P1 unit at (1,1)
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             List<Unit> units = Arrays.asList(u1_p1, u1_p2);
             GameState initialState = createStateWithUnits(units, p1);
             registry.createMatch("match-1", initialState);
@@ -213,8 +220,8 @@ class MatchServiceTest {
         @DisplayName("MSA2 - applyAction applies valid ATTACK and updates state")
         void msa2_applyActionAppliesValidAttackAndUpdatesState() {
             // Given: P1 unit at (1,1) adjacent to P2 unit at (1,2)
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(1, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(1, 2), true);
             List<Unit> units = Arrays.asList(u1_p1, u1_p2);
             GameState initialState = createStateWithUnits(units, p1);
             registry.createMatch("match-1", initialState);
@@ -261,8 +268,8 @@ class MatchServiceTest {
         @DisplayName("MSA3 - applyAction applies END_TURN and switches currentPlayer")
         void msa3_applyActionAppliesEndTurnAndSwitchesPlayer() {
             // Given: match with currentPlayer = P1
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             List<Unit> units = Arrays.asList(u1_p1, u1_p2);
             GameState initialState = createStateWithUnits(units, p1);
             registry.createMatch("match-1", initialState);
@@ -292,8 +299,8 @@ class MatchServiceTest {
         @DisplayName("MSA4 - applyAction throws on validation failure (wrong turn)")
         void msa4_applyActionThrowsOnValidationFailureWrongTurn() {
             // Given: match with currentPlayer = P1
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             List<Unit> units = Arrays.asList(u1_p1, u1_p2);
             GameState initialState = createStateWithUnits(units, p1);
             registry.createMatch("match-1", initialState);
@@ -319,8 +326,8 @@ class MatchServiceTest {
         @DisplayName("MSA4 - applyAction throws on validation failure (invalid move)")
         void msa4_applyActionThrowsOnInvalidMove() {
             // Given: match with no unit adjacent to target
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             List<Unit> units = Arrays.asList(u1_p1, u1_p2);
             GameState initialState = createStateWithUnits(units, p1);
             registry.createMatch("match-1", initialState);
@@ -368,8 +375,8 @@ class MatchServiceTest {
         @DisplayName("MSC1 - applyAction does not mutate old GameState")
         void msc1_applyActionDoesNotMutateOldGameState() {
             // Given
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             List<Unit> units = Arrays.asList(u1_p1, u1_p2);
             GameState initialState = createStateWithUnits(units, p1);
             registry.createMatch("match-1", initialState);

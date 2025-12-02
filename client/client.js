@@ -20,7 +20,11 @@ const clientState = {
     gameState: null,          // Last GameState from server
     selectedUnitId: null,     // String or null
     pendingActionType: null,  // "MOVE", "ATTACK", "MOVE_AND_ATTACK", or null
-    lastErrorMessage: null    // String or null
+    lastErrorMessage: null,   // String or null
+    highlightedCells: [],     // Array of { x, y, type } where type is "move" or "attack"
+    actedUnitIds: [],         // Bug 3: Track units that have acted this turn
+    lastKnownPlayer: null,    // Track player turn to detect turn changes
+    pendingActionUnitId: null // Bug 3 fix: Track which unit's action is being sent to server
 };
 
 // =============================================================================
@@ -92,7 +96,12 @@ function sendJoinMatch() {
  * @param {string|null} targetUnitId - Target unit ID
  */
 function sendAction(actionType, targetX, targetY, targetUnitId) {
-    // TODO: Implement sendAction
+    // Bug 3 fix: Track which unit is performing this action
+    // This persists until state_update or validation_error is received
+    if (actionType !== "END_TURN") {
+        clientState.pendingActionUnitId = clientState.selectedUnitId;
+    }
+
     const message = {
         type: "action",
         payload: {
@@ -100,6 +109,7 @@ function sendAction(actionType, targetX, targetY, targetUnitId) {
             playerId: clientState.playerId,
             action: {
                 type: actionType,
+                unitId: clientState.selectedUnitId,  // Bug 1 fix: Include acting unit ID
                 targetX: targetX,
                 targetY: targetY,
                 targetUnitId: targetUnitId
@@ -178,6 +188,10 @@ function handleMatchJoined(payload) {
     clientState.selectedUnitId = null;
     clientState.pendingActionType = null;
     clientState.lastErrorMessage = null;
+    clientState.actedUnitIds = [];  // Bug 3: Reset acted units on match join
+    clientState.lastKnownPlayer = payload.state?.currentPlayer || null;
+    clientState.pendingActionUnitId = null;
+    clearRangeHighlights();
 
     logMessage("Joined as " + payload.playerId);
 
@@ -191,10 +205,30 @@ function handleMatchJoined(payload) {
  */
 function handleStateUpdate(payload) {
     console.log("State update:", payload);
+
+    const previousPlayer = clientState.lastKnownPlayer;
+    const newPlayer = payload.state?.currentPlayer;
+
+    // Bug 3: Detect turn change and reset acted units
+    if (previousPlayer !== newPlayer) {
+        clientState.actedUnitIds = [];
+        logMessage("Turn changed: " + (newPlayer || "--"));
+    }
+    clientState.lastKnownPlayer = newPlayer;
+
+    // Bug 3 fix: Mark the unit that just acted (using pendingActionUnitId)
+    if (clientState.pendingActionUnitId) {
+        if (!clientState.actedUnitIds.includes(clientState.pendingActionUnitId)) {
+            clientState.actedUnitIds.push(clientState.pendingActionUnitId);
+        }
+        clientState.pendingActionUnitId = null; // Clear after marking
+    }
+
     clientState.gameState = payload.state;
     clientState.pendingActionType = null;
     clientState.moveTarget = null;
     clientState.lastErrorMessage = null;
+    clearRangeHighlights();
 
     // Clear selection if the selected unit is no longer alive
     if (clientState.selectedUnitId && clientState.gameState.units) {
@@ -207,9 +241,6 @@ function handleStateUpdate(payload) {
     clearError();
     renderBoard();
     renderControls();
-
-    // Log turn change
-    logMessage("Turn: " + (clientState.gameState.currentPlayer || "--"));
 }
 
 /**
@@ -220,9 +251,11 @@ function handleValidationError(payload) {
     console.log("Validation error:", payload);
     clientState.lastErrorMessage = payload.message;
 
-    // Clear pending action on error so user can try again
+    // Clear pending action and highlights on error (same as Cancel)
     clientState.pendingActionType = null;
     clientState.moveTarget = null;
+    clientState.pendingActionUnitId = null; // Bug 3 fix: Don't mark as acted on error
+    clearRangeHighlights();
 
     renderError(payload.message);
     renderBoard();
@@ -280,6 +313,18 @@ function renderBoard() {
         cell.className = "cell";
     });
 
+    // Apply range highlights from highlightedCells
+    clientState.highlightedCells.forEach(highlight => {
+        const cell = document.querySelector(`.cell[data-x="${highlight.x}"][data-y="${highlight.y}"]`);
+        if (cell) {
+            if (highlight.type === "move") {
+                cell.classList.add("cell-move-range");
+            } else if (highlight.type === "attack") {
+                cell.classList.add("cell-attack-range");
+            }
+        }
+    });
+
     // Render units if gameState exists
     if (clientState.gameState && clientState.gameState.units) {
         clientState.gameState.units.forEach(unit => {
@@ -302,6 +347,12 @@ function renderBoard() {
                 if (clientState.selectedUnitId === unit.id) {
                     unitEl.classList.add("selected");
                     cell.classList.add("selected");
+                }
+
+                // Bug 3: Mark units that have already acted this turn
+                if (clientState.actedUnitIds.includes(unit.id)) {
+                    unitEl.classList.add("acted");
+                    cell.classList.add("unit-acted");
                 }
 
                 // Mark enemy units as attack targets when ATTACK is pending
@@ -402,6 +453,98 @@ function renderControls() {
 
     // Update button states
     updateButtonStates();
+
+    // Update selected unit info panel (Task 1 & 2)
+    renderSelectedUnitInfo();
+}
+
+/**
+ * Render detailed info for the currently selected unit.
+ * Shows type, owner, position, HP, ATK, moveRange, attackRange.
+ */
+function renderSelectedUnitInfo() {
+    const infoPanel = document.getElementById("selected-unit-info");
+    if (!infoPanel) return;
+
+    const unit = getSelectedUnit();
+
+    if (!unit) {
+        // No unit selected - hide panel
+        infoPanel.classList.add("hidden");
+        return;
+    }
+
+    // Show the panel
+    infoPanel.classList.remove("hidden");
+
+    // Infer unit type
+    const unitType = inferUnitType(unit);
+
+    // Update all info fields
+    const typeEl = document.getElementById("info-unit-type");
+    const ownerEl = document.getElementById("info-unit-owner");
+    const positionEl = document.getElementById("info-unit-position");
+    const hpEl = document.getElementById("info-unit-hp");
+    const attackEl = document.getElementById("info-unit-attack");
+    const moveRangeEl = document.getElementById("info-unit-move-range");
+    const attackRangeEl = document.getElementById("info-unit-attack-range");
+
+    if (typeEl) typeEl.textContent = unitType;
+    if (ownerEl) ownerEl.textContent = unit.owner;
+    if (positionEl) positionEl.textContent = `(${unit.position.x}, ${unit.position.y})`;
+    if (hpEl) hpEl.textContent = unit.hp;
+    if (attackEl) attackEl.textContent = unit.attack;
+    if (moveRangeEl) moveRangeEl.textContent = unit.moveRange || 1;
+    if (attackRangeEl) attackRangeEl.textContent = unit.attackRange || 1;
+
+    // Bug 3: Show acted status
+    const hasActed = clientState.actedUnitIds.includes(unit.id);
+    if (hasActed) {
+        typeEl.textContent = unitType + " (acted)";
+    }
+}
+
+/**
+ * Handle Cancel button click.
+ * Bug 2 fix: Step-back behavior instead of full reset.
+ * MOVE_AND_ATTACK_SELECT_TARGET → MOVE_AND_ATTACK (clear moveTarget)
+ * MOVE_AND_ATTACK / MOVE / ATTACK → clear pending action (keep selection)
+ * No pending action → clear selection
+ */
+function onCancelActionClick() {
+    clearError();
+    // Bug 3 fix: Clear pending action unit if canceling before server responds
+    clientState.pendingActionUnitId = null;
+
+    if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET") {
+        // Step back to MOVE_AND_ATTACK (clear move target, keep pending action)
+        clientState.moveTarget = null;
+        clientState.pendingActionType = "MOVE_AND_ATTACK";
+        updateRangeHighlights();
+        renderBoard();
+        renderControls();
+        logMessage("Cancelled target selection - select move destination");
+        return;
+    }
+
+    if (clientState.pendingActionType !== null) {
+        // Step back: clear pending action but keep selection
+        clientState.pendingActionType = null;
+        clientState.moveTarget = null;
+        clearRangeHighlights();
+        renderBoard();
+        renderControls();
+        logMessage("Action cancelled - unit still selected");
+        return;
+    }
+
+    // No pending action - clear selection entirely
+    clientState.selectedUnitId = null;
+    clientState.lastErrorMessage = null;
+    clearRangeHighlights();
+    renderBoard();
+    renderControls();
+    logMessage("Selection cleared");
 }
 
 /**
@@ -412,6 +555,7 @@ function updateButtonStates() {
     const btnAttack = document.getElementById("btn-attack");
     const btnMoveAttack = document.getElementById("btn-move-attack");
     const btnEndTurn = document.getElementById("btn-end-turn");
+    const btnCancel = document.getElementById("btn-cancel");
 
     // Determine if it's this player's turn
     const isMyTurn = clientState.gameState &&
@@ -424,8 +568,15 @@ function updateButtonStates() {
     // Determine if a unit is selected
     const hasSelection = clientState.selectedUnitId !== null;
 
-    // MOVE, ATTACK, MOVE+ATTACK require: my turn, not game over, unit selected
-    const canAct = isMyTurn && !isGameOver && hasSelection;
+    // Determine if there's a pending action
+    const hasPendingAction = clientState.pendingActionType !== null;
+
+    // Bug 3: Check if selected unit has already acted this turn
+    const hasActed = clientState.selectedUnitId !== null &&
+        clientState.actedUnitIds.includes(clientState.selectedUnitId);
+
+    // MOVE, ATTACK, MOVE+ATTACK require: my turn, not game over, unit selected, unit hasn't acted
+    const canAct = isMyTurn && !isGameOver && hasSelection && !hasActed;
 
     if (btnMove) {
         btnMove.disabled = !canAct;
@@ -448,6 +599,11 @@ function updateButtonStates() {
     // END TURN only requires: my turn, not game over
     if (btnEndTurn) {
         btnEndTurn.disabled = !(isMyTurn && !isGameOver);
+    }
+
+    // CANCEL is enabled when there's a selection or pending action
+    if (btnCancel) {
+        btnCancel.disabled = isGameOver || (!hasSelection && !hasPendingAction);
     }
 }
 
@@ -565,7 +721,12 @@ function handleCellClick(event) {
             clientState.selectedUnitId = unitAtCell.id;
             renderBoard();
             renderControls();
-            logMessage("Selected unit: " + unitAtCell.id);
+            // Bug 3: Warn if unit has already acted
+            if (clientState.actedUnitIds.includes(unitAtCell.id)) {
+                logMessage("Selected unit: " + unitAtCell.id + " (already acted this turn)");
+            } else {
+                logMessage("Selected unit: " + unitAtCell.id);
+            }
         } else if (unitAtCell) {
             // Clicked on enemy unit - just show info
             logMessage("Enemy unit: " + unitAtCell.id + " (HP:" + unitAtCell.hp + ")");
@@ -597,6 +758,7 @@ function handleCellClick(event) {
             sendAction("MOVE", x, y, null);
             // Keep selection but clear pending action (server will update state)
             clientState.pendingActionType = null;
+            clearRangeHighlights();
             renderBoard();
             renderControls();
         } else {
@@ -610,6 +772,7 @@ function handleCellClick(event) {
         // Clicking own unit changes selection
         if (unitAtCell && unitAtCell.owner === clientState.playerId && unitAtCell.alive) {
             clientState.selectedUnitId = unitAtCell.id;
+            updateRangeHighlights();  // Update highlights for new selection
             renderBoard();
             renderControls();
             logMessage("Changed selection to: " + unitAtCell.id);
@@ -617,10 +780,18 @@ function handleCellClick(event) {
         }
 
         if (unitAtCell && unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
+            // Bug 1 fix: Validate attack range on client side
+            if (!isInAttackRange(x, y)) {
+                const unit = getSelectedUnit();
+                const attackRange = unit?.attackRange || 1;
+                renderError("Target out of range (attack range: " + attackRange + ")");
+                return;
+            }
             logMessage("Attacking " + unitAtCell.id);
             sendAction("ATTACK", x, y, unitAtCell.id);
             // Keep selection but clear pending action
             clientState.pendingActionType = null;
+            clearRangeHighlights();
             renderBoard();
             renderControls();
         } else {
@@ -644,6 +815,7 @@ function handleCellClick(event) {
             // Store the move target temporarily
             clientState.moveTarget = { x, y };
             clientState.pendingActionType = "MOVE_AND_ATTACK_SELECT_TARGET";
+            updateRangeHighlights(); // Update to show attack range from new position
             logMessage("Move destination: (" + x + "," + y + "). Now select enemy to attack.");
             renderBoard();
             renderControls();
@@ -657,15 +829,28 @@ function handleCellClick(event) {
     // Handle MOVE_AND_ATTACK target selection (step 2: select enemy)
     if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET") {
         if (unitAtCell && unitAtCell.owner !== clientState.playerId && unitAtCell.alive) {
+            // Bug 1 fix: Validate attack range from move destination
+            const unit = getSelectedUnit();
+            const tempUnit = {
+                ...unit,
+                position: { x: clientState.moveTarget.x, y: clientState.moveTarget.y }
+            };
+            if (!isInAttackRange(x, y, tempUnit)) {
+                const attackRange = unit?.attackRange || 1;
+                renderError("Target out of range from move destination (attack range: " + attackRange + ")");
+                return;
+            }
             logMessage("Move+Attack: moving to (" + clientState.moveTarget.x + "," + clientState.moveTarget.y + ") then attacking " + unitAtCell.id);
             sendAction("MOVE_AND_ATTACK", clientState.moveTarget.x, clientState.moveTarget.y, unitAtCell.id);
             clientState.pendingActionType = null;
             clientState.moveTarget = null;
+            clearRangeHighlights();
             renderBoard();
             renderControls();
         } else if (!unitAtCell) {
             // Clicked empty - change move destination
             clientState.moveTarget = { x, y };
+            updateRangeHighlights(); // Update attack range from new position
             logMessage("Changed move destination to: (" + x + "," + y + "). Now select enemy to attack.");
             renderBoard();
         } else {
@@ -687,6 +872,215 @@ function findUnitAt(x, y) {
     return clientState.gameState.units.find(unit =>
         unit.position.x === x && unit.position.y === y && unit.alive
     ) || null;
+}
+
+/**
+ * Get the currently selected unit object.
+ * @returns {object|null} The selected unit or null
+ */
+function getSelectedUnit() {
+    if (!clientState.selectedUnitId || !clientState.gameState || !clientState.gameState.units) {
+        return null;
+    }
+    return clientState.gameState.units.find(u => u.id === clientState.selectedUnitId && u.alive) || null;
+}
+
+/**
+ * Infer unit type from stats based on UNIT_TYPES_V1.md.
+ * @param {object} unit - Unit object with hp, attack, moveRange, attackRange
+ * @returns {string} Unit type name: "Swordsman", "Archer", "Tank", or "Unknown"
+ */
+function inferUnitType(unit) {
+    if (!unit) return "Unknown";
+
+    const { hp, attack, moveRange, attackRange } = unit;
+
+    // SWORDSMAN: hp=10, attack=3, moveRange=1, attackRange=1
+    if (hp === 10 && attack === 3 && moveRange === 1 && attackRange === 1) {
+        return "Swordsman";
+    }
+
+    // ARCHER: hp=8, attack=3, moveRange=1, attackRange=2
+    if (hp === 8 && attack === 3 && moveRange === 1 && attackRange === 2) {
+        return "Archer";
+    }
+
+    // TANK: hp=16, attack=2, moveRange=1, attackRange=1
+    if (hp === 16 && attack === 2 && moveRange === 1 && attackRange === 1) {
+        return "Tank";
+    }
+
+    // Fallback: try to match by key distinguishing stats
+    // Archer is unique with attackRange=2
+    if (attackRange === 2) return "Archer";
+    // Tank is unique with hp=16
+    if (hp === 16) return "Tank";
+    // Swordsman is the default melee
+    if (hp === 10) return "Swordsman";
+
+    return "Unknown";
+}
+
+/**
+ * Check if a cell is occupied by any alive unit.
+ * @param {number} x - X coordinate
+ * @param {number} y - Y coordinate
+ * @returns {boolean} True if cell is occupied
+ */
+function isCellOccupied(x, y) {
+    if (!clientState.gameState || !clientState.gameState.units) return false;
+    return clientState.gameState.units.some(u =>
+        u.position.x === x && u.position.y === y && u.alive
+    );
+}
+
+/**
+ * Bug 1 fix: Check if a target position is within attack range of the selected unit.
+ * Uses V2 rules: Manhattan distance, orthogonal only.
+ * @param {number} targetX - Target X coordinate
+ * @param {number} targetY - Target Y coordinate
+ * @param {object} fromUnit - Optional unit to check from (defaults to selected unit)
+ * @returns {boolean} True if target is in attack range
+ */
+function isInAttackRange(targetX, targetY, fromUnit = null) {
+    const unit = fromUnit || getSelectedUnit();
+    if (!unit || !unit.position) return false;
+
+    const { x: ux, y: uy } = unit.position;
+    const attackRange = unit.attackRange || 1;
+
+    const dx = Math.abs(targetX - ux);
+    const dy = Math.abs(targetY - uy);
+    const distance = dx + dy;
+
+    // Must be within attack range and orthogonal (not diagonal)
+    return distance > 0 && distance <= attackRange && (dx === 0 || dy === 0);
+}
+
+/**
+ * Compute valid move range cells for a unit based on V2 rules.
+ * Uses Manhattan distance, orthogonal-only movement, within moveRange.
+ * Filters out occupied cells.
+ * @param {object} unit - The unit object with position and moveRange
+ * @param {number} boardWidth - Board width (default 5)
+ * @param {number} boardHeight - Board height (default 5)
+ * @returns {Array} Array of { x, y } positions
+ */
+function computeMoveRange(unit, boardWidth = 5, boardHeight = 5) {
+    const cells = [];
+    if (!unit || !unit.position) return cells;
+
+    const { x: ux, y: uy } = unit.position;
+    const moveRange = unit.moveRange || 1; // Default to 1 if not specified
+
+    // Check all cells within Manhattan distance <= moveRange
+    // But only orthogonal (same row OR same column)
+    for (let x = 0; x < boardWidth; x++) {
+        for (let y = 0; y < boardHeight; y++) {
+            const dx = Math.abs(x - ux);
+            const dy = Math.abs(y - uy);
+            const distance = dx + dy;
+
+            // Skip same tile (distance 0)
+            if (distance === 0) continue;
+
+            // Must be within moveRange
+            if (distance > moveRange) continue;
+
+            // Must be orthogonal (either dx == 0 OR dy == 0, not both non-zero)
+            if (dx !== 0 && dy !== 0) continue;
+
+            // Skip occupied cells (Task 3)
+            if (isCellOccupied(x, y)) continue;
+
+            cells.push({ x, y });
+        }
+    }
+
+    return cells;
+}
+
+/**
+ * Compute valid attack range cells for a unit based on V2 rules.
+ * Uses Manhattan distance, orthogonal-only targeting, within attackRange.
+ * @param {object} unit - The unit object with position and attackRange
+ * @param {number} boardWidth - Board width (default 5)
+ * @param {number} boardHeight - Board height (default 5)
+ * @returns {Array} Array of { x, y } positions
+ */
+function computeAttackRange(unit, boardWidth = 5, boardHeight = 5) {
+    const cells = [];
+    if (!unit || !unit.position) return cells;
+
+    const { x: ux, y: uy } = unit.position;
+    const attackRange = unit.attackRange || 1; // Default to 1 if not specified
+
+    // Check all cells within Manhattan distance <= attackRange
+    // But only orthogonal (same row OR same column)
+    for (let x = 0; x < boardWidth; x++) {
+        for (let y = 0; y < boardHeight; y++) {
+            const dx = Math.abs(x - ux);
+            const dy = Math.abs(y - uy);
+            const distance = dx + dy;
+
+            // Skip same tile (distance 0)
+            if (distance === 0) continue;
+
+            // Must be within attackRange
+            if (distance > attackRange) continue;
+
+            // Must be orthogonal (either dx == 0 OR dy == 0, not both non-zero)
+            if (dx !== 0 && dy !== 0) continue;
+
+            cells.push({ x, y });
+        }
+    }
+
+    return cells;
+}
+
+/**
+ * Update highlightedCells based on selected unit and pending action.
+ * Called when selection or pending action changes.
+ */
+function updateRangeHighlights() {
+    // Clear existing highlights
+    clientState.highlightedCells = [];
+
+    const unit = getSelectedUnit();
+    if (!unit) return;
+
+    const boardWidth = clientState.gameState?.board?.width || 5;
+    const boardHeight = clientState.gameState?.board?.height || 5;
+
+    if (clientState.pendingActionType === "MOVE") {
+        // Highlight move range
+        const moveCells = computeMoveRange(unit, boardWidth, boardHeight);
+        clientState.highlightedCells = moveCells.map(c => ({ x: c.x, y: c.y, type: "move" }));
+    } else if (clientState.pendingActionType === "ATTACK") {
+        // Highlight attack range
+        const attackCells = computeAttackRange(unit, boardWidth, boardHeight);
+        clientState.highlightedCells = attackCells.map(c => ({ x: c.x, y: c.y, type: "attack" }));
+    } else if (clientState.pendingActionType === "MOVE_AND_ATTACK") {
+        // For MOVE_AND_ATTACK, highlight move range first (player selects move destination)
+        const moveCells = computeMoveRange(unit, boardWidth, boardHeight);
+        clientState.highlightedCells = moveCells.map(c => ({ x: c.x, y: c.y, type: "move" }));
+    } else if (clientState.pendingActionType === "MOVE_AND_ATTACK_SELECT_TARGET" && clientState.moveTarget) {
+        // After move destination selected, highlight attack range from new position
+        const tempUnit = {
+            ...unit,
+            position: { x: clientState.moveTarget.x, y: clientState.moveTarget.y }
+        };
+        const attackCells = computeAttackRange(tempUnit, boardWidth, boardHeight);
+        clientState.highlightedCells = attackCells.map(c => ({ x: c.x, y: c.y, type: "attack" }));
+    }
+}
+
+/**
+ * Clear all range highlights.
+ */
+function clearRangeHighlights() {
+    clientState.highlightedCells = [];
 }
 
 /**
@@ -732,6 +1126,7 @@ function handleMoveClick() {
         return;
     }
     clientState.pendingActionType = "MOVE";
+    updateRangeHighlights();
     clearError();
     renderBoard();
     renderControls();
@@ -747,6 +1142,7 @@ function handleAttackClick() {
         return;
     }
     clientState.pendingActionType = "ATTACK";
+    updateRangeHighlights();
     clearError();
     renderBoard();
     renderControls();
@@ -762,6 +1158,7 @@ function handleMoveAttackClick() {
         return;
     }
     clientState.pendingActionType = "MOVE_AND_ATTACK";
+    updateRangeHighlights();
     clearError();
     renderBoard();
     renderControls();
@@ -776,6 +1173,7 @@ function handleEndTurnClick() {
     sendAction("END_TURN", null, null, null);
     clientState.pendingActionType = null;
     clientState.selectedUnitId = null;
+    clearRangeHighlights();
     renderBoard();
     renderControls();
 }
@@ -801,6 +1199,7 @@ function init() {
     document.getElementById("btn-attack")?.addEventListener("click", handleAttackClick);
     document.getElementById("btn-move-attack")?.addEventListener("click", handleMoveAttackClick);
     document.getElementById("btn-end-turn")?.addEventListener("click", handleEndTurnClick);
+    document.getElementById("btn-cancel")?.addEventListener("click", onCancelActionClick);
 
     // Initial render
     renderBoard();
