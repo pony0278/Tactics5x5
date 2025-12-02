@@ -9,6 +9,10 @@ public class ConnectionRegistry {
 
     private final Map<String, ClientConnection> connections;
 
+    public ConnectionRegistry() {
+        this.connections = new java.util.concurrent.ConcurrentHashMap<>();
+    }
+
     public ConnectionRegistry(Map<String, ClientConnection> connections) {
         this.connections = connections;
     }

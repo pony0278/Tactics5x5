@@ -1,5 +1,7 @@
 package com.tactics.engine.model;
 
+import java.util.Objects;
+
 /**
  * Represents a unit on the board.
  */
@@ -9,14 +11,18 @@ public class Unit {
     private final PlayerId owner;
     private final int hp;
     private final int attack;
+    private final int moveRange;
+    private final int attackRange;
     private final Position position;
     private final boolean alive;
 
-    public Unit(String id, PlayerId owner, int hp, int attack, Position position, boolean alive) {
+    public Unit(String id, PlayerId owner, int hp, int attack, int moveRange, int attackRange, Position position, boolean alive) {
         this.id = id;
         this.owner = owner;
         this.hp = hp;
         this.attack = attack;
+        this.moveRange = moveRange;
+        this.attackRange = attackRange;
         this.position = position;
         this.alive = alive;
     }
@@ -37,11 +43,47 @@ public class Unit {
         return attack;
     }
 
+    public int getMoveRange() {
+        return moveRange;
+    }
+
+    public int getAttackRange() {
+        return attackRange;
+    }
+
     public Position getPosition() {
         return position;
     }
 
     public boolean isAlive() {
         return alive;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Unit unit = (Unit) o;
+        return hp == unit.hp &&
+               attack == unit.attack &&
+               moveRange == unit.moveRange &&
+               attackRange == unit.attackRange &&
+               alive == unit.alive &&
+               Objects.equals(id, unit.id) &&
+               Objects.equals(owner, unit.owner) &&
+               Objects.equals(position, unit.position);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, owner, hp, attack, moveRange, attackRange, position, alive);
+    }
+
+    @Override
+    public String toString() {
+        return "Unit{id='" + id + "', owner=" + owner +
+               ", hp=" + hp + ", attack=" + attack +
+               ", moveRange=" + moveRange + ", attackRange=" + attackRange +
+               ", position=" + position + ", alive=" + alive + "}";
     }
 }

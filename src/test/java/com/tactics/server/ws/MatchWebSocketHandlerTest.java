@@ -19,7 +19,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * JUnit 5 tests for MatchWebSocketHandler following SERVER_WS_TESTPLAN_V1.
@@ -35,6 +39,8 @@ class MatchWebSocketHandlerTest {
      */
     static class FakeClientConnection implements ClientConnection {
         private final String id;
+        private String matchId;
+        private String playerId;
         public final List<String> sentMessages = new ArrayList<>();
 
         FakeClientConnection(String id) {
@@ -44,6 +50,26 @@ class MatchWebSocketHandlerTest {
         @Override
         public String getId() {
             return id;
+        }
+
+        @Override
+        public String getMatchId() {
+            return matchId;
+        }
+
+        @Override
+        public void setMatchId(String matchId) {
+            this.matchId = matchId;
+        }
+
+        @Override
+        public String getPlayerId() {
+            return playerId;
+        }
+
+        @Override
+        public void setPlayerId(String playerId) {
+            this.playerId = playerId;
         }
 
         @Override

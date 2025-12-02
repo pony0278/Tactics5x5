@@ -17,7 +17,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * JUnit 5 tests for RuleEngine.applyAction()
@@ -57,8 +62,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AM1 - Basic MOVE Updates Position")
         void am1_basicMoveUpdatesPosition() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.MOVE, p1, new Position(1, 2), null);
@@ -88,8 +93,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AM2 - MOVE Does Not Mutate Original State")
         void am2_moveDoesNotMutateOriginalState() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             GameState originalState = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.MOVE, p1, new Position(1, 2), null);
@@ -115,9 +120,9 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AM3 - MOVE with Multiple Units (Only One Moves)")
         void am3_moveWithMultipleUnits() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u2_p1 = new Unit("u2_p1", p1, 10, 3, new Position(3, 3), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(4, 4), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u2_p1 = new Unit("u2_p1", p1, 10, 3, 1, 1, new Position(3, 3), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(4, 4), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u2_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.MOVE, p1, new Position(1, 2), null);
@@ -150,8 +155,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AA1 - Basic ATTACK Reduces Target HP")
         void aa1_basicAttackReducesHp() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(1, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(1, 2), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -179,9 +184,9 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AA2 - ATTACK Kills Target (HP Drops to 0 or Below)")
         void aa2_attackKillsTarget() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 5, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 4, 3, new Position(1, 2), true);
-            Unit u2_p2 = new Unit("u2_p2", p2, 10, 3, new Position(3, 3), true); // Another P2 unit
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 5, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 4, 3, 1, 1, new Position(1, 2), true);
+            Unit u2_p2 = new Unit("u2_p2", p2, 10, 3, 1, 1, new Position(3, 3), true); // Another P2 unit
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2, u2_p2), p1, false, null);
 
             Action action = new Action(ActionType.ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -204,8 +209,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AA3 - ATTACK That Kills Last Enemy Triggers Game Over")
         void aa3_attackKillsLastEnemyGameOver() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 3, 3, new Position(1, 2), true); // Only P2 unit
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 3, 3, 1, 1, new Position(1, 2), true); // Only P2 unit
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -226,8 +231,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AA4 - ATTACK That Damages but Does Not Kill Does Not End Game")
         void aa4_attackDamagesNoKill() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(1, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(1, 2), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -247,8 +252,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AA5 - ATTACK Does Not Mutate Original GameState")
         void aa5_attackDoesNotMutateOriginalState() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(1, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(1, 2), true);
             GameState originalState = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -279,8 +284,8 @@ class RuleEngineApplyActionTest {
         @DisplayName("AMA1 - MOVE_AND_ATTACK Performs Move and Attack")
         void ama1_moveAndAttackPerformsBoth() {
             // u1_p1 at (1,1), moves to (1,2), attacks u1_p2 at (2,2)
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(2, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(2, 2), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.MOVE_AND_ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -308,9 +313,9 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AMA2 - MOVE_AND_ATTACK That Kills Target But Not Last Enemy")
         void ama2_moveAndAttackKillsNotLastEnemy() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 5, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 4, 3, new Position(2, 2), true);
-            Unit u2_p2 = new Unit("u2_p2", p2, 10, 3, new Position(4, 4), true); // Another P2 unit
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 5, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 4, 3, 1, 1, new Position(2, 2), true);
+            Unit u2_p2 = new Unit("u2_p2", p2, 10, 3, 1, 1, new Position(4, 4), true); // Another P2 unit
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2, u2_p2), p1, false, null);
 
             Action action = new Action(ActionType.MOVE_AND_ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -336,8 +341,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AMA3 - MOVE_AND_ATTACK That Kills Last Enemy Triggers Game Over")
         void ama3_moveAndAttackKillsLastEnemyGameOver() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 5, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 4, 3, new Position(2, 2), true); // Only P2 unit
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 5, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 4, 3, 1, 1, new Position(2, 2), true); // Only P2 unit
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.MOVE_AND_ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -360,8 +365,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AMA4 - MOVE_AND_ATTACK Does Not Mutate Original GameState")
         void ama4_moveAndAttackDoesNotMutateOriginalState() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(2, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(2, 2), true);
             GameState originalState = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.MOVE_AND_ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -402,8 +407,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AET1 - END_TURN Switches Current Player")
         void aet1_endTurnSwitchesPlayer() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.END_TURN, p1, null, null);
@@ -432,9 +437,9 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AET2 - END_TURN Is No-Op for Units and Board")
         void aet2_endTurnNoOpForUnits() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u2_p1 = new Unit("u2_p1", p1, 8, 4, new Position(2, 2), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 5, 2, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u2_p1 = new Unit("u2_p1", p1, 8, 4, 1, 1, new Position(2, 2), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 5, 2, 1, 1, new Position(3, 3), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u2_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.END_TURN, p1, null, null);
@@ -474,8 +479,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AET - END_TURN P2 to P1")
         void aet_endTurnP2ToP1() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p2, false, null);
 
             Action action = new Action(ActionType.END_TURN, p2, null, null);
@@ -496,8 +501,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("AGO1 - No Winner When Both Sides Have Alive Units")
         void ago1_noWinnerBothSidesAlive() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(1, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(1, 2), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             // Test with ATTACK that damages but doesn't kill
@@ -508,7 +513,7 @@ class RuleEngineApplyActionTest {
             assertNull(afterAttack.getWinner());
 
             // Test with MOVE
-            Unit u2_p1 = new Unit("u2_p1", p1, 10, 3, new Position(2, 2), true);
+            Unit u2_p1 = new Unit("u2_p1", p1, 10, 3, 1, 1, new Position(2, 2), true);
             GameState state2 = new GameState(board, Arrays.asList(u1_p1, u2_p1, u1_p2), p1, false, null);
             Action moveAction = new Action(ActionType.MOVE, p1, new Position(2, 3), null);
             GameState afterMove = ruleEngine.applyAction(state2, moveAction);
@@ -528,8 +533,8 @@ class RuleEngineApplyActionTest {
         @DisplayName("AGO2 - Winner Detected When One Side Has No Alive Units")
         void ago2_winnerDetectedNoAliveUnits() {
             // P1 attacks and kills last P2 unit
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 10, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 5, 3, new Position(1, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 10, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 5, 3, 1, 1, new Position(1, 2), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.ATTACK, p1, new Position(1, 2), "u1_p2");
@@ -544,8 +549,8 @@ class RuleEngineApplyActionTest {
         @DisplayName("AGO - P2 Wins When All P1 Units Dead")
         void ago_p2WinsAllP1Dead() {
             // P2 attacks and kills last P1 unit
-            Unit u1_p1 = new Unit("u1_p1", p1, 5, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 10, new Position(1, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 5, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 10, 1, 1, new Position(1, 2), true);
             GameState state = new GameState(board, Arrays.asList(u1_p1, u1_p2), p2, false, null);
 
             Action action = new Action(ActionType.ATTACK, p2, new Position(1, 1), "u1_p1");
@@ -566,8 +571,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("IM1 - New GameState Instance Returned")
         void im1_newGameStateInstanceReturned() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             GameState originalState = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             // Test MOVE
@@ -576,8 +581,8 @@ class RuleEngineApplyActionTest {
             assertNotSame(originalState, afterMove);
 
             // Test ATTACK
-            Unit u2_p1 = new Unit("u2_p1", p1, 10, 3, new Position(2, 3), true);
-            Unit u2_p2 = new Unit("u2_p2", p2, 10, 3, new Position(2, 4), true);
+            Unit u2_p1 = new Unit("u2_p1", p1, 10, 3, 1, 1, new Position(2, 3), true);
+            Unit u2_p2 = new Unit("u2_p2", p2, 10, 3, 1, 1, new Position(2, 4), true);
             GameState state2 = new GameState(board, Arrays.asList(u2_p1, u2_p2), p1, false, null);
             Action attackAction = new Action(ActionType.ATTACK, p1, new Position(2, 4), "u2_p2");
             GameState afterAttack = ruleEngine.applyAction(state2, attackAction);
@@ -589,8 +594,8 @@ class RuleEngineApplyActionTest {
             assertNotSame(originalState, afterEndTurn);
 
             // Test MOVE_AND_ATTACK
-            Unit u3_p1 = new Unit("u3_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u3_p2 = new Unit("u3_p2", p2, 10, 3, new Position(2, 2), true);
+            Unit u3_p1 = new Unit("u3_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u3_p2 = new Unit("u3_p2", p2, 10, 3, 1, 1, new Position(2, 2), true);
             GameState state3 = new GameState(board, Arrays.asList(u3_p1, u3_p2), p1, false, null);
             Action maAction = new Action(ActionType.MOVE_AND_ATTACK, p1, new Position(1, 2), "u3_p2");
             GameState afterMA = ruleEngine.applyAction(state3, maAction);
@@ -600,8 +605,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("IM2 - Units List Copied, Not Mutated In-Place")
         void im2_unitsListCopied() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(1, 2), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(1, 2), true);
             List<Unit> originalUnits = Arrays.asList(u1_p1, u1_p2);
             GameState originalState = new GameState(board, originalUnits, p1, false, null);
 
@@ -626,8 +631,8 @@ class RuleEngineApplyActionTest {
         @Test
         @DisplayName("IM3 - Board Is Immutable")
         void im3_boardIsImmutable() {
-            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, new Position(1, 1), true);
-            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, new Position(3, 3), true);
+            Unit u1_p1 = new Unit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
+            Unit u1_p2 = new Unit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
             GameState originalState = new GameState(board, Arrays.asList(u1_p1, u1_p2), p1, false, null);
 
             Action action = new Action(ActionType.MOVE, p1, new Position(1, 2), null);
