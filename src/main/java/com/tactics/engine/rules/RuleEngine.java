@@ -2,14 +2,17 @@ package com.tactics.engine.rules;
 
 import com.tactics.engine.action.Action;
 import com.tactics.engine.action.ActionType;
+import com.tactics.engine.buff.BuffFactory;
 import com.tactics.engine.buff.BuffFlags;
 import com.tactics.engine.buff.BuffInstance;
 import com.tactics.engine.buff.BuffModifier;
+import com.tactics.engine.buff.BuffType;
 import com.tactics.engine.model.Board;
 import com.tactics.engine.model.GameState;
 import com.tactics.engine.model.PlayerId;
 import com.tactics.engine.model.Position;
 import com.tactics.engine.model.Unit;
+import com.tactics.engine.util.RngProvider;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,10 +34,32 @@ import java.util.Map;
  * - bonusAttack: increases damage dealt
  * - poison: deals 1 damage per poison buff at turn end
  * - Turn end: decrements buff durations and removes expired buffs
+ * - V3: SPEED buff allows 2 actions per turn
+ * - V3: SLOW buff delays actions by 1 round
+ * - V3: BLEED buff deals 1 damage per round
+ * - V3: Buff tiles trigger when stepped on
  */
 public class RuleEngine {
 
+    // V3: RngProvider for buff tile randomness
+    private RngProvider rngProvider;
+
     public RuleEngine() {
+        this.rngProvider = new RngProvider();  // Default with time-based seed
+    }
+
+    /**
+     * V3: Set the RngProvider for deterministic buff tile triggers.
+     */
+    public void setRngProvider(RngProvider rngProvider) {
+        this.rngProvider = rngProvider;
+    }
+
+    /**
+     * V3: Get the RngProvider.
+     */
+    public RngProvider getRngProvider() {
+        return rngProvider;
     }
 
     // =========================================================================
@@ -294,6 +319,204 @@ public class RuleEngine {
     }
 
     // =========================================================================
+    // V3 Buff Helper Methods
+    // =========================================================================
+
+    /**
+     * Check if unit has POWER buff (blocks MOVE_AND_ATTACK, enables DESTROY_OBSTACLE).
+     */
+    private boolean hasPowerBuff(List<BuffInstance> buffs) {
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isPowerBuff()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if unit has SPEED buff (grants extra action per round).
+     */
+    private boolean hasSpeedBuff(List<BuffInstance> buffs) {
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isSpeedBuff()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if unit has SLOW buff (actions delayed by 1 round).
+     */
+    private boolean hasSlowBuff(List<BuffInstance> buffs) {
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isSlowBuff()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get max actions per turn for a unit.
+     * SPEED buff grants 2 actions, normal units have 1.
+     */
+    private int getMaxActions(List<BuffInstance> buffs) {
+        return hasSpeedBuff(buffs) ? 2 : 1;
+    }
+
+    /**
+     * Check if unit can still perform actions this turn.
+     */
+    private boolean canUnitAct(Unit unit, List<BuffInstance> buffs) {
+        int maxActions = getMaxActions(buffs);
+        return unit.getActionsUsed() < maxActions;
+    }
+
+    /**
+     * Count BLEED buffs on a unit (each deals 1 damage per round).
+     */
+    private int getBleedDamage(List<BuffInstance> buffs) {
+        int count = 0;
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isBleedBuff()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Check if a position has an obstacle (V3).
+     */
+    private boolean hasObstacleAt(GameState state, Position pos) {
+        return state.hasObstacleAt(pos);
+    }
+
+    /**
+     * Serialize an action to a map for storage in preparingAction (V3 SLOW buff).
+     */
+    private Map<String, Object> serializeActionForPreparing(Action action) {
+        Map<String, Object> actionMap = new HashMap<>();
+        actionMap.put("type", action.getType().name());
+        actionMap.put("playerId", action.getPlayerId().getValue());
+        if (action.getTargetPosition() != null) {
+            Map<String, Object> posMap = new HashMap<>();
+            posMap.put("x", action.getTargetPosition().getX());
+            posMap.put("y", action.getTargetPosition().getY());
+            actionMap.put("targetPosition", posMap);
+        }
+        if (action.getTargetUnitId() != null) {
+            actionMap.put("targetUnitId", action.getTargetUnitId());
+        }
+        if (action.getActingUnitId() != null) {
+            actionMap.put("actingUnitId", action.getActingUnitId());
+        }
+        return actionMap;
+    }
+
+    /**
+     * Check if a position is blocked by obstacle or unit.
+     */
+    private boolean isTileBlocked(GameState state, Position pos) {
+        return isTileOccupied(state.getUnits(), pos) || hasObstacleAt(state, pos);
+    }
+
+    /**
+     * V3: Get a random buff type using RngProvider.
+     * Uses nextInt(6) to select from POWER, LIFE, SPEED, WEAKNESS, BLEED, SLOW.
+     */
+    private BuffType getRandomBuffType() {
+        int roll = rngProvider.nextInt(6);
+        BuffType[] types = BuffType.values();
+        return types[roll];
+    }
+
+    /**
+     * Result of checking buff tile triggers.
+     */
+    private static class BuffTileTriggerResult {
+        final List<Unit> units;
+        final Map<String, List<BuffInstance>> unitBuffs;
+        final List<com.tactics.engine.model.BuffTile> buffTiles;
+
+        BuffTileTriggerResult(List<Unit> units, Map<String, List<BuffInstance>> unitBuffs,
+                              List<com.tactics.engine.model.BuffTile> buffTiles) {
+            this.units = units;
+            this.unitBuffs = unitBuffs;
+            this.buffTiles = buffTiles;
+        }
+    }
+
+    /**
+     * V3: Check if a unit triggers a buff tile after moving to a position.
+     * If so, apply the buff and mark the tile as triggered.
+     */
+    private BuffTileTriggerResult checkBuffTileTrigger(GameState state, Unit movedUnit, Position newPos,
+                                                        List<Unit> units, Map<String, List<BuffInstance>> unitBuffs) {
+        // Check if there's an untriggered buff tile at the new position
+        com.tactics.engine.model.BuffTile tile = state.getBuffTileAt(newPos);
+        if (tile == null) {
+            return new BuffTileTriggerResult(units, unitBuffs, state.getBuffTiles());
+        }
+
+        // Determine buff type: use tile's type if set, otherwise random
+        BuffType buffType = tile.getBuffType();
+        if (buffType == null) {
+            buffType = getRandomBuffType();
+        }
+
+        // Create the buff instance
+        BuffInstance newBuff = BuffFactory.create(buffType, "bufftile_" + tile.getId());
+
+        // Add buff to the unit
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(unitBuffs);
+        List<BuffInstance> currentBuffs = new ArrayList<>(
+            unitBuffs.getOrDefault(movedUnit.getId(), Collections.emptyList())
+        );
+        currentBuffs.add(newBuff);
+        newUnitBuffs.put(movedUnit.getId(), currentBuffs);
+
+        // Apply instant HP bonus if any (POWER, LIFE, WEAKNESS)
+        List<Unit> newUnits = units;
+        if (newBuff.getInstantHpBonus() != 0) {
+            newUnits = new ArrayList<>();
+            for (Unit u : units) {
+                if (u.getId().equals(movedUnit.getId())) {
+                    int newHp = u.getHp() + newBuff.getInstantHpBonus();
+                    boolean alive = newHp > 0;
+                    newUnits.add(new Unit(
+                        u.getId(), u.getOwner(), newHp, u.getAttack(),
+                        u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive,
+                        u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                        u.getSelectedSkillId(), u.getSkillCooldown(),
+                        u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                        u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                        u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
+                    ));
+                } else {
+                    newUnits.add(u);
+                }
+            }
+        }
+
+        // Mark tile as triggered
+        List<com.tactics.engine.model.BuffTile> newBuffTiles = new ArrayList<>();
+        for (com.tactics.engine.model.BuffTile t : state.getBuffTiles()) {
+            if (t.getId().equals(tile.getId())) {
+                newBuffTiles.add(new com.tactics.engine.model.BuffTile(
+                    t.getId(), t.getPosition(), buffType, t.getDuration(), true  // Mark triggered
+                ));
+            } else {
+                newBuffTiles.add(t);
+            }
+        }
+
+        return new BuffTileTriggerResult(newUnits, newUnitBuffs, newBuffTiles);
+    }
+
+    // =========================================================================
     // Validation (V2: Uses moveRange and attackRange from Unit)
     // (V3: Also considers buff effects)
     // =========================================================================
@@ -334,9 +557,119 @@ public class RuleEngine {
             return validateMoveAndAttack(state, action);
         }
 
+        // V3: DESTROY_OBSTACLE action
+        if (type == ActionType.DESTROY_OBSTACLE) {
+            return validateDestroyObstacle(state, action);
+        }
+
+        // V3: DEATH_CHOICE action
+        if (type == ActionType.DEATH_CHOICE) {
+            return validateDeathChoice(state, action);
+        }
+
+        // V3: USE_SKILL action (placeholder for future implementation)
+        if (type == ActionType.USE_SKILL) {
+            return new ValidationResult(false, "Skill system not yet implemented");
+        }
+
         // G4: Unknown action type
         return new ValidationResult(false, "Invalid action type");
     }
+
+    // =========================================================================
+    // V3 Action Validation Methods
+    // =========================================================================
+
+    /**
+     * Validate DESTROY_OBSTACLE action (V3).
+     * Requires:
+     * - Unit has POWER buff
+     * - Target position has an obstacle
+     * - Target position is adjacent to the acting unit
+     */
+    private ValidationResult validateDestroyObstacle(GameState state, Action action) {
+        Position targetPos = action.getTargetPosition();
+        String actingUnitId = action.getActingUnitId();
+
+        // Need target position
+        if (targetPos == null) {
+            return new ValidationResult(false, "Target position is required for DESTROY_OBSTACLE");
+        }
+
+        // Need acting unit ID
+        if (actingUnitId == null) {
+            return new ValidationResult(false, "Acting unit ID is required for DESTROY_OBSTACLE");
+        }
+
+        // Find the acting unit
+        Unit actingUnit = findUnitById(state.getUnits(), actingUnitId);
+        if (actingUnit == null) {
+            return new ValidationResult(false, "Acting unit not found");
+        }
+
+        // Verify unit is alive
+        if (!actingUnit.isAlive()) {
+            return new ValidationResult(false, "Acting unit is dead");
+        }
+
+        // Verify unit belongs to current player
+        if (!actingUnit.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+            return new ValidationResult(false, "Cannot control opponent's unit");
+        }
+
+        // Check for POWER buff
+        List<BuffInstance> buffs = getBuffsForUnit(state, actingUnitId);
+        if (!hasPowerBuff(buffs)) {
+            return new ValidationResult(false, "DESTROY_OBSTACLE requires Power buff");
+        }
+
+        // V3: Action limit check (SPEED buff allows 2 actions)
+        if (!canUnitAct(actingUnit, buffs)) {
+            return new ValidationResult(false, "Unit has no remaining actions this turn");
+        }
+
+        // Check that target position has an obstacle
+        if (!hasObstacleAt(state, targetPos)) {
+            return new ValidationResult(false, "No obstacle at target position");
+        }
+
+        // Check that target position is adjacent to acting unit
+        if (!isAdjacent(actingUnit.getPosition(), targetPos)) {
+            return new ValidationResult(false, "Obstacle is not adjacent to unit");
+        }
+
+        return new ValidationResult(true, null);
+    }
+
+    /**
+     * Validate DEATH_CHOICE action (V3).
+     * Requires:
+     * - There is a pending death choice
+     * - The player making the choice is the owner of the dead minion
+     * - A valid choice type is specified
+     */
+    private ValidationResult validateDeathChoice(GameState state, Action action) {
+        // Check for pending death choice
+        if (!state.hasPendingDeathChoice()) {
+            return new ValidationResult(false, "No pending death choice");
+        }
+
+        // Verify the player making the choice is the owner
+        if (!state.getPendingDeathChoice().getOwner().getValue().equals(action.getPlayerId().getValue())) {
+            return new ValidationResult(false, "Not your death choice");
+        }
+
+        // Verify a choice type is specified
+        if (action.getDeathChoiceType() == null) {
+            return new ValidationResult(false, "Death choice type is required");
+        }
+
+        return new ValidationResult(true, null);
+    }
+
+    // =========================================================================
+    // V1/V2 Action Validation Methods
+    // =========================================================================
 
     /**
      * Validate MOVE action using V2 moveRange logic + buff effects.
@@ -359,8 +692,8 @@ public class RuleEngine {
             return new ValidationResult(false, "Target position is outside the board");
         }
 
-        // M6: Check if target tile is occupied
-        if (isTileOccupied(state.getUnits(), targetPos)) {
+        // M6: Check if target tile is occupied (V3: also check for obstacles)
+        if (isTileBlocked(state, targetPos)) {
             return new ValidationResult(false, "Target tile is occupied");
         }
 
@@ -388,6 +721,11 @@ public class RuleEngine {
         Unit mover = potentialMovers.get(0);
         List<BuffInstance> moverBuffs = getBuffsForUnit(state, mover.getId());
 
+        // V3: Action limit check (SPEED buff allows 2 actions)
+        if (!canUnitAct(mover, moverBuffs)) {
+            return new ValidationResult(false, "Unit has no remaining actions this turn");
+        }
+
         // Stunned check
         if (isUnitStunned(moverBuffs)) {
             return new ValidationResult(false, "Unit is stunned");
@@ -397,6 +735,10 @@ public class RuleEngine {
         if (isUnitRooted(moverBuffs)) {
             return new ValidationResult(false, "Unit is rooted");
         }
+
+        // V3: SLOW buff check - if unit has SLOW buff and is not preparing, this will queue the action
+        // Validation still passes, but applyMove will handle the delayed execution
+        // No special validation needed - the action will be queued in apply
 
         return new ValidationResult(true, null);
     }
@@ -468,6 +810,11 @@ public class RuleEngine {
         Unit attacker = potentialAttackers.get(0);
         List<BuffInstance> attackerBuffs = getBuffsForUnit(state, attacker.getId());
 
+        // V3: Action limit check (SPEED buff allows 2 actions)
+        if (!canUnitAct(attacker, attackerBuffs)) {
+            return new ValidationResult(false, "Unit has no remaining actions this turn");
+        }
+
         // Stunned check
         if (isUnitStunned(attackerBuffs)) {
             return new ValidationResult(false, "Unit is stunned");
@@ -503,8 +850,8 @@ public class RuleEngine {
             return new ValidationResult(false, "Target position is outside the board");
         }
 
-        // Check if target tile is occupied
-        if (isTileOccupied(state.getUnits(), targetPos)) {
+        // Check if target tile is occupied (V3: also check for obstacles)
+        if (isTileBlocked(state, targetPos)) {
             return new ValidationResult(false, "Target tile is occupied");
         }
 
@@ -550,6 +897,11 @@ public class RuleEngine {
         // Check buff restrictions on the mover BEFORE checking attack validity
         List<BuffInstance> moverBuffs = getBuffsForUnit(state, mover.getId());
 
+        // V3: Action limit check (SPEED buff allows 2 actions)
+        if (!canUnitAct(mover, moverBuffs)) {
+            return new ValidationResult(false, "Unit has no remaining actions this turn");
+        }
+
         // Stunned check
         if (isUnitStunned(moverBuffs)) {
             return new ValidationResult(false, "Unit is stunned");
@@ -558,6 +910,11 @@ public class RuleEngine {
         // Rooted check - cannot move
         if (isUnitRooted(moverBuffs)) {
             return new ValidationResult(false, "Unit is rooted");
+        }
+
+        // V3: POWER buff check - POWER buff blocks MOVE_AND_ATTACK
+        if (hasPowerBuff(moverBuffs)) {
+            return new ValidationResult(false, "Unit cannot use MOVE_AND_ATTACK with Power buff");
         }
 
         // MA3: After moving, check if target unit is within effective attack range
@@ -610,12 +967,23 @@ public class RuleEngine {
             return applyMoveAndAttack(state, action);
         }
 
+        // V3: DESTROY_OBSTACLE action
+        if (type == ActionType.DESTROY_OBSTACLE) {
+            return applyDestroyObstacle(state, action);
+        }
+
+        // V3: DEATH_CHOICE action
+        if (type == ActionType.DEATH_CHOICE) {
+            return applyDeathChoice(state, action);
+        }
+
         // Should not reach here if validation passed
         return null;
     }
 
     /**
      * Apply END_TURN: process turn-end buff effects, then switch player.
+     * V3: Also tracks turn ended flags for round processing.
      */
     private GameState applyEndTurn(GameState state) {
         // Process turn-end buff effects (poison damage, duration reduction, expiration)
@@ -623,13 +991,356 @@ public class RuleEngine {
 
         GameOverResult gameOver = checkGameOver(turnEndResult.units);
 
+        // V3: Determine new turn ended flags
+        boolean newPlayer1TurnEnded = state.isPlayer1TurnEnded();
+        boolean newPlayer2TurnEnded = state.isPlayer2TurnEnded();
+
+        if (state.getCurrentPlayer().getValue().equals("P1")) {
+            newPlayer1TurnEnded = true;
+        } else {
+            newPlayer2TurnEnded = true;
+        }
+
+        // V3: If both players have ended their turn, process round end
+        if (newPlayer1TurnEnded && newPlayer2TurnEnded) {
+            return processRoundEnd(state, turnEndResult, gameOver);
+        }
+
+        // Switch to next player, keep turn ended flags
         return new GameState(
             state.getBoard(),
             turnEndResult.units,
             getNextPlayer(state.getCurrentPlayer()),
             gameOver.isGameOver,
             gameOver.winner,
-            turnEndResult.unitBuffs
+            turnEndResult.unitBuffs,
+            state.getBuffTiles(),
+            state.getObstacles(),
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            newPlayer1TurnEnded,
+            newPlayer2TurnEnded
+        );
+    }
+
+    /**
+     * Process round end: execute preparing actions, increment round, reset turn flags, reset actionsUsed.
+     * Called when both players have ended their turn.
+     */
+    private GameState processRoundEnd(GameState state, TurnEndResult turnEndResult, GameOverResult gameOver) {
+        // V3: Execute preparing actions (SLOW buff delayed actions)
+        PreparingActionsResult prepResult = executePreparingActions(state, turnEndResult.units, turnEndResult.unitBuffs);
+
+        // Check game over again after executing preparing actions
+        GameOverResult gameOverAfterPrep = checkGameOver(prepResult.units);
+        if (gameOverAfterPrep.isGameOver) {
+            gameOver = gameOverAfterPrep;
+        }
+
+        // Reset actionsUsed and clear preparing state for all units
+        List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(prepResult.units);
+
+        return new GameState(
+            state.getBoard(),
+            unitsWithResetActions,
+            getNextPlayer(state.getCurrentPlayer()),
+            gameOver.isGameOver,
+            gameOver.winner,
+            prepResult.unitBuffs,
+            prepResult.buffTiles,
+            prepResult.obstacles,
+            state.getCurrentRound() + 1,  // Increment round
+            state.getPendingDeathChoice(),
+            false,  // Reset player1TurnEnded
+            false   // Reset player2TurnEnded
+        );
+    }
+
+    /**
+     * Result of executing preparing actions.
+     */
+    private static class PreparingActionsResult {
+        final List<Unit> units;
+        final Map<String, List<BuffInstance>> unitBuffs;
+        final List<com.tactics.engine.model.BuffTile> buffTiles;
+        final List<com.tactics.engine.model.Obstacle> obstacles;
+
+        PreparingActionsResult(List<Unit> units, Map<String, List<BuffInstance>> unitBuffs,
+                               List<com.tactics.engine.model.BuffTile> buffTiles,
+                               List<com.tactics.engine.model.Obstacle> obstacles) {
+            this.units = units;
+            this.unitBuffs = unitBuffs;
+            this.buffTiles = buffTiles;
+            this.obstacles = obstacles;
+        }
+    }
+
+    /**
+     * V3: Execute all preparing actions at round start.
+     * For attacks, check if target is still at expected position (misses if moved).
+     */
+    private PreparingActionsResult executePreparingActions(GameState state, List<Unit> units,
+                                                            Map<String, List<BuffInstance>> unitBuffs) {
+        List<Unit> currentUnits = new ArrayList<>(units);
+        List<com.tactics.engine.model.BuffTile> currentBuffTiles = new ArrayList<>(state.getBuffTiles());
+        List<com.tactics.engine.model.Obstacle> currentObstacles = new ArrayList<>(state.getObstacles());
+
+        // Find all units with preparing actions (sorted by ID for determinism)
+        List<String> preparingUnitIds = new ArrayList<>();
+        for (Unit u : currentUnits) {
+            if (u.isPreparing() && u.getPreparingAction() != null) {
+                preparingUnitIds.add(u.getId());
+            }
+        }
+        Collections.sort(preparingUnitIds);
+
+        // Execute each preparing action
+        for (String unitId : preparingUnitIds) {
+            Unit prepUnit = null;
+            for (Unit u : currentUnits) {
+                if (u.getId().equals(unitId)) {
+                    prepUnit = u;
+                    break;
+                }
+            }
+            if (prepUnit == null || !prepUnit.isAlive()) {
+                continue;  // Unit died before executing
+            }
+
+            Map<String, Object> actionMap = prepUnit.getPreparingAction();
+            currentUnits = executeOnePreparingAction(prepUnit, actionMap, currentUnits);
+        }
+
+        return new PreparingActionsResult(currentUnits, unitBuffs, currentBuffTiles, currentObstacles);
+    }
+
+    /**
+     * Execute a single preparing action.
+     * Returns updated units list.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Unit> executeOnePreparingAction(Unit prepUnit, Map<String, Object> actionMap, List<Unit> units) {
+        String actionType = (String) actionMap.get("type");
+
+        if ("MOVE".equals(actionType)) {
+            Map<String, Object> posMap = (Map<String, Object>) actionMap.get("targetPosition");
+            int x = ((Number) posMap.get("x")).intValue();
+            int y = ((Number) posMap.get("y")).intValue();
+            Position targetPos = new Position(x, y);
+
+            // Check if target is still valid (not blocked)
+            boolean blocked = false;
+            for (Unit u : units) {
+                if (u.isAlive() && u.getPosition().equals(targetPos)) {
+                    blocked = true;
+                    break;
+                }
+            }
+
+            if (!blocked) {
+                // Execute move
+                List<Unit> newUnits = new ArrayList<>();
+                for (Unit u : units) {
+                    if (u.getId().equals(prepUnit.getId())) {
+                        newUnits.add(new Unit(
+                            u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                            u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive(),
+                            u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                            u.getSelectedSkillId(), u.getSkillCooldown(),
+                            u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                            u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                            u.getActionsUsed(), false, null  // Clear preparing state
+                        ));
+                    } else {
+                        newUnits.add(u);
+                    }
+                }
+                return newUnits;
+            }
+            // If blocked, action fails silently (miss)
+
+        } else if ("ATTACK".equals(actionType)) {
+            String targetUnitId = (String) actionMap.get("targetUnitId");
+            Map<String, Object> posMap = (Map<String, Object>) actionMap.get("targetPosition");
+            int expectedX = ((Number) posMap.get("x")).intValue();
+            int expectedY = ((Number) posMap.get("y")).intValue();
+            Position expectedPos = new Position(expectedX, expectedY);
+
+            // Find target unit
+            Unit targetUnit = null;
+            for (Unit u : units) {
+                if (u.getId().equals(targetUnitId)) {
+                    targetUnit = u;
+                    break;
+                }
+            }
+
+            // Check if target is still alive and at expected position
+            if (targetUnit != null && targetUnit.isAlive() && targetUnit.getPosition().equals(expectedPos)) {
+                // Execute attack
+                int damage = prepUnit.getAttack();
+                int newHp = targetUnit.getHp() - damage;
+                boolean alive = newHp > 0;
+
+                List<Unit> newUnits = new ArrayList<>();
+                for (Unit u : units) {
+                    if (u.getId().equals(targetUnitId)) {
+                        newUnits.add(new Unit(
+                            u.getId(), u.getOwner(), newHp, u.getAttack(),
+                            u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive,
+                            u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                            u.getSelectedSkillId(), u.getSkillCooldown(),
+                            u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                            u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                            u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
+                        ));
+                    } else {
+                        newUnits.add(u);
+                    }
+                }
+                return newUnits;
+            }
+            // If target moved or died, attack misses
+
+        } else if ("MOVE_AND_ATTACK".equals(actionType)) {
+            // Similar to ATTACK - check if move destination is free and target at expected position
+            Map<String, Object> posMap = (Map<String, Object>) actionMap.get("targetPosition");
+            int moveX = ((Number) posMap.get("x")).intValue();
+            int moveY = ((Number) posMap.get("y")).intValue();
+            Position movePos = new Position(moveX, moveY);
+            String targetUnitId = (String) actionMap.get("targetUnitId");
+
+            // Check move destination
+            boolean moveBlocked = false;
+            for (Unit u : units) {
+                if (u.isAlive() && u.getPosition().equals(movePos)) {
+                    moveBlocked = true;
+                    break;
+                }
+            }
+
+            if (!moveBlocked) {
+                // Find target unit and check if in range after move
+                Unit targetUnit = null;
+                for (Unit u : units) {
+                    if (u.getId().equals(targetUnitId)) {
+                        targetUnit = u;
+                        break;
+                    }
+                }
+
+                // Execute move + attack if target still exists and is in range
+                if (targetUnit != null && targetUnit.isAlive()) {
+                    int distance = manhattanDistance(movePos, targetUnit.getPosition());
+                    if (distance >= 1 && distance <= prepUnit.getAttackRange()) {
+                        int damage = prepUnit.getAttack();
+                        int newHp = targetUnit.getHp() - damage;
+                        boolean alive = newHp > 0;
+
+                        List<Unit> newUnits = new ArrayList<>();
+                        for (Unit u : units) {
+                            if (u.getId().equals(prepUnit.getId())) {
+                                newUnits.add(new Unit(
+                                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                                    u.getMoveRange(), u.getAttackRange(), movePos, u.isAlive(),
+                                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                                    u.getActionsUsed(), false, null
+                                ));
+                            } else if (u.getId().equals(targetUnitId)) {
+                                newUnits.add(new Unit(
+                                    u.getId(), u.getOwner(), newHp, u.getAttack(),
+                                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive,
+                                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                                    u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
+                                ));
+                            } else {
+                                newUnits.add(u);
+                            }
+                        }
+                        return newUnits;
+                    }
+                }
+            }
+            // Action fails if blocked or target out of range
+        }
+
+        // No change (action failed/skipped)
+        return units;
+    }
+
+    /**
+     * Reset actionsUsed to 0 and clear preparing state for all units at round start.
+     */
+    private List<Unit> resetActionsUsedAndPreparingState(List<Unit> units) {
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : units) {
+            if (u.getActionsUsed() > 0 || u.isPreparing()) {
+                // Create new unit with reset actionsUsed and cleared preparing state
+                newUnits.add(new Unit(
+                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), u.isAlive(),
+                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                    0,     // Reset actionsUsed
+                    false, // Clear preparing
+                    null   // Clear preparingAction
+                ));
+            } else {
+                newUnits.add(u);
+            }
+        }
+        return newUnits;
+    }
+
+    /**
+     * V3 SLOW buff: Queue an action for execution at start of next round.
+     * Sets the unit's preparing flag and stores the action.
+     */
+    private GameState applySlowBuffPreparing(GameState state, Action action, Unit actingUnit) {
+        Map<String, Object> preparingAction = serializeActionForPreparing(action);
+
+        // Create new units list with the acting unit in preparing state
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                newUnits.add(new Unit(
+                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), u.isAlive(),
+                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                    u.getActionsUsed() + 1,  // Increment actionsUsed (action is queued)
+                    true,  // Set preparing
+                    preparingAction  // Store the action
+                ));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        // SLOW buff preparing does not switch turn
+        return new GameState(
+            state.getBoard(),
+            newUnits,
+            state.getCurrentPlayer(),
+            state.isGameOver(),
+            state.getWinner(),
+            state.getUnitBuffs(),
+            state.getBuffTiles(),
+            state.getObstacles(),
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
         );
     }
 
@@ -638,38 +1349,64 @@ public class RuleEngine {
 
         // Find the unique mover using effective moveRange (with buffs)
         Unit mover = null;
+        List<BuffInstance> moverBuffs = null;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
                 List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
                 int effectiveMoveRange = getEffectiveMoveRange(u, buffs);
                 if (canMoveToPositionWithBuffs(u, targetPos, effectiveMoveRange)) {
                     mover = u;
+                    moverBuffs = buffs;
                     break;
                 }
             }
         }
 
-        // Create new units list with updated position
+        // V3: SLOW buff check - if unit has SLOW buff, queue action for next round
+        if (hasSlowBuff(moverBuffs)) {
+            return applySlowBuffPreparing(state, action, mover);
+        }
+
+        // Create new units list with updated position and incremented actionsUsed
         List<Unit> newUnits = new ArrayList<>();
+        Unit movedUnit = null;
         for (Unit u : state.getUnits()) {
             if (u.getId().equals(mover.getId())) {
-                newUnits.add(new Unit(u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive()));
+                movedUnit = new Unit(
+                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive(),
+                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                    u.getActionsUsed() + 1,  // Increment actionsUsed
+                    u.isPreparing(), u.getPreparingAction()
+                );
+                newUnits.add(movedUnit);
             } else {
                 newUnits.add(u);
             }
         }
 
-        GameOverResult gameOver = checkGameOver(newUnits);
+        // V3: Check for buff tile trigger at destination
+        BuffTileTriggerResult tileResult = checkBuffTileTrigger(state, movedUnit, targetPos, newUnits, state.getUnitBuffs());
+
+        GameOverResult gameOver = checkGameOver(tileResult.units);
 
         // MOVE does not switch turn, does not process turn-end buffs
         return new GameState(
             state.getBoard(),
-            newUnits,
+            tileResult.units,
             state.getCurrentPlayer(),
             gameOver.isGameOver,
             gameOver.winner,
-            state.getUnitBuffs()
+            tileResult.unitBuffs,
+            tileResult.buffTiles,
+            state.getObstacles(),
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
         );
     }
 
@@ -680,19 +1417,25 @@ public class RuleEngine {
         // Find target unit and attacker using effective attackRange (with buffs)
         Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
         Unit attacker = null;
+        List<BuffInstance> attackerBuffs = null;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
                 List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
                 int effectiveAttackRange = getEffectiveAttackRange(u, buffs);
                 if (canAttackFromPositionWithBuffs(u.getPosition(), targetPos, effectiveAttackRange)) {
                     attacker = u;
+                    attackerBuffs = buffs;
                     break;
                 }
             }
         }
 
+        // V3: SLOW buff check - if unit has SLOW buff, queue action for next round
+        if (hasSlowBuff(attackerBuffs)) {
+            return applySlowBuffPreparing(state, action, attacker);
+        }
+
         // Calculate damage including bonus attack from buffs
-        List<BuffInstance> attackerBuffs = getBuffsForUnit(state, attacker.getId());
         int bonusAttack = getBonusAttack(attackerBuffs);
         int totalDamage = attacker.getAttack() + bonusAttack;
 
@@ -700,12 +1443,31 @@ public class RuleEngine {
         int newHp = targetUnit.getHp() - totalDamage;
         boolean alive = newHp > 0;
 
-        // Create new units list
+        // Create new units list with updated target HP and attacker's actionsUsed
         List<Unit> newUnits = new ArrayList<>();
         for (Unit u : state.getUnits()) {
             if (u.getId().equals(targetUnitId)) {
-                newUnits.add(new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive));
+                newUnits.add(new Unit(
+                    u.getId(), u.getOwner(), newHp, u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive,
+                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                    u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
+                ));
+            } else if (u.getId().equals(attacker.getId())) {
+                // Increment attacker's actionsUsed
+                newUnits.add(new Unit(
+                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), u.isAlive(),
+                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                    u.getActionsUsed() + 1,  // Increment actionsUsed
+                    u.isPreparing(), u.getPreparingAction()
+                ));
             } else {
                 newUnits.add(u);
             }
@@ -720,7 +1482,13 @@ public class RuleEngine {
             state.getCurrentPlayer(),
             gameOver.isGameOver,
             gameOver.winner,
-            state.getUnitBuffs()
+            state.getUnitBuffs(),
+            state.getBuffTiles(),
+            state.getObstacles(),
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
         );
     }
 
@@ -730,22 +1498,28 @@ public class RuleEngine {
 
         // Find mover using effective moveRange (with buffs)
         Unit mover = null;
+        List<BuffInstance> moverBuffs = null;
         for (Unit u : state.getUnits()) {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
                 List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
                 int effectiveMoveRange = getEffectiveMoveRange(u, buffs);
                 if (canMoveToPositionWithBuffs(u, targetPos, effectiveMoveRange)) {
                     mover = u;
+                    moverBuffs = buffs;
                     break;
                 }
             }
+        }
+
+        // V3: SLOW buff check - if unit has SLOW buff, queue action for next round
+        if (hasSlowBuff(moverBuffs)) {
+            return applySlowBuffPreparing(state, action, mover);
         }
 
         // Find target
         Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
 
         // Calculate damage including bonus attack from buffs
-        List<BuffInstance> moverBuffs = getBuffsForUnit(state, mover.getId());
         int bonusAttack = getBonusAttack(moverBuffs);
         int totalDamage = mover.getAttack() + bonusAttack;
 
@@ -753,22 +1527,43 @@ public class RuleEngine {
         int newHp = targetUnit.getHp() - totalDamage;
         boolean targetAlive = newHp > 0;
 
-        // Create new units list with mover at new position and target with new HP
+        // Create new units list with mover at new position, target with new HP, and mover's actionsUsed incremented
         List<Unit> newUnits = new ArrayList<>();
+        Unit movedUnit = null;
         for (Unit u : state.getUnits()) {
             if (u.getId().equals(mover.getId())) {
-                newUnits.add(new Unit(u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive()));
+                // Move + attack as single action
+                movedUnit = new Unit(
+                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive(),
+                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                    u.getActionsUsed() + 1,  // Increment actionsUsed
+                    u.isPreparing(), u.getPreparingAction()
+                );
+                newUnits.add(movedUnit);
             } else if (u.getId().equals(targetUnitId)) {
-                newUnits.add(new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), targetAlive));
+                newUnits.add(new Unit(
+                    u.getId(), u.getOwner(), newHp, u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), targetAlive,
+                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                    u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
+                ));
             } else {
                 newUnits.add(u);
             }
         }
 
+        // V3: Check for buff tile trigger at destination
+        BuffTileTriggerResult tileResult = checkBuffTileTrigger(state, movedUnit, targetPos, newUnits, state.getUnitBuffs());
+
         // Process turn-end buff effects (poison damage, duration reduction, expiration)
-        TurnEndResult turnEndResult = processTurnEnd(newUnits, state.getUnitBuffs());
+        TurnEndResult turnEndResult = processTurnEnd(tileResult.units, tileResult.unitBuffs);
 
         GameOverResult gameOver = checkGameOver(turnEndResult.units);
 
@@ -779,7 +1574,111 @@ public class RuleEngine {
             getNextPlayer(state.getCurrentPlayer()),
             gameOver.isGameOver,
             gameOver.winner,
-            turnEndResult.unitBuffs
+            turnEndResult.unitBuffs,
+            tileResult.buffTiles,
+            state.getObstacles(),
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
+        );
+    }
+
+    // =========================================================================
+    // V3 Apply Action Methods
+    // =========================================================================
+
+    /**
+     * Apply DESTROY_OBSTACLE action (V3).
+     * Removes the obstacle at the target position.
+     * Does not switch turn (like MOVE).
+     */
+    private GameState applyDestroyObstacle(GameState state, Action action) {
+        Position targetPos = action.getTargetPosition();
+        String actingUnitId = action.getActingUnitId();
+
+        // Create new obstacles list without the destroyed one
+        List<com.tactics.engine.model.Obstacle> newObstacles = new ArrayList<>();
+        for (com.tactics.engine.model.Obstacle obstacle : state.getObstacles()) {
+            if (!obstacle.getPosition().equals(targetPos)) {
+                newObstacles.add(obstacle);
+            }
+        }
+
+        // Update acting unit's actionsUsed
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnitId)) {
+                newUnits.add(new Unit(
+                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
+                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), u.isAlive(),
+                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
+                    u.getSelectedSkillId(), u.getSkillCooldown(),
+                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
+                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
+                    u.getActionsUsed() + 1,  // Increment actionsUsed
+                    u.isPreparing(), u.getPreparingAction()
+                ));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        // DESTROY_OBSTACLE does not switch turn
+        return new GameState(
+            state.getBoard(),
+            newUnits,
+            state.getCurrentPlayer(),
+            state.isGameOver(),
+            state.getWinner(),
+            state.getUnitBuffs(),
+            state.getBuffTiles(),
+            newObstacles,
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
+        );
+    }
+
+    /**
+     * Apply DEATH_CHOICE action (V3).
+     * Creates either an obstacle or a buff tile at the death position,
+     * then clears the pending death choice.
+     */
+    private GameState applyDeathChoice(GameState state, Action action) {
+        com.tactics.engine.model.DeathChoice deathChoice = state.getPendingDeathChoice();
+        Position deathPos = deathChoice.getDeathPosition();
+        com.tactics.engine.model.DeathChoice.ChoiceType choiceType = action.getDeathChoiceType();
+
+        List<com.tactics.engine.model.Obstacle> newObstacles = new ArrayList<>(state.getObstacles());
+        List<com.tactics.engine.model.BuffTile> newBuffTiles = new ArrayList<>(state.getBuffTiles());
+
+        if (choiceType == com.tactics.engine.model.DeathChoice.ChoiceType.SPAWN_OBSTACLE) {
+            // Create obstacle at death position
+            String obstacleId = "obstacle_" + System.currentTimeMillis();
+            newObstacles.add(new com.tactics.engine.model.Obstacle(obstacleId, deathPos));
+        } else if (choiceType == com.tactics.engine.model.DeathChoice.ChoiceType.SPAWN_BUFF_TILE) {
+            // Create buff tile at death position with random buff type
+            // For now, we use a deterministic approach - the buff type will be determined at trigger time
+            String tileId = "bufftile_" + System.currentTimeMillis();
+            newBuffTiles.add(new com.tactics.engine.model.BuffTile(
+                tileId, deathPos, null, 2, false
+            ));
+        }
+
+        // Clear pending death choice
+        return new GameState(
+            state.getBoard(),
+            state.getUnits(),
+            state.getCurrentPlayer(),
+            state.isGameOver(),
+            state.getWinner(),
+            state.getUnitBuffs(),
+            newBuffTiles,
+            newObstacles,
+            state.getCurrentRound(),
+            null  // Clear pending death choice
         );
     }
 
@@ -803,8 +1702,9 @@ public class RuleEngine {
     /**
      * Process turn-end buff effects:
      * 1. Apply poison damage to all alive units with poison buffs
-     * 2. Decrease duration of all buffs by 1
-     * 3. Remove expired buffs (duration <= 0)
+     * 2. Apply BLEED damage to all alive units with BLEED buffs (V3)
+     * 3. Decrease duration of all buffs by 1
+     * 4. Remove expired buffs (duration <= 0)
      *
      * Processing is deterministic: units processed by ID sorted ascending.
      */
@@ -836,6 +1736,29 @@ public class RuleEngine {
                     Unit u = newUnits.get(i);
                     if (u.getId().equals(unitId) && u.isAlive()) {
                         int newHp = u.getHp() - poisonDamage;
+                        boolean alive = newHp > 0;
+                        newUnits.set(i, new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(),
+                            u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive));
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Step 1.5 (V3): Apply BLEED damage (deterministic order by unit ID)
+        for (String unitId : unitIdsWithBuffs) {
+            List<BuffInstance> buffs = unitBuffs.get(unitId);
+            if (buffs == null || buffs.isEmpty()) {
+                continue;
+            }
+
+            int bleedDamage = getBleedDamage(buffs);
+            if (bleedDamage > 0) {
+                // Find the unit and apply BLEED damage
+                for (int i = 0; i < newUnits.size(); i++) {
+                    Unit u = newUnits.get(i);
+                    if (u.getId().equals(unitId) && u.isAlive()) {
+                        int newHp = u.getHp() - bleedDamage;
                         boolean alive = newHp > 0;
                         newUnits.set(i, new Unit(u.getId(), u.getOwner(), newHp, u.getAttack(),
                             u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive));

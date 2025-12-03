@@ -4,12 +4,21 @@ This document tracks completed work and outlines the roadmap for future developm
 
 ---
 
-## Current Status: V2 Core Complete
+## Current Status: V3 Phase 2 Complete
 
-The game engine, server, and client are functional with V2 rules supporting:
-- Unit types with distinct `moveRange` and `attackRange`
-- Ranged attacks (e.g., ARCHER with attackRange=2)
-- Client-side range visualization
+The game engine now supports V3 BUFF system with all 6 buff types:
+- **POWER**: +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK, enables DESTROY_OBSTACLE
+- **LIFE**: +3 HP instant
+- **SPEED**: -1 ATK, grants 2 actions per turn
+- **WEAKNESS**: -2 ATK, -1 HP instant
+- **BLEED**: -1 HP per round (damage over time)
+- **SLOW**: Actions delayed by 1 round
+
+Additional V3 features implemented:
+- Round tracking with `player1TurnEnded`/`player2TurnEnded` flags
+- Round increment after both players END_TURN
+- Buff tile triggering with RngProvider for randomness
+- SLOW buff preparing state and execution at round start
 
 ---
 
@@ -85,6 +94,47 @@ The game engine, server, and client are functional with V2 rules supporting:
 | Done | Test Expectations | Updated tests to match current `GameStateFactory` behavior (4 units) |
 | Done | Test Expectations | Fixed player slot assignment test expectations |
 
+### Phase 7: V3 Model Layer Extension
+
+| Status | Component | Description |
+|--------|-----------|-------------|
+| Done | UnitCategory enum | HERO, MINION distinction |
+| Done | MinionType enum | TANK, ARCHER, ASSASSIN with stats |
+| Done | HeroClass enum | WARRIOR, MAGE, ROGUE, HUNTRESS, DUELIST, CLERIC |
+| Done | BuffType enum | POWER, LIFE, SPEED, WEAKNESS, BLEED, SLOW |
+| Done | BuffTile class | Position, buffType, duration, triggered state |
+| Done | Obstacle class | Position-based obstacle for movement blocking |
+| Done | DeathChoice class | Pending choice after minion death (SPAWN_OBSTACLE/SPAWN_BUFF_TILE) |
+| Done | Unit V3 Extension | category, minionType, heroClass, maxHp, selectedSkillId, skillCooldown |
+| Done | Unit V3 Extension | shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState |
+| Done | Unit V3 Extension | actionsUsed, preparing, preparingAction (for SPEED/SLOW buffs) |
+| Done | GameState V3 Extension | buffTiles, obstacles, currentRound, pendingDeathChoice |
+| Done | GameState V3 Extension | player1TurnEnded, player2TurnEnded flags |
+| Done | ActionType V3 Extension | USE_SKILL, DESTROY_OBSTACLE, DEATH_CHOICE |
+| Done | Action V3 Extension | actingUnitId, skillTargetUnitId, deathChoiceType |
+| Done | GameStateSerializer | Updated for all new V3 fields |
+
+### Phase 8: V3 BUFF System Implementation
+
+| Status | Component | Description |
+|--------|-----------|-------------|
+| Done | BuffInstance V3 | Added BuffType, instantHpBonus, withDecreasedDuration() |
+| Done | BuffFlags V3 | Added powerBuff, speedBuff, slowBuff, bleedBuff flags |
+| Done | BuffFactory | Factory methods for all 6 buff types with correct modifiers |
+| Done | POWER buff | +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK |
+| Done | POWER buff | Enables DESTROY_OBSTACLE action |
+| Done | LIFE buff | +3 HP instant |
+| Done | SPEED buff | -1 ATK, allows 2 actions per turn (actionsUsed tracking) |
+| Done | WEAKNESS buff | -2 ATK, -1 HP instant |
+| Done | BLEED buff | -1 HP per round at turn end |
+| Done | SLOW buff | Delays actions by 1 round (preparing state) |
+| Done | SLOW execution | Execute preparing actions at round start, attack misses if target moved |
+| Done | Round tracking | player1TurnEnded/player2TurnEnded flags |
+| Done | Round increment | Increment round after both players END_TURN |
+| Done | actionsUsed reset | Reset at round start for all units |
+| Done | Buff tile trigger | Trigger on movement, random buff via RngProvider |
+| Done | RngProvider integration | Seeded randomness for deterministic replays |
+
 ---
 
 ## Test Coverage Summary
@@ -105,7 +155,42 @@ The game engine, server, and client are functional with V2 rules supporting:
 
 ---
 
-## Roadmap: Future Features
+## Roadmap: V3 Development Phases
+
+### Phase 3: Guardian Passive (Next)
+
+| Priority | Feature | Description | Complexity |
+|----------|---------|-------------|------------|
+| High | TANK Guardian | TANK protects adjacent allied units from attacks | Medium |
+| High | Attack Redirection | Attacks on protected units redirect to TANK | Medium |
+
+### Phase 4: Hero Skill System
+
+| Priority | Feature | Description | Complexity |
+|----------|---------|-------------|------------|
+| High | Skill Validation | USE_SKILL action validation (cooldown, range, target) | Medium |
+| High | Skill Execution | 18 hero skills with various effects | High |
+| High | Cooldown Tracking | 2-round cooldown after skill use | Low |
+
+### Phase 5: Game Flow Extension
+
+| Priority | Feature | Description | Complexity |
+|----------|---------|-------------|------------|
+| High | Minion Decay | Minions lose 1 HP per round | Low |
+| High | Round 8 Pressure | All units lose 1 HP per round after R8 | Low |
+| Medium | Death Choice Flow | SPAWN_OBSTACLE or SPAWN_BUFF_TILE on minion death | Medium |
+
+### Phase 6: Draft Phase
+
+| Priority | Feature | Description | Complexity |
+|----------|---------|-------------|------------|
+| Medium | Hero Selection | Players choose hero class | Medium |
+| Medium | Minion Draft | Alternating minion selection (TANK, ARCHER, ASSASSIN) | Medium |
+| Medium | Initial Placement | Place units on starting positions | Medium |
+
+---
+
+## Roadmap: Future Features (Post-V3)
 
 ### Short Term (Next Steps)
 
@@ -185,10 +270,11 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| V3.0-Phase2 | 2025-12-03 | V3 Model Layer + BUFF System complete (6 buff types, SPEED/SLOW mechanics, round tracking) |
 | V2.1 | 2025-12-02 | Build fixes, 235 tests passing, buff system tests |
 | V2.0 | Earlier | Ranged attacks, client range visualization |
 | V1.0 | Earlier | Basic game with melee-only combat |
 
 ---
 
-*Last updated: 2025-12-02*
+*Last updated: 2025-12-03*
