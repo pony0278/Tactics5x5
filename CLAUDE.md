@@ -207,6 +207,8 @@ See `/docs/PROGRESS.md` for details.
 
 ## Test Coverage
 
+**Total: 271 tests passing**
+
 | Test Class | Coverage |
 |------------|----------|
 | RuleEngineValidateActionTest | V1 validation logic |
@@ -216,14 +218,13 @@ See `/docs/PROGRESS.md` for details.
 | MatchServiceTest | Game flow |
 | GameStateSerializerTest | JSON serialization |
 
-### V3 Tests (To Be Implemented)
-| Test Class | Coverage |
-|------------|----------|
-| BuffModelTest | BM-Series (12 tests) |
-| BuffTileTest | BT-Series (15 tests) |
-| RuleEngineSpeedBuffTest | BSP-Series (10 tests) |
-| RuleEngineSlowBuffTest | BSL-Series (12 tests) |
-| ... | See BUFF_SYSTEM_V3_TESTPLAN.md |
+### V3 Tests (Implemented)
+| Test Class | Coverage | Tests |
+|------------|----------|-------|
+| BuffFactoryTest | BM-Series: BuffType, modifiers, flags, duration | 12 |
+| BuffTileTest | BT-Series: Tile trigger, instant HP, RngProvider | 10 |
+| RuleEngineSpeedBuffTest | BSP-Series: 2 actions, -1 ATK, action tracking | 7 |
+| RuleEngineSlowBuffTest | BSL-Series: Preparing state, delayed execution, miss on move | 7 |
 
 ---
 

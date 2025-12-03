@@ -4,7 +4,7 @@ This document tracks completed work and outlines the roadmap for future developm
 
 ---
 
-## Current Status: V3 Phase 2 Complete
+## Current Status: V3 Phase 2 Complete + V3 Tests
 
 The game engine now supports V3 BUFF system with all 6 buff types:
 - **POWER**: +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK, enables DESTROY_OBSTACLE
@@ -19,6 +19,12 @@ Additional V3 features implemented:
 - Round increment after both players END_TURN
 - Buff tile triggering with RngProvider for randomness
 - SLOW buff preparing state and execution at round start
+
+**V3 Test Coverage Added** (36 new tests):
+- BuffFactoryTest: 12 tests (BM-series)
+- BuffTileTest: 10 tests (BT-series)
+- RuleEngineSpeedBuffTest: 7 tests (BSP-series)
+- RuleEngineSlowBuffTest: 7 tests (BSL-series)
 
 ---
 
@@ -135,6 +141,15 @@ Additional V3 features implemented:
 | Done | Buff tile trigger | Trigger on movement, random buff via RngProvider |
 | Done | RngProvider integration | Seeded randomness for deterministic replays |
 
+### Phase 9: V3 Test Coverage
+
+| Status | Component | Description |
+|--------|-----------|-------------|
+| Done | BuffFactoryTest | 12 tests: BM-series (BuffType enum, modifiers, flags, duration, immutability) |
+| Done | BuffTileTest | 10 tests: BT-series (tile trigger, instant HP effects, RngProvider determinism) |
+| Done | RuleEngineSpeedBuffTest | 7 tests: BSP-series (2 actions/turn, -1 ATK, action tracking, round reset) |
+| Done | RuleEngineSlowBuffTest | 7 tests: BSL-series (preparing state, delayed execution, attack miss on target move) |
+
 ---
 
 ## Test Coverage Summary
@@ -150,8 +165,12 @@ Additional V3 features implemented:
 | MatchWebSocketHandlerTest | WebSocket messages | Done |
 | GameStateSerializerTest | JSON serialization | Done |
 | GameStateFactoryTest | Unit type creation | Done |
+| BuffFactoryTest | V3 BuffFactory & BuffType | Done |
+| BuffTileTest | V3 Buff tile triggering | Done |
+| RuleEngineSpeedBuffTest | V3 SPEED buff mechanics | Done |
+| RuleEngineSlowBuffTest | V3 SLOW buff mechanics | Done |
 
-**Total: 235 tests passing**
+**Total: 271 tests passing**
 
 ---
 
@@ -270,6 +289,7 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| V3.0-Phase2+Tests | 2025-12-04 | Added 36 V3 tests (BuffFactory, BuffTile, SPEED, SLOW), 271 total tests |
 | V3.0-Phase2 | 2025-12-03 | V3 Model Layer + BUFF System complete (6 buff types, SPEED/SLOW mechanics, round tracking) |
 | V2.1 | 2025-12-02 | Build fixes, 235 tests passing, buff system tests |
 | V2.0 | Earlier | Ranged attacks, client range visualization |
@@ -277,4 +297,4 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 ---
 
-*Last updated: 2025-12-03*
+*Last updated: 2025-12-04*
