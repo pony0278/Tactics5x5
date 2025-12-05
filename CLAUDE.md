@@ -70,15 +70,31 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 |--------|-------|-------------|
 | ✅ | Phase 0 | Complete V1 BUFF Foundation |
 | ✅ | Phase 1 | Model Layer Extension |
-| ✅ | **Phase 2** | V3 BUFF System |
-| ⬜ | Phase 3 | Guardian Passive |
+| ✅ | Phase 2 | V3 BUFF System |
+| 🔄 | **Phase 3** | Guardian Passive |
 | ⬜ | Phase 4 | Hero Skill System |
 | ⬜ | Phase 5 | Game Flow Extension |
 | ⬜ | Phase 6 | Draft Phase |
 
-**Next Step**: Implement Guardian Passive (TANK protects adjacent allies)
+**Next Step**: Implement TANK Guardian passive (protect adjacent allies)
 
 **Detailed Roadmap**: `/docs/V3_IMPLEMENTATION_ROADMAP.md`
+
+---
+
+## ✅ Recently Implemented Rule Changes
+
+These rules have been implemented:
+
+| Rule | Status | Description |
+|------|--------|-------------|
+| Obstacle HP | ✅ | Obstacles have 3 HP, any unit can attack via ATTACK action |
+| POWER instant destroy | ✅ | POWER buff destroys obstacles in 1 hit |
+| Active player wins | ✅ | On simultaneous death, attacker wins |
+| Exhaustion Rule | ✅ | Opponent takes consecutive turns when one side exhausted |
+| Remove DESTROY_OBSTACLE | ✅ | Removed - use ATTACK on obstacles instead |
+| Minion Decay | ✅ | Minions lose 1 HP per round at round end |
+| Round 8 Pressure | ✅ | All units lose 1 HP per round after R8 |
 
 ---
 
@@ -101,6 +117,7 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 
 ### Test Plans (V3)
 - `/docs/BUFF_SYSTEM_V3_TESTPLAN.md` - 141 test cases for BUFF system
+- `/docs/GUARDIAN_TESTPLAN.md` - 81 test cases for Guardian passive
 - `/docs/SKILL_SYSTEM_V3_TESTPLAN.md` - 201 test cases for Skill system
 
 ### Development Roadmap
@@ -160,16 +177,19 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 |----------|-------------|
 | Hero Skills | Each hero has 1 skill (cooldown: 2 rounds) |
 | BUFF Tiles | Spawn on minion death, trigger on step |
-| Obstacles | Block movement, destroyed by POWER buff |
+| Obstacles | 3 HP, any unit can attack, POWER = instant destroy |
+| Guardian | TANK protects adjacent friendly units |
 | Minion Decay | Minions lose 1 HP per round |
 | Round 8 Pressure | All units lose 1 HP per round after R8 |
+| Exhaustion Rule | Opponent takes consecutive turns when one side has no units left |
+| Simultaneous Death | Active player (attacker) wins |
 | SLOW Buff | Actions delayed by 1 round |
 | SPEED Buff | Grants 2 actions per round |
 
 ### 6 BUFF Types
 | BUFF | ATK | HP | Special |
 |------|-----|----|---------|
-| POWER | +3 | +1 | Blocks MOVE_AND_ATTACK, can destroy obstacles |
+| POWER | +3 | +1 | Blocks MOVE_AND_ATTACK, **1-hit obstacle destroy** |
 | LIFE | — | +3 | — |
 | SPEED | -1 | — | Double action per round |
 | WEAKNESS | -2 | -1 | — |
@@ -189,26 +209,31 @@ See `/docs/PROGRESS.md` for details.
 - [x] Web client
 - [x] Unit types (SWORDSMAN, ARCHER, TANK)
 - [x] V3 Model Layer (UnitCategory, MinionType, HeroClass, BuffType enums)
-- [x] V3 Model Layer (BuffTile, Obstacle, DeathChoice classes)
-- [x] V3 Unit Extension (category, skills, shield, invisible, invulnerable, action state)
-- [x] V3 GameState Extension (buffTiles, obstacles, currentRound, pendingDeathChoice, turn flags)
 - [x] V3 BUFF System (6 types: POWER, LIFE, SPEED, WEAKNESS, BLEED, SLOW)
-- [x] V3 SPEED buff (2 actions per turn with actionsUsed tracking)
-- [x] V3 SLOW buff (delayed actions with preparing state)
-- [x] V3 Buff Tile Triggering (RngProvider integration)
-- [x] V3 Round Tracking (increment after both players END_TURN)
+- [x] V3 SPEED buff (2 actions per turn)
+- [x] V3 SLOW buff (delayed actions)
+- [x] V3 Buff Tile Triggering
+- [x] V3 Round Tracking
 
 ### In Progress
-- [ ] V3 Guardian Passive (TANK protects adjacent allies)
-- [ ] V3 Hero Skill System
-- [ ] V3 Game Flow Extension (minion decay, R8 pressure)
+- [ ] V3 Guardian Passive (TANK protects adjacent allies) - **16 tests passing**
+
+### Recently Completed
+- [x] Obstacle HP system (3 HP, attackable via ATTACK)
+- [x] POWER buff instant obstacle destroy
+- [x] Simultaneous death: active player wins
+- [x] Exhaustion Rule
+- [x] Minion Decay (-1 HP/round)
+- [x] Round 8 Pressure (-1 HP/round to all)
+- [x] Removed DESTROY_OBSTACLE (use ATTACK instead)
 
 ---
 
 ## Test Coverage
 
-**Total: 271 tests passing**
+**Total: 298 tests passing**
 
+### Existing Tests
 | Test Class | Coverage |
 |------------|----------|
 | RuleEngineValidateActionTest | V1 validation logic |
@@ -221,10 +246,17 @@ See `/docs/PROGRESS.md` for details.
 ### V3 Tests (Implemented)
 | Test Class | Coverage | Tests |
 |------------|----------|-------|
-| BuffFactoryTest | BM-Series: BuffType, modifiers, flags, duration | 12 |
-| BuffTileTest | BT-Series: Tile trigger, instant HP, RngProvider | 10 |
-| RuleEngineSpeedBuffTest | BSP-Series: 2 actions, -1 ATK, action tracking | 7 |
-| RuleEngineSlowBuffTest | BSL-Series: Preparing state, delayed execution, miss on move | 7 |
+| BuffFactoryTest | BM-Series: BuffType, modifiers | 12 |
+| BuffTileTest | BT-Series: Tile trigger, instant HP | 10 |
+| RuleEngineSpeedBuffTest | BSP-Series: 2 actions, tracking | 7 |
+| RuleEngineSlowBuffTest | BSL-Series: Preparing state | 7 |
+
+### V3 Tests (To Be Implemented)
+| Test Plan | Test Count |
+|-----------|------------|
+| GUARDIAN_TESTPLAN.md | 81 |
+| SKILL_SYSTEM_V3_TESTPLAN.md | 201 |
+| Remaining BUFF tests | ~100 |
 
 ---
 

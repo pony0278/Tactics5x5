@@ -233,6 +233,112 @@ public class Unit {
         return Math.max(0, maxActions - actionsUsed);
     }
 
+    // =========================================================================
+    // Immutable "with" methods for creating modified copies
+    // =========================================================================
+
+    /**
+     * Create a copy with updated position.
+     */
+    public Unit withPosition(Position newPosition) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, newPosition, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed, preparing, preparingAction);
+    }
+
+    /**
+     * Create a copy with updated HP and alive status.
+     */
+    public Unit withHp(int newHp) {
+        boolean newAlive = newHp > 0;
+        return new Unit(id, owner, newHp, attack, moveRange, attackRange, position, newAlive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed, preparing, preparingAction);
+    }
+
+    /**
+     * Create a copy with damage applied (reduces HP).
+     */
+    public Unit withDamage(int damage) {
+        return withHp(hp - damage);
+    }
+
+    /**
+     * Create a copy with HP bonus applied (healing or buff).
+     */
+    public Unit withHpBonus(int bonus) {
+        return withHp(hp + bonus);
+    }
+
+    /**
+     * Create a copy with updated actionsUsed.
+     */
+    public Unit withActionsUsed(int newActionsUsed) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        newActionsUsed, preparing, preparingAction);
+    }
+
+    /**
+     * Create a copy with incremented actionsUsed.
+     */
+    public Unit withActionUsed() {
+        return withActionsUsed(actionsUsed + 1);
+    }
+
+    /**
+     * Create a copy with updated position and incremented actionsUsed (common for MOVE).
+     */
+    public Unit withPositionAndActionUsed(Position newPosition) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, newPosition, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed + 1, preparing, preparingAction);
+    }
+
+    /**
+     * Create a copy with preparing state set.
+     */
+    public Unit withPreparing(boolean newPreparing, Map<String, Object> newPreparingAction) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed, newPreparing, newPreparingAction);
+    }
+
+    /**
+     * Create a copy with preparing state set and actionsUsed incremented (for SLOW buff).
+     */
+    public Unit withPreparingAndActionUsed(Map<String, Object> newPreparingAction) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed + 1, true, newPreparingAction);
+    }
+
+    /**
+     * Create a copy with reset action state (for round end).
+     */
+    public Unit withResetActionState() {
+        if (actionsUsed == 0 && !preparing) {
+            return this;  // No change needed
+        }
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        0, false, null);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

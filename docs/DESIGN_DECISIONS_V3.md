@@ -46,19 +46,18 @@ Round 8+:
 
 ## 3. Simultaneous Death
 
-### Q: Both heroes die simultaneously — Draw or first-to-die loses?
-**A: First to die loses**
+### Q: Both heroes die simultaneously — Who wins?
+**A: Active player (attacker) wins**
 
-Death is resolved in deterministic order:
-1. Process damage in order of action
-2. First hero to reach 0 HP loses
-3. If both die from same AoE/effect: **acting player's hero dies first**
+If an action causes both Heroes to die at the same time:
+- The **Active Player** (who initiated the attack) **WINS**
+- Rationale: Rewards aggression over defense
 
 ```
 Example scenarios:
-- Wild Magic kills both: Acting player loses (their hero processed first)
-- Counter-attack trade: Attacker's hero dies first if both die
-- Poison at round end: Process by unit ID order, first hero to 0 HP loses
+- Wild Magic kills both: Active player WINS (rewarded for aggression)
+- Counter-attack trade: Attacker WINS (they initiated)
+- Reflection damage kills both: Attacker WINS
 ```
 
 ---
@@ -210,6 +209,55 @@ Why RngProvider:
 
 ---
 
+## 4.4 Exhaustion Rule
+
+### Q: What happens when one player runs out of units to move?
+**A: Opponent takes consecutive turns for remaining units**
+
+When one player has no more unused units but opponent still has:
+- Opponent takes **consecutive turns** for their remaining units
+- A Round ends only when **ALL living units** have acted once
+
+```
+Example (P1 has 2 units, P2 has 3 units):
+P1 Unit1 → P2 Unit1 → P1 Unit2 → P2 Unit2 → P2 Unit3 → Round End
+
+Benefits:
+- No wasted turns
+- Rewards having more surviving units
+- Encourages aggressive play to eliminate enemy units
+```
+
+---
+
+## 4.5 Obstacle Properties
+
+### Q: Can obstacles be destroyed? How?
+**A: Yes — obstacles have HP and can be attacked**
+
+| Property | Value |
+|----------|-------|
+| HP | 3 |
+| Destructible | Yes — any unit can ATTACK an obstacle |
+| POWER Crush | Units with POWER buff destroy obstacles in **1 hit** |
+| Blocking | Blocks movement and line-of-sight while active |
+
+**Rationale**: Prevents stalling/griefing. Players cannot create permanent blockades.
+
+```
+Destruction methods:
+1. Normal attack: obstacle.hp -= attacker.attack
+2. POWER buff: Instant destruction (ignores HP)
+
+Example:
+- Obstacle has 3 HP
+- ARCHER (ATK 1) needs 3 attacks to destroy
+- ASSASSIN (ATK 2) needs 2 attacks to destroy
+- POWER buff unit destroys in 1 attack (instant)
+```
+
+---
+
 ## 5. SPD Skill Integration
 
 ### Q: Where does the skill list come from?
@@ -269,11 +317,51 @@ Units with POWER buff can destroy obstacles:
 - Effect: Remove obstacle from map
 - Still counts as the unit's action for the turn
 
-### 6.4 Guardian (TANK) vs Skills
-TANK's Guardian passive:
-- **Does** intercept normal attacks
-- **Does NOT** intercept skill damage
-- Skills bypass Guardian (for balance)
+### 6.4 Guardian (TANK) Passive
+
+TANK's Guardian passive intercepts damage to adjacent friendly units:
+
+**What Guardian DOES intercept:**
+- Normal attacks (ATTACK, MOVE_AND_ATTACK)
+- Skill damage (all skill types)
+- Counter-attack damage (Feint, Challenge)
+- Ranged attacks (any range)
+
+**What Guardian does NOT intercept:**
+- BLEED damage (not an attack action)
+- System damage (minion decay, Round 8 pressure)
+- Instant HP effects (WEAKNESS -1 HP)
+- Timeout penalty
+- Self-damage
+- Attacks on the TANK itself
+
+**Guardian Rules:**
+- Adjacent = Manhattan distance 1 (up/down/left/right, NOT diagonal)
+- Damage transfer = 100% of original damage
+- No intercept limit per round
+- Only protects friendly units
+- Multiple TANKs: Lowest unit ID intercepts
+- Dead TANK cannot intercept
+- TANK cannot protect itself
+
+```java
+// Adjacency check
+boolean isAdjacent(Position a, Position b) {
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) == 1;
+}
+
+// Get guardian for unit
+Unit getGuardian(Unit target, GameState state) {
+    return state.getUnits().stream()
+        .filter(u -> u.isAlive())
+        .filter(u -> u.getOwner().equals(target.getOwner()))
+        .filter(u -> u.getMinionType() == TANK)
+        .filter(u -> !u.equals(target))  // Cannot protect self
+        .filter(u -> isAdjacent(u.getPosition(), target.getPosition()))
+        .min(Comparator.comparing(Unit::getId))
+        .orElse(null);
+}
+```
 
 ### 6.5 Invisible Units (from Smoke Bomb)
 Invisible units:
@@ -308,13 +396,13 @@ Victory is checked:
 - Immediately when a hero's HP reaches 0
 
 ```java
-void checkVictory(GameState state) {
+void checkVictory(GameState state, PlayerId activePlayer) {
     Hero player1Hero = getHero(PLAYER_1);
     Hero player2Hero = getHero(PLAYER_2);
     
     if (!player1Hero.isAlive() && !player2Hero.isAlive()) {
-        // Both dead - determined by death order (tracked earlier)
-        state.winner = state.firstHeroDeath.opponent();
+        // Both dead - active player WINS (aggression rewarded)
+        state.winner = activePlayer;
     } else if (!player1Hero.isAlive()) {
         state.winner = PLAYER_2;
     } else if (!player2Hero.isAlive()) {
@@ -382,7 +470,10 @@ void checkVictory(GameState state) {
 |----------|----------|
 | Timeout penalty | Hero HP -1 |
 | Round 8+ pressure | All units -1 HP |
-| Simultaneous hero death | First to die loses |
+| **Simultaneous hero death** | **Active player (attacker) WINS** |
+| **Exhaustion rule** | **Opponent takes consecutive turns** |
+| **Obstacle HP** | **3** |
+| **Obstacle destruction** | **Any unit can attack, POWER = instant** |
 | SLOW: Can be attacked? | Yes |
 | SLOW: Cancel action? | No |
 | SLOW: When executes? | Start of next round, player's turn |
@@ -392,7 +483,13 @@ void checkVictory(GameState state) {
 | Round increment | After both players end turn |
 | Random BUFF selection | Use RngProvider.nextInt(6) |
 | Skill source | JSON files (extensible) |
-| Guardian vs Skills | Skills damage IS intercepted by Guardian |
+| **Guardian: Adjacent** | **Manhattan distance = 1 (4 directions)** |
+| **Guardian: Damage transfer** | **100% to TANK** |
+| **Guardian: Intercepts skills** | **Yes** |
+| **Guardian: Intercepts BLEED** | **No (not an attack)** |
+| **Guardian: Intercepts decay** | **No (system damage)** |
+| **Guardian: Limit** | **Unlimited per round** |
+| **Guardian: Multiple TANKs** | **Lowest unit ID intercepts** |
 | AoE vs Invisible | AoE still hits |
 | STUN blocks skills | Yes |
 | SLOW delays skills | Yes, by 1 round |

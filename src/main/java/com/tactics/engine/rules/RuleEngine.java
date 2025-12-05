@@ -9,9 +9,11 @@ import com.tactics.engine.buff.BuffModifier;
 import com.tactics.engine.buff.BuffType;
 import com.tactics.engine.model.Board;
 import com.tactics.engine.model.GameState;
+import com.tactics.engine.model.MinionType;
 import com.tactics.engine.model.PlayerId;
 import com.tactics.engine.model.Position;
 import com.tactics.engine.model.Unit;
+import com.tactics.engine.model.UnitCategory;
 import com.tactics.engine.util.RngProvider;
 
 import java.util.ArrayList;
@@ -167,6 +169,47 @@ public class RuleEngine {
     }
 
     /**
+     * Functional interface for unit transformation.
+     */
+    @FunctionalInterface
+    private interface UnitTransformer {
+        Unit transform(Unit unit);
+    }
+
+    /**
+     * Create a new list with a specific unit transformed.
+     * Returns a new list where the unit with matching ID is replaced by the transformation result.
+     */
+    private List<Unit> updateUnitInList(List<Unit> units, String unitId, UnitTransformer transformer) {
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : units) {
+            if (u.getId().equals(unitId)) {
+                newUnits.add(transformer.transform(u));
+            } else {
+                newUnits.add(u);
+            }
+        }
+        return newUnits;
+    }
+
+    /**
+     * Create a new list with multiple units transformed.
+     * Returns a new list where units with matching IDs are replaced by transformation results.
+     */
+    private List<Unit> updateUnitsInList(List<Unit> units, java.util.Map<String, UnitTransformer> transformers) {
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : units) {
+            UnitTransformer transformer = transformers.get(u.getId());
+            if (transformer != null) {
+                newUnits.add(transformer.transform(u));
+            } else {
+                newUnits.add(u);
+            }
+        }
+        return newUnits;
+    }
+
+    /**
      * Check if a tile is occupied by any alive unit.
      */
     private boolean isTileOccupied(List<Unit> units, Position pos) {
@@ -180,10 +223,68 @@ public class RuleEngine {
     }
 
     /**
-     * Get the next player ID (switches turn).
+     * Get the next player ID (simple alternation).
      */
     private PlayerId getNextPlayer(PlayerId current) {
-        return current.getValue().equals("P1") ? new PlayerId("P2") : new PlayerId("P1");
+        return current.isPlayer1() ? PlayerId.PLAYER_2 : PlayerId.PLAYER_1;
+    }
+
+    /**
+     * V3 Exhaustion Rule: Get the next player who can act.
+     * If opponent has no unused units, current player continues.
+     * A unit is "unused" if it is alive and has actionsUsed == 0.
+     *
+     * @param state current game state
+     * @param currentActingPlayer the player whose turn just ended
+     * @return the next player who should act
+     */
+    private PlayerId getNextActingPlayer(GameState state, PlayerId currentActingPlayer) {
+        PlayerId opponent = getNextPlayer(currentActingPlayer);
+
+        // Check if opponent has any unused units
+        boolean opponentHasUnusedUnits = hasUnusedUnits(state, opponent);
+
+        if (opponentHasUnusedUnits) {
+            // Normal alternation
+            return opponent;
+        }
+
+        // Check if current player still has unused units
+        boolean currentHasUnusedUnits = hasUnusedUnits(state, currentActingPlayer);
+
+        if (currentHasUnusedUnits) {
+            // Exhaustion rule: current player continues
+            return currentActingPlayer;
+        }
+
+        // Both sides exhausted - return opponent (round will end)
+        return opponent;
+    }
+
+    /**
+     * Check if a player has any unused units (alive and actionsUsed == 0).
+     */
+    private boolean hasUnusedUnits(GameState state, PlayerId player) {
+        for (Unit u : state.getUnits()) {
+            if (u.isAlive() &&
+                u.getOwner().getValue().equals(player.getValue()) &&
+                u.getActionsUsed() == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if all units have used their actions (round should end).
+     */
+    private boolean allUnitsActed(GameState state) {
+        for (Unit u : state.getUnits()) {
+            if (u.isAlive() && u.getActionsUsed() == 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -202,14 +303,28 @@ public class RuleEngine {
     /**
      * Check if the game is over based on unit states.
      * Game ends when one player has no alive units.
+     * This version does not handle simultaneous death rule.
      */
     private GameOverResult checkGameOver(List<Unit> units) {
+        return checkGameOver(units, null);
+    }
+
+    /**
+     * Check if the game is over based on unit states.
+     * Game ends when one player has no alive units.
+     * V3: If both players have no alive units (simultaneous death),
+     * the active player (attacker) wins.
+     *
+     * @param units the list of units to check
+     * @param activePlayer the player who initiated the action (for simultaneous death rule)
+     */
+    private GameOverResult checkGameOver(List<Unit> units, PlayerId activePlayer) {
         boolean p1HasAlive = false;
         boolean p2HasAlive = false;
 
         for (Unit u : units) {
             if (u.isAlive()) {
-                if (u.getOwner().getValue().equals("P1")) {
+                if (u.getOwner().isPlayer1()) {
                     p1HasAlive = true;
                 } else {
                     p2HasAlive = true;
@@ -217,10 +332,20 @@ public class RuleEngine {
             }
         }
 
+        // V3: Simultaneous death - active player wins
+        if (!p1HasAlive && !p2HasAlive) {
+            if (activePlayer != null) {
+                // Active player (attacker) wins on simultaneous death
+                return new GameOverResult(true, activePlayer);
+            }
+            // Fallback: if no active player specified, P1 wins (shouldn't happen in normal play)
+            return new GameOverResult(true, PlayerId.PLAYER_1);
+        }
+
         if (!p1HasAlive) {
-            return new GameOverResult(true, new PlayerId("P2"));
+            return new GameOverResult(true, PlayerId.PLAYER_2);
         } else if (!p2HasAlive) {
-            return new GameOverResult(true, new PlayerId("P1"));
+            return new GameOverResult(true, PlayerId.PLAYER_1);
         }
         return new GameOverResult(false, null);
     }
@@ -323,7 +448,7 @@ public class RuleEngine {
     // =========================================================================
 
     /**
-     * Check if unit has POWER buff (blocks MOVE_AND_ATTACK, enables DESTROY_OBSTACLE).
+     * Check if unit has POWER buff (blocks MOVE_AND_ATTACK, instant obstacle destroy).
      */
     private boolean hasPowerBuff(List<BuffInstance> buffs) {
         for (BuffInstance buff : buffs) {
@@ -484,17 +609,7 @@ public class RuleEngine {
             newUnits = new ArrayList<>();
             for (Unit u : units) {
                 if (u.getId().equals(movedUnit.getId())) {
-                    int newHp = u.getHp() + newBuff.getInstantHpBonus();
-                    boolean alive = newHp > 0;
-                    newUnits.add(new Unit(
-                        u.getId(), u.getOwner(), newHp, u.getAttack(),
-                        u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive,
-                        u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                        u.getSelectedSkillId(), u.getSkillCooldown(),
-                        u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                        u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                        u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
-                    ));
+                    newUnits.add(u.withHpBonus(newBuff.getInstantHpBonus()));
                 } else {
                     newUnits.add(u);
                 }
@@ -514,6 +629,60 @@ public class RuleEngine {
         }
 
         return new BuffTileTriggerResult(newUnits, newUnitBuffs, newBuffTiles);
+    }
+
+    // =========================================================================
+    // V3 Guardian Passive Helper Methods
+    // =========================================================================
+
+    /**
+     * Find the Guardian (TANK) that will intercept damage for the target unit.
+     * Returns null if no Guardian is available.
+     *
+     * Guardian rules:
+     * - Must be a TANK minion type
+     * - Must be alive
+     * - Must be same owner as target (friendly)
+     * - Must be adjacent to target (Manhattan distance 1)
+     * - Cannot protect itself
+     * - If multiple TANKs qualify, lowest unit ID intercepts
+     */
+    private Unit findGuardian(GameState state, Unit target) {
+        if (target == null) {
+            return null;
+        }
+
+        Unit guardian = null;
+
+        for (Unit u : state.getUnits()) {
+            // Must be alive
+            if (!u.isAlive()) {
+                continue;
+            }
+            // Must be same owner (friendly)
+            if (!u.getOwner().getValue().equals(target.getOwner().getValue())) {
+                continue;
+            }
+            // Must be TANK minion
+            if (u.getMinionType() != MinionType.TANK) {
+                continue;
+            }
+            // Cannot protect itself
+            if (u.getId().equals(target.getId())) {
+                continue;
+            }
+            // Must be adjacent
+            if (!isAdjacent(u.getPosition(), target.getPosition())) {
+                continue;
+            }
+
+            // Found a valid guardian - check if it has lower ID than current
+            if (guardian == null || u.getId().compareTo(guardian.getId()) < 0) {
+                guardian = u;
+            }
+        }
+
+        return guardian;
     }
 
     // =========================================================================
@@ -557,11 +726,6 @@ public class RuleEngine {
             return validateMoveAndAttack(state, action);
         }
 
-        // V3: DESTROY_OBSTACLE action
-        if (type == ActionType.DESTROY_OBSTACLE) {
-            return validateDestroyObstacle(state, action);
-        }
-
         // V3: DEATH_CHOICE action
         if (type == ActionType.DEATH_CHOICE) {
             return validateDeathChoice(state, action);
@@ -579,67 +743,6 @@ public class RuleEngine {
     // =========================================================================
     // V3 Action Validation Methods
     // =========================================================================
-
-    /**
-     * Validate DESTROY_OBSTACLE action (V3).
-     * Requires:
-     * - Unit has POWER buff
-     * - Target position has an obstacle
-     * - Target position is adjacent to the acting unit
-     */
-    private ValidationResult validateDestroyObstacle(GameState state, Action action) {
-        Position targetPos = action.getTargetPosition();
-        String actingUnitId = action.getActingUnitId();
-
-        // Need target position
-        if (targetPos == null) {
-            return new ValidationResult(false, "Target position is required for DESTROY_OBSTACLE");
-        }
-
-        // Need acting unit ID
-        if (actingUnitId == null) {
-            return new ValidationResult(false, "Acting unit ID is required for DESTROY_OBSTACLE");
-        }
-
-        // Find the acting unit
-        Unit actingUnit = findUnitById(state.getUnits(), actingUnitId);
-        if (actingUnit == null) {
-            return new ValidationResult(false, "Acting unit not found");
-        }
-
-        // Verify unit is alive
-        if (!actingUnit.isAlive()) {
-            return new ValidationResult(false, "Acting unit is dead");
-        }
-
-        // Verify unit belongs to current player
-        if (!actingUnit.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-            return new ValidationResult(false, "Cannot control opponent's unit");
-        }
-
-        // Check for POWER buff
-        List<BuffInstance> buffs = getBuffsForUnit(state, actingUnitId);
-        if (!hasPowerBuff(buffs)) {
-            return new ValidationResult(false, "DESTROY_OBSTACLE requires Power buff");
-        }
-
-        // V3: Action limit check (SPEED buff allows 2 actions)
-        if (!canUnitAct(actingUnit, buffs)) {
-            return new ValidationResult(false, "Unit has no remaining actions this turn");
-        }
-
-        // Check that target position has an obstacle
-        if (!hasObstacleAt(state, targetPos)) {
-            return new ValidationResult(false, "No obstacle at target position");
-        }
-
-        // Check that target position is adjacent to acting unit
-        if (!isAdjacent(actingUnit.getPosition(), targetPos)) {
-            return new ValidationResult(false, "Obstacle is not adjacent to unit");
-        }
-
-        return new ValidationResult(true, null);
-    }
 
     /**
      * Validate DEATH_CHOICE action (V3).
@@ -747,13 +850,9 @@ public class RuleEngine {
      * Validate ATTACK action using V2 attackRange logic + buff effects.
      * Attack must be orthogonal and within attacker's effective attackRange.
      * Stunned units cannot attack.
+     * V3: Can attack obstacles as well as units.
      */
     private ValidationResult validateAttack(GameState state, Action action) {
-        // A7: Missing targetUnitId
-        if (action.getTargetUnitId() == null) {
-            return new ValidationResult(false, "Target unit ID is required for ATTACK");
-        }
-
         // A8: Missing targetPosition
         if (action.getTargetPosition() == null) {
             return new ValidationResult(false, "Target position is required for ATTACK");
@@ -762,28 +861,53 @@ public class RuleEngine {
         Position targetPos = action.getTargetPosition();
         String targetUnitId = action.getTargetUnitId();
 
-        // Find target unit
-        Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
-
-        // A6: Target missing
-        if (targetUnit == null) {
-            return new ValidationResult(false, "Target unit not found");
+        // V3: Check if attacking an obstacle
+        // Obstacle attack is indicated by: targetUnitId starts with obstacle prefix OR
+        // targetUnitId is null AND there's an obstacle at the position
+        boolean isAttackingObstacle = false;
+        if (targetUnitId != null && targetUnitId.startsWith(com.tactics.engine.model.Obstacle.ID_PREFIX)) {
+            isAttackingObstacle = true;
+        } else if (targetUnitId == null) {
+            // Check if there's an obstacle at position (V3 allows attacking obstacles without targetUnitId)
+            if (state.getObstacleAt(targetPos) != null) {
+                isAttackingObstacle = true;
+            } else {
+                // A7: Missing targetUnitId and no obstacle at position
+                return new ValidationResult(false, "Target unit ID is required for ATTACK");
+            }
         }
 
-        // A6: Target dead
-        if (!targetUnit.isAlive()) {
-            return new ValidationResult(false, "Target unit is dead");
-        }
+        if (isAttackingObstacle) {
+            // Validate obstacle attack
+            com.tactics.engine.model.Obstacle obstacle = state.getObstacleAt(targetPos);
+            if (obstacle == null) {
+                return new ValidationResult(false, "No obstacle at target position");
+            }
+        } else {
+            // Validate unit attack (existing logic)
+            // Find target unit
+            Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
 
-        // A4: Friendly fire check
-        if (targetUnit.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-            return new ValidationResult(false, "Cannot attack own unit");
-        }
+            // A6: Target missing
+            if (targetUnit == null) {
+                return new ValidationResult(false, "Target unit not found");
+            }
 
-        // Verify targetPosition matches target unit's actual position
-        if (targetUnit.getPosition().getX() != targetPos.getX() ||
-            targetUnit.getPosition().getY() != targetPos.getY()) {
-            return new ValidationResult(false, "Target position does not match target unit position");
+            // A6: Target dead
+            if (!targetUnit.isAlive()) {
+                return new ValidationResult(false, "Target unit is dead");
+            }
+
+            // A4: Friendly fire check
+            if (targetUnit.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+                return new ValidationResult(false, "Cannot attack own unit");
+            }
+
+            // Verify targetPosition matches target unit's actual position
+            if (targetUnit.getPosition().getX() != targetPos.getX() ||
+                targetUnit.getPosition().getY() != targetPos.getY()) {
+                return new ValidationResult(false, "Target position does not match target unit position");
+            }
         }
 
         // Find attackers: alive friendly units within effective attack range of target
@@ -792,7 +916,7 @@ public class RuleEngine {
             if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
                 List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
                 int effectiveAttackRange = getEffectiveAttackRange(u, buffs);
-                if (canAttackFromPositionWithBuffs(u.getPosition(), targetUnit.getPosition(), effectiveAttackRange)) {
+                if (canAttackFromPositionWithBuffs(u.getPosition(), targetPos, effectiveAttackRange)) {
                     potentialAttackers.add(u);
                 }
             }
@@ -967,11 +1091,6 @@ public class RuleEngine {
             return applyMoveAndAttack(state, action);
         }
 
-        // V3: DESTROY_OBSTACLE action
-        if (type == ActionType.DESTROY_OBSTACLE) {
-            return applyDestroyObstacle(state, action);
-        }
-
         // V3: DEATH_CHOICE action
         if (type == ActionType.DEATH_CHOICE) {
             return applyDeathChoice(state, action);
@@ -982,35 +1101,36 @@ public class RuleEngine {
     }
 
     /**
-     * Apply END_TURN: process turn-end buff effects, then switch player.
-     * V3: Also tracks turn ended flags for round processing.
+     * Apply END_TURN: mark current player's units as having acted, then switch player.
+     * V3: Uses exhaustion rule to determine next player.
+     * V3: Round ends when all units have acted.
      */
     private GameState applyEndTurn(GameState state) {
+        PlayerId currentPlayer = state.getCurrentPlayer();
+
+        // V3: Mark all current player's unused units as having acted (END_TURN forfeits remaining actions)
+        List<Unit> unitsAfterEndTurn = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.isAlive() &&
+                u.getOwner().getValue().equals(currentPlayer.getValue()) &&
+                u.getActionsUsed() == 0) {
+                // Mark unit as having acted
+                unitsAfterEndTurn.add(u.withActionsUsed(1));
+            } else {
+                unitsAfterEndTurn.add(u);
+            }
+        }
+
         // Process turn-end buff effects (poison damage, duration reduction, expiration)
-        TurnEndResult turnEndResult = processTurnEnd(state.getUnits(), state.getUnitBuffs());
+        TurnEndResult turnEndResult = processTurnEnd(unitsAfterEndTurn, state.getUnitBuffs());
 
         GameOverResult gameOver = checkGameOver(turnEndResult.units);
 
-        // V3: Determine new turn ended flags
-        boolean newPlayer1TurnEnded = state.isPlayer1TurnEnded();
-        boolean newPlayer2TurnEnded = state.isPlayer2TurnEnded();
-
-        if (state.getCurrentPlayer().getValue().equals("P1")) {
-            newPlayer1TurnEnded = true;
-        } else {
-            newPlayer2TurnEnded = true;
-        }
-
-        // V3: If both players have ended their turn, process round end
-        if (newPlayer1TurnEnded && newPlayer2TurnEnded) {
-            return processRoundEnd(state, turnEndResult, gameOver);
-        }
-
-        // Switch to next player, keep turn ended flags
-        return new GameState(
+        // V3: Build temporary state to check exhaustion rule and round end
+        GameState tempState = new GameState(
             state.getBoard(),
             turnEndResult.units,
-            getNextPlayer(state.getCurrentPlayer()),
+            currentPlayer,
             gameOver.isGameOver,
             gameOver.winner,
             turnEndResult.unitBuffs,
@@ -1018,14 +1138,46 @@ public class RuleEngine {
             state.getObstacles(),
             state.getCurrentRound(),
             state.getPendingDeathChoice(),
-            newPlayer1TurnEnded,
-            newPlayer2TurnEnded
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
+        );
+
+        // V3: Check if all units have acted (round should end)
+        if (allUnitsActed(tempState)) {
+            return processRoundEnd(state, turnEndResult, gameOver);
+        }
+
+        // V3: Determine next player using exhaustion rule
+        PlayerId nextPlayer = getNextActingPlayer(tempState, currentPlayer);
+
+        // Switch to next player
+        return new GameState(
+            state.getBoard(),
+            turnEndResult.units,
+            nextPlayer,
+            gameOver.isGameOver,
+            gameOver.winner,
+            turnEndResult.unitBuffs,
+            state.getBuffTiles(),
+            state.getObstacles(),
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
         );
     }
 
     /**
-     * Process round end: execute preparing actions, increment round, reset turn flags, reset actionsUsed.
-     * Called when both players have ended their turn.
+     * Process round end: execute preparing actions, apply attrition, increment round, reset turn flags, reset actionsUsed.
+     * Called when both players have ended their turn (or all units have acted).
+     *
+     * Round-end processing order:
+     * 1. Execute preparing actions (SLOW buff)
+     * 2. Apply Minion Decay (-1 HP to all minions)
+     * 3. Apply Round 8+ Pressure (-1 HP to all units if round >= 8)
+     * 4. Check deaths
+     * 5. Reset action state
+     * 6. Increment round
      */
     private GameState processRoundEnd(GameState state, TurnEndResult turnEndResult, GameOverResult gameOver) {
         // V3: Execute preparing actions (SLOW buff delayed actions)
@@ -1037,8 +1189,30 @@ public class RuleEngine {
             gameOver = gameOverAfterPrep;
         }
 
+        // V3: Apply Minion Decay (-1 HP to all minions at round end)
+        List<Unit> unitsAfterDecay = applyMinionDecay(prepResult.units);
+
+        // Check game over after minion decay
+        GameOverResult gameOverAfterDecay = checkGameOver(unitsAfterDecay);
+        if (gameOverAfterDecay.isGameOver) {
+            gameOver = gameOverAfterDecay;
+        }
+
+        // V3: Apply Round 8+ Pressure (-1 HP to all units if round >= 8)
+        // Note: We check current round (before increment), so round 8 means "end of round 8"
+        List<Unit> unitsAfterPressure = unitsAfterDecay;
+        if (state.getCurrentRound() >= 8) {
+            unitsAfterPressure = applyRound8Pressure(unitsAfterDecay);
+
+            // Check game over after pressure
+            GameOverResult gameOverAfterPressure = checkGameOver(unitsAfterPressure);
+            if (gameOverAfterPressure.isGameOver) {
+                gameOver = gameOverAfterPressure;
+            }
+        }
+
         // Reset actionsUsed and clear preparing state for all units
-        List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(prepResult.units);
+        List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(unitsAfterPressure);
 
         return new GameState(
             state.getBoard(),
@@ -1054,6 +1228,40 @@ public class RuleEngine {
             false,  // Reset player1TurnEnded
             false   // Reset player2TurnEnded
         );
+    }
+
+    /**
+     * V3: Apply Minion Decay - all minions lose 1 HP at round end.
+     * Heroes are NOT affected.
+     */
+    private List<Unit> applyMinionDecay(List<Unit> units) {
+        List<Unit> result = new ArrayList<>();
+        for (Unit u : units) {
+            // Only apply decay to alive minions
+            if (u.isAlive() && u.getCategory() == UnitCategory.MINION) {
+                result.add(u.withDamage(1));
+            } else {
+                result.add(u);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * V3: Apply Round 8+ Pressure - all units lose 1 HP at round end (when round >= 8).
+     * This stacks with Minion Decay (minions lose 2 HP/round total after R8).
+     */
+    private List<Unit> applyRound8Pressure(List<Unit> units) {
+        List<Unit> result = new ArrayList<>();
+        for (Unit u : units) {
+            // Apply pressure to all alive units
+            if (u.isAlive()) {
+                result.add(u.withDamage(1));
+            } else {
+                result.add(u);
+            }
+        }
+        return result;
     }
 
     /**
@@ -1142,15 +1350,7 @@ public class RuleEngine {
                 List<Unit> newUnits = new ArrayList<>();
                 for (Unit u : units) {
                     if (u.getId().equals(prepUnit.getId())) {
-                        newUnits.add(new Unit(
-                            u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                            u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive(),
-                            u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                            u.getSelectedSkillId(), u.getSkillCooldown(),
-                            u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                            u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                            u.getActionsUsed(), false, null  // Clear preparing state
-                        ));
+                        newUnits.add(u.withPosition(targetPos).withPreparing(false, null));
                     } else {
                         newUnits.add(u);
                     }
@@ -1179,21 +1379,11 @@ public class RuleEngine {
             if (targetUnit != null && targetUnit.isAlive() && targetUnit.getPosition().equals(expectedPos)) {
                 // Execute attack
                 int damage = prepUnit.getAttack();
-                int newHp = targetUnit.getHp() - damage;
-                boolean alive = newHp > 0;
 
                 List<Unit> newUnits = new ArrayList<>();
                 for (Unit u : units) {
                     if (u.getId().equals(targetUnitId)) {
-                        newUnits.add(new Unit(
-                            u.getId(), u.getOwner(), newHp, u.getAttack(),
-                            u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive,
-                            u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                            u.getSelectedSkillId(), u.getSkillCooldown(),
-                            u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                            u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                            u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
-                        ));
+                        newUnits.add(u.withDamage(damage));
                     } else {
                         newUnits.add(u);
                     }
@@ -1234,31 +1424,13 @@ public class RuleEngine {
                     int distance = manhattanDistance(movePos, targetUnit.getPosition());
                     if (distance >= 1 && distance <= prepUnit.getAttackRange()) {
                         int damage = prepUnit.getAttack();
-                        int newHp = targetUnit.getHp() - damage;
-                        boolean alive = newHp > 0;
 
                         List<Unit> newUnits = new ArrayList<>();
                         for (Unit u : units) {
                             if (u.getId().equals(prepUnit.getId())) {
-                                newUnits.add(new Unit(
-                                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                                    u.getMoveRange(), u.getAttackRange(), movePos, u.isAlive(),
-                                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                                    u.getActionsUsed(), false, null
-                                ));
+                                newUnits.add(u.withPosition(movePos).withPreparing(false, null));
                             } else if (u.getId().equals(targetUnitId)) {
-                                newUnits.add(new Unit(
-                                    u.getId(), u.getOwner(), newHp, u.getAttack(),
-                                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive,
-                                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                                    u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
-                                ));
+                                newUnits.add(u.withDamage(damage));
                             } else {
                                 newUnits.add(u);
                             }
@@ -1282,17 +1454,7 @@ public class RuleEngine {
         for (Unit u : units) {
             if (u.getActionsUsed() > 0 || u.isPreparing()) {
                 // Create new unit with reset actionsUsed and cleared preparing state
-                newUnits.add(new Unit(
-                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), u.isAlive(),
-                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                    0,     // Reset actionsUsed
-                    false, // Clear preparing
-                    null   // Clear preparingAction
-                ));
+                newUnits.add(u.withResetActionState());
             } else {
                 newUnits.add(u);
             }
@@ -1308,40 +1470,11 @@ public class RuleEngine {
         Map<String, Object> preparingAction = serializeActionForPreparing(action);
 
         // Create new units list with the acting unit in preparing state
-        List<Unit> newUnits = new ArrayList<>();
-        for (Unit u : state.getUnits()) {
-            if (u.getId().equals(actingUnit.getId())) {
-                newUnits.add(new Unit(
-                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), u.isAlive(),
-                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                    u.getActionsUsed() + 1,  // Increment actionsUsed (action is queued)
-                    true,  // Set preparing
-                    preparingAction  // Store the action
-                ));
-            } else {
-                newUnits.add(u);
-            }
-        }
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+            u -> u.withPreparingAndActionUsed(preparingAction));
 
         // SLOW buff preparing does not switch turn
-        return new GameState(
-            state.getBoard(),
-            newUnits,
-            state.getCurrentPlayer(),
-            state.isGameOver(),
-            state.getWinner(),
-            state.getUnitBuffs(),
-            state.getBuffTiles(),
-            state.getObstacles(),
-            state.getCurrentRound(),
-            state.getPendingDeathChoice(),
-            state.isPlayer1TurnEnded(),
-            state.isPlayer2TurnEnded()
-        );
+        return state.withUnits(newUnits);
     }
 
     private GameState applyMove(GameState state, Action action) {
@@ -1368,25 +1501,8 @@ public class RuleEngine {
         }
 
         // Create new units list with updated position and incremented actionsUsed
-        List<Unit> newUnits = new ArrayList<>();
-        Unit movedUnit = null;
-        for (Unit u : state.getUnits()) {
-            if (u.getId().equals(mover.getId())) {
-                movedUnit = new Unit(
-                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive(),
-                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                    u.getActionsUsed() + 1,  // Increment actionsUsed
-                    u.isPreparing(), u.getPreparingAction()
-                );
-                newUnits.add(movedUnit);
-            } else {
-                newUnits.add(u);
-            }
-        }
+        Unit movedUnit = mover.withPositionAndActionUsed(targetPos);
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), mover.getId(), u -> movedUnit);
 
         // V3: Check for buff tile trigger at destination
         BuffTileTriggerResult tileResult = checkBuffTileTrigger(state, movedUnit, targetPos, newUnits, state.getUnitBuffs());
@@ -1394,28 +1510,18 @@ public class RuleEngine {
         GameOverResult gameOver = checkGameOver(tileResult.units);
 
         // MOVE does not switch turn, does not process turn-end buffs
-        return new GameState(
-            state.getBoard(),
-            tileResult.units,
-            state.getCurrentPlayer(),
-            gameOver.isGameOver,
-            gameOver.winner,
-            tileResult.unitBuffs,
-            tileResult.buffTiles,
-            state.getObstacles(),
-            state.getCurrentRound(),
-            state.getPendingDeathChoice(),
-            state.isPlayer1TurnEnded(),
-            state.isPlayer2TurnEnded()
-        );
+        return state.withMoveResult(tileResult.units, tileResult.unitBuffs, tileResult.buffTiles,
+                                     gameOver.isGameOver, gameOver.winner);
     }
 
     private GameState applyAttack(GameState state, Action action) {
         String targetUnitId = action.getTargetUnitId();
         Position targetPos = action.getTargetPosition();
 
-        // Find target unit and attacker using effective attackRange (with buffs)
-        Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
+        // V3: Check if attacking an obstacle
+        boolean isAttackingObstacle = targetUnitId == null || targetUnitId.startsWith(com.tactics.engine.model.Obstacle.ID_PREFIX);
+
+        // Find attacker using effective attackRange (with buffs)
         Unit attacker = null;
         List<BuffInstance> attackerBuffs = null;
         for (Unit u : state.getUnits()) {
@@ -1435,61 +1541,83 @@ public class RuleEngine {
             return applySlowBuffPreparing(state, action, attacker);
         }
 
+        // V3: Handle obstacle attack
+        if (isAttackingObstacle) {
+            return applyAttackObstacle(state, action, attacker, attackerBuffs, targetPos);
+        }
+
+        // Handle unit attack (existing logic)
+        Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
+
+        // V3: Check for Guardian intercept
+        // If a friendly TANK is adjacent to the target, damage is redirected to the TANK
+        Unit guardian = findGuardian(state, targetUnit);
+        Unit actualDamageReceiver = (guardian != null) ? guardian : targetUnit;
+        String damageReceiverId = actualDamageReceiver.getId();
+
         // Calculate damage including bonus attack from buffs
         int bonusAttack = getBonusAttack(attackerBuffs);
         int totalDamage = attacker.getAttack() + bonusAttack;
 
-        // Calculate new HP
-        int newHp = targetUnit.getHp() - totalDamage;
-        boolean alive = newHp > 0;
+        // Create new units list with updated damage receiver HP and attacker's actionsUsed
+        Map<String, UnitTransformer> transformers = new HashMap<>();
+        transformers.put(damageReceiverId, u -> u.withDamage(totalDamage));
+        if (!attacker.getId().equals(damageReceiverId)) {
+            transformers.put(attacker.getId(), Unit::withActionUsed);
+        } else {
+            // Attacker is the same as damage receiver (e.g., self-damage) - already handled above
+            transformers.put(damageReceiverId, u -> u.withDamage(totalDamage).withActionUsed());
+        }
+        List<Unit> newUnits = updateUnitsInList(state.getUnits(), transformers);
 
-        // Create new units list with updated target HP and attacker's actionsUsed
-        List<Unit> newUnits = new ArrayList<>();
-        for (Unit u : state.getUnits()) {
-            if (u.getId().equals(targetUnitId)) {
-                newUnits.add(new Unit(
-                    u.getId(), u.getOwner(), newHp, u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), alive,
-                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                    u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
-                ));
-            } else if (u.getId().equals(attacker.getId())) {
-                // Increment attacker's actionsUsed
-                newUnits.add(new Unit(
-                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), u.isAlive(),
-                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                    u.getActionsUsed() + 1,  // Increment actionsUsed
-                    u.isPreparing(), u.getPreparingAction()
-                ));
+        // V3: Pass active player for simultaneous death rule
+        GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
+
+        // ATTACK does not switch turn, does not process turn-end buffs
+        return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * V3: Apply attack on an obstacle.
+     * - POWER buff: Instant destroy (ignore HP)
+     * - Normal: Reduce obstacle HP, remove if destroyed
+     */
+    private GameState applyAttackObstacle(GameState state, Action action, Unit attacker,
+                                           List<BuffInstance> attackerBuffs, Position targetPos) {
+        com.tactics.engine.model.Obstacle targetObstacle = state.getObstacleAt(targetPos);
+
+        // Calculate damage
+        int bonusAttack = getBonusAttack(attackerBuffs);
+        int totalDamage = attacker.getAttack() + bonusAttack;
+
+        // Check if attacker has POWER buff (instant destroy)
+        boolean hasPower = hasPowerBuff(attackerBuffs);
+
+        // Update obstacles list
+        List<com.tactics.engine.model.Obstacle> newObstacles = new ArrayList<>();
+        for (com.tactics.engine.model.Obstacle o : state.getObstacles()) {
+            if (o.getPosition().equals(targetPos)) {
+                if (hasPower) {
+                    // POWER buff: instant destroy, don't add to new list
+                    continue;
+                } else {
+                    // Normal attack: reduce HP
+                    com.tactics.engine.model.Obstacle damaged = o.withDamage(totalDamage);
+                    if (!damaged.isDestroyed()) {
+                        newObstacles.add(damaged);
+                    }
+                    // If destroyed (HP <= 0), don't add to list
+                }
             } else {
-                newUnits.add(u);
+                newObstacles.add(o);
             }
         }
 
-        GameOverResult gameOver = checkGameOver(newUnits);
+        // Update attacker's actionsUsed
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), attacker.getId(), Unit::withActionUsed);
 
-        // ATTACK does not switch turn, does not process turn-end buffs
-        return new GameState(
-            state.getBoard(),
-            newUnits,
-            state.getCurrentPlayer(),
-            gameOver.isGameOver,
-            gameOver.winner,
-            state.getUnitBuffs(),
-            state.getBuffTiles(),
-            state.getObstacles(),
-            state.getCurrentRound(),
-            state.getPendingDeathChoice(),
-            state.isPlayer1TurnEnded(),
-            state.isPlayer2TurnEnded()
-        );
+        // ATTACK on obstacle does not switch turn
+        return state.withUnits(newUnits).withObstacles(newObstacles);
     }
 
     private GameState applyMoveAndAttack(GameState state, Action action) {
@@ -1519,41 +1647,27 @@ public class RuleEngine {
         // Find target
         Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
 
+        // V3: Check for Guardian intercept
+        // If a friendly TANK is adjacent to the target, damage is redirected to the TANK
+        Unit guardian = findGuardian(state, targetUnit);
+        Unit actualDamageReceiver = (guardian != null) ? guardian : targetUnit;
+        String damageReceiverId = actualDamageReceiver.getId();
+
         // Calculate damage including bonus attack from buffs
         int bonusAttack = getBonusAttack(moverBuffs);
         int totalDamage = mover.getAttack() + bonusAttack;
 
-        // Calculate new HP for target
-        int newHp = targetUnit.getHp() - totalDamage;
-        boolean targetAlive = newHp > 0;
-
-        // Create new units list with mover at new position, target with new HP, and mover's actionsUsed incremented
+        // Create new units list with mover at new position, damage receiver with new HP
         List<Unit> newUnits = new ArrayList<>();
         Unit movedUnit = null;
         for (Unit u : state.getUnits()) {
             if (u.getId().equals(mover.getId())) {
                 // Move + attack as single action
-                movedUnit = new Unit(
-                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), targetPos, u.isAlive(),
-                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                    u.getActionsUsed() + 1,  // Increment actionsUsed
-                    u.isPreparing(), u.getPreparingAction()
-                );
+                movedUnit = u.withPositionAndActionUsed(targetPos);
                 newUnits.add(movedUnit);
-            } else if (u.getId().equals(targetUnitId)) {
-                newUnits.add(new Unit(
-                    u.getId(), u.getOwner(), newHp, u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), targetAlive,
-                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                    u.getActionsUsed(), u.isPreparing(), u.getPreparingAction()
-                ));
+            } else if (u.getId().equals(damageReceiverId)) {
+                // Apply damage to actual receiver (either target or guardian)
+                newUnits.add(u.withDamage(totalDamage));
             } else {
                 newUnits.add(u);
             }
@@ -1565,13 +1679,38 @@ public class RuleEngine {
         // Process turn-end buff effects (poison damage, duration reduction, expiration)
         TurnEndResult turnEndResult = processTurnEnd(tileResult.units, tileResult.unitBuffs);
 
-        GameOverResult gameOver = checkGameOver(turnEndResult.units);
+        // V3: Pass active player for simultaneous death rule
+        GameOverResult gameOver = checkGameOver(turnEndResult.units, action.getPlayerId());
 
-        // MOVE_AND_ATTACK switches turn
+        // V3: Build temporary state to check exhaustion rule
+        GameState tempState = new GameState(
+            state.getBoard(),
+            turnEndResult.units,
+            state.getCurrentPlayer(),
+            gameOver.isGameOver,
+            gameOver.winner,
+            turnEndResult.unitBuffs,
+            tileResult.buffTiles,
+            state.getObstacles(),
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
+        );
+
+        // V3: Check if all units have acted (round should end)
+        if (allUnitsActed(tempState)) {
+            return processRoundEnd(state, turnEndResult, gameOver);
+        }
+
+        // V3: Determine next player using exhaustion rule
+        PlayerId nextPlayer = getNextActingPlayer(tempState, state.getCurrentPlayer());
+
+        // MOVE_AND_ATTACK switches turn (using exhaustion rule)
         return new GameState(
             state.getBoard(),
             turnEndResult.units,
-            getNextPlayer(state.getCurrentPlayer()),
+            nextPlayer,
             gameOver.isGameOver,
             gameOver.winner,
             turnEndResult.unitBuffs,
@@ -1587,59 +1726,6 @@ public class RuleEngine {
     // =========================================================================
     // V3 Apply Action Methods
     // =========================================================================
-
-    /**
-     * Apply DESTROY_OBSTACLE action (V3).
-     * Removes the obstacle at the target position.
-     * Does not switch turn (like MOVE).
-     */
-    private GameState applyDestroyObstacle(GameState state, Action action) {
-        Position targetPos = action.getTargetPosition();
-        String actingUnitId = action.getActingUnitId();
-
-        // Create new obstacles list without the destroyed one
-        List<com.tactics.engine.model.Obstacle> newObstacles = new ArrayList<>();
-        for (com.tactics.engine.model.Obstacle obstacle : state.getObstacles()) {
-            if (!obstacle.getPosition().equals(targetPos)) {
-                newObstacles.add(obstacle);
-            }
-        }
-
-        // Update acting unit's actionsUsed
-        List<Unit> newUnits = new ArrayList<>();
-        for (Unit u : state.getUnits()) {
-            if (u.getId().equals(actingUnitId)) {
-                newUnits.add(new Unit(
-                    u.getId(), u.getOwner(), u.getHp(), u.getAttack(),
-                    u.getMoveRange(), u.getAttackRange(), u.getPosition(), u.isAlive(),
-                    u.getCategory(), u.getMinionType(), u.getHeroClass(), u.getMaxHp(),
-                    u.getSelectedSkillId(), u.getSkillCooldown(),
-                    u.getShield(), u.isInvisible(), u.isInvulnerable(),
-                    u.isTemporary(), u.getTemporaryDuration(), u.getSkillState(),
-                    u.getActionsUsed() + 1,  // Increment actionsUsed
-                    u.isPreparing(), u.getPreparingAction()
-                ));
-            } else {
-                newUnits.add(u);
-            }
-        }
-
-        // DESTROY_OBSTACLE does not switch turn
-        return new GameState(
-            state.getBoard(),
-            newUnits,
-            state.getCurrentPlayer(),
-            state.isGameOver(),
-            state.getWinner(),
-            state.getUnitBuffs(),
-            state.getBuffTiles(),
-            newObstacles,
-            state.getCurrentRound(),
-            state.getPendingDeathChoice(),
-            state.isPlayer1TurnEnded(),
-            state.isPlayer2TurnEnded()
-        );
-    }
 
     /**
      * Apply DEATH_CHOICE action (V3).

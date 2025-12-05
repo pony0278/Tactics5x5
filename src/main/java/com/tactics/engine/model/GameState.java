@@ -189,4 +189,122 @@ public class GameState {
                 .findFirst()
                 .orElse(null);
     }
+
+    // =========================================================================
+    // Immutable "with" methods for creating modified copies
+    // =========================================================================
+
+    /**
+     * Create a copy with updated units.
+     */
+    public GameState withUnits(List<Unit> newUnits) {
+        return new GameState(board, newUnits, currentPlayer, isGameOver, winner, unitBuffs,
+                             buffTiles, obstacles, currentRound, pendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy with updated current player.
+     */
+    public GameState withCurrentPlayer(PlayerId newCurrentPlayer) {
+        return new GameState(board, units, newCurrentPlayer, isGameOver, winner, unitBuffs,
+                             buffTiles, obstacles, currentRound, pendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy with updated game over state.
+     */
+    public GameState withGameOver(boolean newIsGameOver, PlayerId newWinner) {
+        return new GameState(board, units, currentPlayer, newIsGameOver, newWinner, unitBuffs,
+                             buffTiles, obstacles, currentRound, pendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy with updated unit buffs.
+     */
+    public GameState withUnitBuffs(Map<String, List<BuffInstance>> newUnitBuffs) {
+        return new GameState(board, units, currentPlayer, isGameOver, winner, newUnitBuffs,
+                             buffTiles, obstacles, currentRound, pendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy with updated buff tiles.
+     */
+    public GameState withBuffTiles(List<BuffTile> newBuffTiles) {
+        return new GameState(board, units, currentPlayer, isGameOver, winner, unitBuffs,
+                             newBuffTiles, obstacles, currentRound, pendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy with updated obstacles.
+     */
+    public GameState withObstacles(List<Obstacle> newObstacles) {
+        return new GameState(board, units, currentPlayer, isGameOver, winner, unitBuffs,
+                             buffTiles, newObstacles, currentRound, pendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy with updated round number.
+     */
+    public GameState withCurrentRound(int newCurrentRound) {
+        return new GameState(board, units, currentPlayer, isGameOver, winner, unitBuffs,
+                             buffTiles, obstacles, newCurrentRound, pendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy with updated pending death choice.
+     */
+    public GameState withPendingDeathChoice(DeathChoice newPendingDeathChoice) {
+        return new GameState(board, units, currentPlayer, isGameOver, winner, unitBuffs,
+                             buffTiles, obstacles, currentRound, newPendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy with updated turn ended flags.
+     */
+    public GameState withTurnEndedFlags(boolean newPlayer1TurnEnded, boolean newPlayer2TurnEnded) {
+        return new GameState(board, units, currentPlayer, isGameOver, winner, unitBuffs,
+                             buffTiles, obstacles, currentRound, pendingDeathChoice,
+                             newPlayer1TurnEnded, newPlayer2TurnEnded);
+    }
+
+    /**
+     * Create a copy with multiple field updates (common pattern after actions).
+     * Useful when updating units, buffs, and game over state together.
+     */
+    public GameState withUpdates(List<Unit> newUnits, Map<String, List<BuffInstance>> newUnitBuffs,
+                                  boolean newIsGameOver, PlayerId newWinner) {
+        return new GameState(board, newUnits, currentPlayer, newIsGameOver, newWinner, newUnitBuffs,
+                             buffTiles, obstacles, currentRound, pendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy with units, buffs, buff tiles, and game over state updated.
+     * Useful after move actions that trigger buff tiles.
+     */
+    public GameState withMoveResult(List<Unit> newUnits, Map<String, List<BuffInstance>> newUnitBuffs,
+                                     List<BuffTile> newBuffTiles, boolean newIsGameOver, PlayerId newWinner) {
+        return new GameState(board, newUnits, currentPlayer, newIsGameOver, newWinner, newUnitBuffs,
+                             newBuffTiles, obstacles, currentRound, pendingDeathChoice,
+                             player1TurnEnded, player2TurnEnded);
+    }
+
+    /**
+     * Create a copy for round end: increment round, reset turn flags, update units/buffs.
+     */
+    public GameState withRoundEnd(List<Unit> newUnits, Map<String, List<BuffInstance>> newUnitBuffs,
+                                   List<BuffTile> newBuffTiles, List<Obstacle> newObstacles,
+                                   PlayerId newCurrentPlayer, boolean newIsGameOver, PlayerId newWinner) {
+        return new GameState(board, newUnits, newCurrentPlayer, newIsGameOver, newWinner, newUnitBuffs,
+                             newBuffTiles, newObstacles, currentRound + 1, pendingDeathChoice,
+                             false, false);
+    }
 }

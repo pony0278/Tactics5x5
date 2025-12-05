@@ -35,12 +35,24 @@ Before battle begins:
 ## 2. Turn Structure
 
 ### 2.1 Turn Order
-- **Alternating unit actions**: Player A moves one unit → Player B moves one unit → repeat
+- **Alternating unit actions**: Player A Unit 1 → Player B Unit 1 → Player A Unit 2 → ...
 - Each unit may act once per round
 
-### 2.2 Time Limit
+### 2.2 Exhaustion Rule
+When one player runs out of units to move but the opponent still has unused units:
+- The opponent takes **consecutive turns** for their remaining units
+- A Round ends only when **ALL living units** on the board have acted once
+
+```
+Example:
+- P1 has 2 units, P2 has 3 units
+- P1 Unit1 → P2 Unit1 → P1 Unit2 → P2 Unit2 → P2 Unit3
+- Round ends (all 5 units have acted)
+```
+
+### 2.3 Time Limit
 - **10 seconds** per action decision
-- Timeout penalty: Acting player loses **1 HP** (applied to hero? or acting unit? — clarify in implementation)
+- Timeout penalty: Player's **HERO** loses **1 HP**
 
 ### 2.3 Action Options
 Each unit per turn may perform ONE of:
@@ -67,8 +79,8 @@ Each unit per turn may perform ONE of:
 - Heroes are NOT affected by decay
 
 ### 3.2 Late-Game Pressure
-- Starting from **Round 8**, both players lose **1 HP per round**
-- Applied to: Hero? All units? (clarify in implementation)
+- Starting from **Round 8**, **all units** (Heroes + Minions) lose **1 HP per round**
+- This stacks with Minion Decay (minions lose 2 HP/round total after R8)
 
 ---
 
@@ -88,9 +100,18 @@ When a **friendly minion** dies, the owning player may choose:
 - Effect: Applies random BUFF (see BUFF_SYSTEM_V3.md)
 
 ### 4.3 Obstacle Properties
-- Blocks movement (units cannot pass through)
-- Duration: Permanent until destroyed
-- Destruction: Only units with **POWER BUFF** can destroy obstacles
+| Property | Value |
+|----------|-------|
+| HP | 3 |
+| Destructible | Yes — any unit can ATTACK an obstacle |
+| POWER Crush | Units with POWER BUFF destroy obstacles in 1 hit |
+| Blocking | Blocks movement and line-of-sight while active |
+
+```
+Destruction methods:
+1. Normal attack: Obstacle takes damage, destroyed when HP ≤ 0
+2. POWER buff: Instant destruction (ignores HP)
+```
 
 ---
 
@@ -99,7 +120,17 @@ When a **friendly minion** dies, the owning player may choose:
 **Kill the enemy Hero to win.**
 
 - Minion deaths do not end the game
-- If both heroes die simultaneously: Draw (or first-to-die loses — clarify)
+
+### 5.1 Simultaneous Death Resolution
+If an action causes both Heroes to die at the same time (e.g., via Reflection damage or AoE):
+- The **Active Player** (the one who initiated the attack) **WINS**
+- Rationale: Rewards aggression over defense
+
+```
+Example:
+- P1 attacks with Wild Magic, kills both heroes
+- P1 WINS (P1 is the active player)
+```
 
 ---
 
@@ -135,11 +166,13 @@ Invalid if:
 
 ### ATTACK
 Invalid if:
-- No valid target at position
-- Target is friendly
+- No valid target at position (unit or obstacle)
+- Target is friendly unit
 - Target is dead
 - Distance > unit's `attackRange`
 - Attacker is dead
+
+**Note**: Obstacles are valid attack targets. Attacks reduce obstacle HP.
 
 ### MOVE_AND_ATTACK
 Invalid if:
@@ -161,9 +194,15 @@ Invalid if:
 - Update unit position
 
 ### ATTACK
+**Against Unit:**
 - Calculate damage: `attacker.attack + buffBonuses`
 - Apply to target: `target.hp -= damage`
 - If `target.hp <= 0`: Mark dead, trigger death mechanics
+
+**Against Obstacle:**
+- If attacker has POWER buff: Obstacle destroyed instantly
+- Else: `obstacle.hp -= attacker.attack`
+- If `obstacle.hp <= 0`: Remove obstacle from board
 
 ### MOVE_AND_ATTACK
 - Execute MOVE
@@ -212,13 +251,15 @@ At the end of each full round (after all units have acted):
 
 - [ ] Hero unit type with SPD integration
 - [ ] Draft phase (select 2 of 3 minions)
-- [ ] 10-second timer with timeout penalty
+- [ ] 10-second timer with timeout penalty (Hero -1 HP)
 - [ ] Minion decay (1 HP per round)
 - [ ] Death choice: obstacle vs BUFF tile
 - [ ] BUFF tile system (2 rounds, one-time trigger)
-- [ ] Obstacle spawning and destruction
-- [ ] Round 8+ pressure system
+- [ ] Obstacle system (3 HP, attackable, POWER instant destroy)
+- [ ] Round 8+ pressure system (all units -1 HP)
 - [ ] Victory condition: hero death only
+- [ ] Simultaneous death: active player wins
+- [ ] Exhaustion rule: consecutive turns when opponent runs out
 
 ---
 

@@ -18,10 +18,11 @@ docs/
 | Board Size | 5×5 | Fixed |
 | Team Size | 3 | 1 Hero + 2 Minions |
 | Draft Pool | 3 | Pick 2 minions |
-| Turn Timer | 10 sec | Timeout = -1 HP |
+| Turn Timer | 10 sec | Timeout = Hero -1 HP |
 | BUFF Duration | 2 rounds | All BUFFs |
 | BUFF Tile Duration | 2 rounds | On map |
-| Pressure Start | Round 8 | Both players -1 HP/round |
+| **Obstacle HP** | **3** | **Any unit can attack** |
+| Pressure Start | Round 8 | All units -1 HP/round |
 | Skill Cooldown | 2 rounds | After use |
 
 ---
@@ -41,7 +42,7 @@ docs/
 
 | BUFF | ATK | HP | Special |
 |------|-----|----|---------|
-| POWER | +3 | +1 | No move+attack, destroy obstacle |
+| POWER | +3 | +1 | No move+attack, **1-hit obstacle destroy** |
 | LIFE | — | +3 | — |
 | SPEED | -1 | — | Double action |
 | WEAKNESS | -2 | -1 | — |
@@ -62,6 +63,8 @@ Player A Unit 2 → Player B Unit 2 →
 Player A Unit 3 → Player B Unit 3 → 
 Round End → Next Round
 ```
+
+**Exhaustion Rule**: If one player runs out of units, opponent takes consecutive turns for remaining units.
 
 ---
 
@@ -88,7 +91,10 @@ Round End → Next Round
 |----------|--------|
 | Timeout penalty | **Hero** loses 1 HP |
 | Round 8+ pressure | **All units** lose 1 HP/round |
-| Simultaneous death | **First to die** loses |
+| Simultaneous death | **Active player (attacker) WINS** |
+| Exhaustion rule | **Opponent takes consecutive turns** |
+| Obstacle HP | **3** (any unit can attack) |
+| POWER vs Obstacle | **Instant destroy (1 hit)** |
 | SLOW: attackable? | **Yes**, can be attacked while preparing |
 | SLOW: cancel? | **No**, cannot cancel declared action |
 | Skills source | **JSON files** (extensible architecture) |

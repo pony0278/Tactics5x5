@@ -421,6 +421,9 @@ public class GameStateSerializer {
         posMap.put(KEY_Y, obstacle.getPosition().getY());
         obstacleMap.put(KEY_POSITION, posMap);
 
+        // V3: Serialize obstacle HP
+        obstacleMap.put(KEY_HP, obstacle.getHp());
+
         return obstacleMap;
     }
 
@@ -448,8 +451,10 @@ public class GameStateSerializer {
     private Obstacle deserializeObstacle(Map<String, Object> obstacleMap) {
         String id = (String) obstacleMap.get(KEY_ID);
         Position position = deserializePosition(obstacleMap.get(KEY_POSITION));
+        // V3: Deserialize obstacle HP (default to 3 for backward compatibility)
+        int hp = toIntOrDefault(obstacleMap.get(KEY_HP), Obstacle.DEFAULT_HP);
 
-        return new Obstacle(id, position);
+        return new Obstacle(id, position, hp);
     }
 
     // =========================================================================

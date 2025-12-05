@@ -7,10 +7,30 @@ import java.util.Objects;
  */
 public class PlayerId {
 
+    // Common player ID constants
+    public static final String PLAYER_1_VALUE = "P1";
+    public static final String PLAYER_2_VALUE = "P2";
+    public static final PlayerId PLAYER_1 = new PlayerId(PLAYER_1_VALUE);
+    public static final PlayerId PLAYER_2 = new PlayerId(PLAYER_2_VALUE);
+
     private final String value;
 
     public PlayerId(String value) {
         this.value = value;
+    }
+
+    /**
+     * Check if this is Player 1.
+     */
+    public boolean isPlayer1() {
+        return PLAYER_1_VALUE.equals(value);
+    }
+
+    /**
+     * Check if this is Player 2.
+     */
+    public boolean isPlayer2() {
+        return PLAYER_2_VALUE.equals(value);
     }
 
     public String getValue() {

@@ -30,7 +30,7 @@ V3 BUFF system features:
 
 **Special Effects:**
 - **Cannot attack after moving** — MOVE_AND_ATTACK disabled
-- **Can destroy obstacles** — Unit may target obstacle tiles to remove them
+- **Power Crush** — Destroys obstacles in **1 hit** (ignores obstacle HP)
 
 ```
 Implementation Notes:
@@ -38,8 +38,14 @@ Implementation Notes:
 - modifier.bonusAttack = +3
 - On acquire: unit.hp += 1 (one-time)
 - Validation: If hasPowerBuff, reject MOVE_AND_ATTACK
-- New action: DESTROY_OBSTACLE (target adjacent obstacle)
+- Attack vs Obstacle: If hasPowerBuff, obstacle destroyed instantly
 ```
+
+**Obstacle Interaction:**
+| Attacker | Obstacle Effect |
+|----------|-----------------|
+| Normal unit | Obstacle takes damage (HP -= attacker.attack) |
+| POWER buff unit | Obstacle destroyed instantly (ignores HP) |
 
 ---
 

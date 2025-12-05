@@ -91,11 +91,12 @@ public class Action {
     }
 
     /**
-     * Create a DESTROY_OBSTACLE action.
+     * Create an ATTACK action targeting an obstacle.
+     * Any unit can attack obstacles. POWER buff destroys instantly.
      */
-    public static Action destroyObstacle(PlayerId playerId, String actingUnitId, Position obstaclePosition) {
-        return new Action(ActionType.DESTROY_OBSTACLE, playerId, obstaclePosition, null,
-                         actingUnitId, null, null);
+    public static Action attackObstacle(PlayerId playerId, Position obstaclePosition) {
+        return new Action(ActionType.ATTACK, playerId, obstaclePosition, null,
+                         null, null, null);
     }
 
     /**

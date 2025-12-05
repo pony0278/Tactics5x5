@@ -113,7 +113,20 @@ Round N:
   Round N+1
 ```
 
-### 4.2 Unit Action Order
+### 4.2 Exhaustion Rule
+When one player runs out of units to move:
+- The opponent takes **consecutive turns** for remaining units
+- A Round ends only when **ALL living units** have acted once
+
+```
+Example (P1 has 2 units, P2 has 3 units):
+  P1 Unit1 → P2 Unit1 →
+  P1 Unit2 → P2 Unit2 →
+  (P1 exhausted) → P2 Unit3 →
+  Round End
+```
+
+### 4.3 Unit Action Order
 Each player's units act in order:
 1. Hero
 2. Minion 1 (by unit ID)
@@ -121,13 +134,13 @@ Each player's units act in order:
 
 Dead units are skipped.
 
-### 4.3 Action Timer
+### 4.4 Action Timer
 ```
 For each unit action:
 1. Start 10-second timer
 2. Player selects action
 3. If timeout:
-   - Player's HERO loses 1 HP
+   - Player's HERO loses 1 HP (not the acting unit)
    - Unit's turn is skipped (END_TURN)
 4. If action selected:
    - Validate action
@@ -281,10 +294,13 @@ void processRoundEnd(GameState state) {
 
 ### 7.3 Simultaneous Death
 ```
-If multiple units die from same effect:
-1. Process in unit ID order
-2. First hero to be marked dead = that player loses
-3. Continue processing other deaths (for minion death effects)
+If an action causes both heroes to die:
+1. The ACTIVE PLAYER (who initiated the attack) WINS
+2. Rationale: Rewards aggression over defense
+
+Example:
+- P1 uses Wild Magic, kills both heroes
+- P1 WINS (P1 is active player)
 ```
 
 ---
@@ -304,14 +320,18 @@ Check after:
 - Round end processing
 
 ### 8.3 Simultaneous Death Resolution
+If an action causes both Heroes to die at the same time:
+- The **Active Player** (who initiated the attack) **WINS**
+- Rationale: Rewards aggression over defense
+
 ```java
-void checkVictory(GameState state) {
+void checkVictory(GameState state, PlayerId activePlayer) {
     boolean p1HeroDead = !state.getHero(PLAYER_1).isAlive();
     boolean p2HeroDead = !state.getHero(PLAYER_2).isAlive();
     
     if (p1HeroDead && p2HeroDead) {
-        // Use tracked death order
-        state.winner = state.firstHeroDeathPlayer.opponent();
+        // Both dead - active player wins (aggression rewarded)
+        state.winner = activePlayer;
     } else if (p1HeroDead) {
         state.winner = PLAYER_2;
     } else if (p2HeroDead) {

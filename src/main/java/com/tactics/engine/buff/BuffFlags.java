@@ -18,7 +18,7 @@ public class BuffFlags {
     private final boolean taunted;
 
     // V3 flags
-    private final boolean powerBuff;   // Blocks MOVE_AND_ATTACK, enables DESTROY_OBSTACLE
+    private final boolean powerBuff;   // Blocks MOVE_AND_ATTACK, instant obstacle destroy
     private final boolean speedBuff;   // Grants extra action per round
     private final boolean slowBuff;    // Delays actions by 1 round
     private final boolean bleedBuff;   // -1 HP per round at round end

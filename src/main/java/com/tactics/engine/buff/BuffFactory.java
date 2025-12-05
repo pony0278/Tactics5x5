@@ -41,7 +41,7 @@ public class BuffFactory {
 
     /**
      * Create a POWER buff.
-     * Effects: +3 ATK, +1 HP (instant), blocks MOVE_AND_ATTACK, enables DESTROY_OBSTACLE
+     * Effects: +3 ATK, +1 HP (instant), blocks MOVE_AND_ATTACK, instant obstacle destroy via ATTACK
      */
     public static BuffInstance createPower(String sourceUnitId) {
         return new BuffInstance(
