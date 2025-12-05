@@ -80,17 +80,40 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 
 | Status | Sub-phase | Description | Skills |
 |--------|-----------|-------------|--------|
-| 🔄 | **Phase 4A** | Core framework + simple skills | Validation, cooldown, Endure, Spirit Hawk |
-| ⬜ | Phase 4B | Damage/heal skills | Elemental Blast, Trinity, Shockwave, Nature's Power |
+| ✅ | Phase 4A | Core framework + simple skills | Validation, cooldown, Endure, Spirit Hawk |
+| 🔄 | **Phase 4B** | Damage/heal skills | Elemental Blast, Trinity, Shockwave, Nature's Power |
 | ⬜ | Phase 4C | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
 | ⬜ | Phase 4D | Complex skills | Shadow Clone, Death Mark, Feint, Challenge, Wild Magic, etc. |
 
-**Current Task**: Phase 4A - Build skill validation framework and implement 2 simple skills
+**Current Task**: Phase 4B - Implement damage and healing skills
 
 **Reference Documents**:
 - `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
 - `/docs/HERO_SKILLS_REFERENCE.md` - Quick skill reference (中英對照)
 - `/docs/SKILL_SYSTEM_V3_TESTPLAN.md` - 201 test cases
+
+---
+
+## 📋 Phase 4B Todo List
+
+| Status | Task | Description |
+|--------|------|-------------|
+| ⬜ | Elemental Blast | Mage: Deal 3 damage, 50% chance random debuff |
+| ⬜ | Trinity | Cleric: Heal 3 HP, remove debuffs, apply LIFE buff |
+| ⬜ | Shockwave | Warrior: 1 damage to adjacent + knockback |
+| ⬜ | Nature's Power | Huntress: +2 damage on next 2 attacks, gain LIFE |
+| ⬜ | Power of Many | Cleric: Heal all allies 1 HP, +1 ATK for 1 round |
+| ⬜ | Write tests | Test all Phase 4B skills |
+| ⬜ | Run all tests | Verify no regressions |
+
+### Phase 4A Completed Items
+- ✅ Created skill package (TargetType, SkillEffect, SkillDefinition, SkillRegistry)
+- ✅ Implemented validateUseSkill() with all target type validations
+- ✅ Implemented applyUseSkill() framework with skill dispatch
+- ✅ Implemented cooldown decrement at round end
+- ✅ Implemented Endure skill (3 shield, removes BLEED)
+- ✅ Implemented Spirit Hawk skill (2 damage at range 4)
+- ✅ Added 24 skill tests (all passing)
 
 ---
 
@@ -226,11 +249,7 @@ See `/docs/PROGRESS.md` for details.
 - [x] V3 SLOW buff (delayed actions)
 - [x] V3 Buff Tile Triggering
 - [x] V3 Round Tracking
-
-### In Progress
-- [ ] V3 Guardian Passive (TANK protects adjacent allies) - **16 tests passing**
-
-### Recently Completed
+- [x] V3 Guardian Passive (TANK protects adjacent allies)
 - [x] Obstacle HP system (3 HP, attackable via ATTACK)
 - [x] POWER buff instant obstacle destroy
 - [x] Simultaneous death: active player wins
@@ -238,12 +257,16 @@ See `/docs/PROGRESS.md` for details.
 - [x] Minion Decay (-1 HP/round)
 - [x] Round 8 Pressure (-1 HP/round to all)
 - [x] Removed DESTROY_OBSTACLE (use ATTACK instead)
+- [x] Phase 4A: Skill framework (validation, cooldown, Endure, Spirit Hawk)
+
+### In Progress
+- [ ] Phase 4B: Damage/heal skills (Elemental Blast, Trinity, Shockwave, etc.)
 
 ---
 
 ## Test Coverage
 
-**Total: 298 tests passing**
+**Total: 322 tests passing**
 
 ### Existing Tests
 | Test Class | Coverage |
@@ -262,12 +285,14 @@ See `/docs/PROGRESS.md` for details.
 | BuffTileTest | BT-Series: Tile trigger, instant HP | 10 |
 | RuleEngineSpeedBuffTest | BSP-Series: 2 actions, tracking | 7 |
 | RuleEngineSlowBuffTest | BSL-Series: Preparing state | 7 |
+| RuleEngineGuardianTest | Guardian passive intercept | 16 |
+| RuleEngineAttritionTest | Minion decay, Round 8 pressure | 11 |
+| RuleEngineSkillTest | Skill framework, Endure, Spirit Hawk | 24 |
 
 ### V3 Tests (To Be Implemented)
 | Test Plan | Test Count |
 |-----------|------------|
-| GUARDIAN_TESTPLAN.md | 81 |
-| SKILL_SYSTEM_V3_TESTPLAN.md | 201 |
+| SKILL_SYSTEM_V3_TESTPLAN.md | ~180 remaining |
 | Remaining BUFF tests | ~100 |
 
 ---

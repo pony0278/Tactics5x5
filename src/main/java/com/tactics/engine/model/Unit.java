@@ -339,6 +339,81 @@ public class Unit {
                         0, false, null);
     }
 
+    /**
+     * Create a copy with updated skill cooldown.
+     */
+    public Unit withSkillCooldown(int newCooldown) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, newCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed, preparing, preparingAction);
+    }
+
+    /**
+     * Create a copy with cooldown set and actionsUsed incremented (for skill use).
+     */
+    public Unit withSkillUsed(int newCooldown) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, newCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed + 1, preparing, preparingAction);
+    }
+
+    /**
+     * Create a copy with updated shield value.
+     */
+    public Unit withShield(int newShield) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        newShield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed, preparing, preparingAction);
+    }
+
+    /**
+     * Create a copy with shield added (stacks with existing shield).
+     */
+    public Unit withShieldAdded(int additionalShield) {
+        return withShield(shield + additionalShield);
+    }
+
+    /**
+     * Create a copy with shield and cooldown set, actionsUsed incremented (for Endure skill).
+     */
+    public Unit withShieldAndSkillUsed(int newShield, int newCooldown) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, newCooldown,
+                        newShield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed + 1, preparing, preparingAction);
+    }
+
+    /**
+     * Create a copy with healing applied (increases HP, capped at maxHp).
+     */
+    public Unit withHealing(int healAmount) {
+        int newHp = Math.min(hp + healAmount, maxHp);
+        return withHp(newHp);
+    }
+
+    /**
+     * Create a copy with reset action state and decremented cooldown (for round end).
+     */
+    public Unit withRoundEndReset() {
+        int newCooldown = Math.max(0, skillCooldown - 1);
+        boolean needsChange = actionsUsed > 0 || preparing || skillCooldown > 0;
+        if (!needsChange) {
+            return this;  // No change needed
+        }
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, newCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        0, false, null);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

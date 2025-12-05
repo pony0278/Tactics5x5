@@ -9,11 +9,16 @@ import com.tactics.engine.buff.BuffModifier;
 import com.tactics.engine.buff.BuffType;
 import com.tactics.engine.model.Board;
 import com.tactics.engine.model.GameState;
+import com.tactics.engine.model.HeroClass;
 import com.tactics.engine.model.MinionType;
 import com.tactics.engine.model.PlayerId;
 import com.tactics.engine.model.Position;
 import com.tactics.engine.model.Unit;
 import com.tactics.engine.model.UnitCategory;
+import com.tactics.engine.skill.SkillDefinition;
+import com.tactics.engine.skill.SkillEffect;
+import com.tactics.engine.skill.SkillRegistry;
+import com.tactics.engine.skill.TargetType;
 import com.tactics.engine.util.RngProvider;
 
 import java.util.ArrayList;
@@ -731,9 +736,9 @@ public class RuleEngine {
             return validateDeathChoice(state, action);
         }
 
-        // V3: USE_SKILL action (placeholder for future implementation)
+        // V3: USE_SKILL action
         if (type == ActionType.USE_SKILL) {
-            return new ValidationResult(false, "Skill system not yet implemented");
+            return validateUseSkill(state, action);
         }
 
         // G4: Unknown action type
@@ -765,6 +770,256 @@ public class RuleEngine {
         // Verify a choice type is specified
         if (action.getDeathChoiceType() == null) {
             return new ValidationResult(false, "Death choice type is required");
+        }
+
+        return new ValidationResult(true, null);
+    }
+
+    /**
+     * Validate USE_SKILL action (V3).
+     * Requires:
+     * - Acting unit is a Hero with a selected skill
+     * - Skill is not on cooldown
+     * - Target is valid for the skill type
+     * - Unit can act this turn
+     */
+    private ValidationResult validateUseSkill(GameState state, Action action) {
+        String actingUnitId = action.getActingUnitId();
+        Position targetPos = action.getTargetPosition();
+        // V3: Skills use skillTargetUnitId for targeting (from Action.useSkill() factory)
+        String targetUnitId = action.getSkillTargetUnitId() != null
+            ? action.getSkillTargetUnitId()
+            : action.getTargetUnitId();
+
+        // Need acting unit ID
+        if (actingUnitId == null) {
+            return new ValidationResult(false, "Acting unit ID is required for USE_SKILL");
+        }
+
+        // Find the acting unit
+        Unit actingUnit = findUnitById(state.getUnits(), actingUnitId);
+        if (actingUnit == null) {
+            return new ValidationResult(false, "Acting unit not found");
+        }
+
+        // Verify unit is alive
+        if (!actingUnit.isAlive()) {
+            return new ValidationResult(false, "Acting unit is dead");
+        }
+
+        // Verify unit belongs to current player
+        if (!actingUnit.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+            return new ValidationResult(false, "Cannot control opponent's unit");
+        }
+
+        // Must be a Hero to use skills
+        if (actingUnit.getCategory() != UnitCategory.HERO) {
+            return new ValidationResult(false, "Only Heroes can use skills");
+        }
+
+        // Hero must have a selected skill
+        String skillId = actingUnit.getSelectedSkillId();
+        if (skillId == null || skillId.isEmpty()) {
+            return new ValidationResult(false, "Hero has no skill selected");
+        }
+
+        // Get skill definition
+        SkillDefinition skill = SkillRegistry.getSkill(skillId);
+        if (skill == null) {
+            return new ValidationResult(false, "Invalid skill ID: " + skillId);
+        }
+
+        // Verify Hero class matches skill's required class
+        if (actingUnit.getHeroClass() != skill.getHeroClass()) {
+            return new ValidationResult(false, "Hero class cannot use this skill");
+        }
+
+        // Check cooldown
+        if (actingUnit.getSkillCooldown() > 0) {
+            return new ValidationResult(false, "Skill is on cooldown (" + actingUnit.getSkillCooldown() + " rounds remaining)");
+        }
+
+        // Check if unit can act (SPEED buff allows 2 actions, STUN prevents actions)
+        List<BuffInstance> buffs = getBuffsForUnit(state, actingUnitId);
+        if (!canUnitAct(actingUnit, buffs)) {
+            return new ValidationResult(false, "Unit has no remaining actions this turn");
+        }
+
+        // Check if unit is stunned
+        if (isUnitStunned(buffs)) {
+            return new ValidationResult(false, "Stunned units cannot use skills");
+        }
+
+        // Validate target based on skill's target type
+        return validateSkillTarget(state, action, actingUnit, skill, targetPos, targetUnitId);
+    }
+
+    /**
+     * Validate skill target based on skill's target type.
+     */
+    private ValidationResult validateSkillTarget(GameState state, Action action, Unit actingUnit,
+                                                   SkillDefinition skill, Position targetPos, String targetUnitId) {
+        TargetType targetType = skill.getTargetType();
+
+        switch (targetType) {
+            case SELF:
+                // No target needed, always valid
+                return new ValidationResult(true, null);
+
+            case SINGLE_ENEMY:
+                return validateSingleEnemyTarget(state, actingUnit, skill, targetUnitId);
+
+            case SINGLE_ALLY:
+                return validateSingleAllyTarget(state, actingUnit, skill, targetUnitId);
+
+            case SINGLE_TILE:
+                return validateSingleTileTarget(state, actingUnit, skill, targetPos);
+
+            case AREA_AROUND_SELF:
+                // No specific target needed, affects area around caster
+                return new ValidationResult(true, null);
+
+            case ALL_ENEMIES:
+            case ALL_ALLIES:
+                // No specific target needed, affects all matching units
+                return new ValidationResult(true, null);
+
+            case LINE:
+                return validateLineTarget(state, actingUnit, skill, targetPos);
+
+            case AREA_AROUND_TARGET:
+                return validateAreaAroundTarget(state, actingUnit, skill, targetPos);
+
+            default:
+                return new ValidationResult(false, "Unknown target type: " + targetType);
+        }
+    }
+
+    private ValidationResult validateSingleEnemyTarget(GameState state, Unit actingUnit,
+                                                         SkillDefinition skill, String targetUnitId) {
+        if (targetUnitId == null) {
+            return new ValidationResult(false, "Target unit ID is required for this skill");
+        }
+
+        Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
+        if (targetUnit == null) {
+            return new ValidationResult(false, "Target unit not found");
+        }
+
+        if (!targetUnit.isAlive()) {
+            return new ValidationResult(false, "Target unit is dead");
+        }
+
+        // Must be an enemy
+        if (targetUnit.getOwner().getValue().equals(actingUnit.getOwner().getValue())) {
+            return new ValidationResult(false, "Target must be an enemy unit");
+        }
+
+        // Check range
+        int distance = manhattanDistance(actingUnit.getPosition(), targetUnit.getPosition());
+        if (distance > skill.getRange()) {
+            return new ValidationResult(false, "Target is out of range (range: " + skill.getRange() + ")");
+        }
+
+        return new ValidationResult(true, null);
+    }
+
+    private ValidationResult validateSingleAllyTarget(GameState state, Unit actingUnit,
+                                                        SkillDefinition skill, String targetUnitId) {
+        if (targetUnitId == null) {
+            return new ValidationResult(false, "Target unit ID is required for this skill");
+        }
+
+        Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
+        if (targetUnit == null) {
+            return new ValidationResult(false, "Target unit not found");
+        }
+
+        if (!targetUnit.isAlive()) {
+            return new ValidationResult(false, "Target unit is dead");
+        }
+
+        // Must be an ally (or self)
+        if (!targetUnit.getOwner().getValue().equals(actingUnit.getOwner().getValue())) {
+            return new ValidationResult(false, "Target must be a friendly unit");
+        }
+
+        // Check range
+        int distance = manhattanDistance(actingUnit.getPosition(), targetUnit.getPosition());
+        if (distance > skill.getRange()) {
+            return new ValidationResult(false, "Target is out of range (range: " + skill.getRange() + ")");
+        }
+
+        return new ValidationResult(true, null);
+    }
+
+    private ValidationResult validateSingleTileTarget(GameState state, Unit actingUnit,
+                                                        SkillDefinition skill, Position targetPos) {
+        if (targetPos == null) {
+            return new ValidationResult(false, "Target position is required for this skill");
+        }
+
+        // Check bounds
+        if (!isInBounds(targetPos, state.getBoard())) {
+            return new ValidationResult(false, "Target position is outside the board");
+        }
+
+        // Check range
+        int distance = manhattanDistance(actingUnit.getPosition(), targetPos);
+        if (distance > skill.getRange()) {
+            return new ValidationResult(false, "Target is out of range (range: " + skill.getRange() + ")");
+        }
+
+        // For movement skills, tile must be empty
+        if (skill.getEffects().contains(com.tactics.engine.skill.SkillEffect.MOVE_SELF)) {
+            if (isTileBlocked(state, targetPos)) {
+                return new ValidationResult(false, "Target tile is blocked");
+            }
+        }
+
+        return new ValidationResult(true, null);
+    }
+
+    private ValidationResult validateLineTarget(GameState state, Unit actingUnit,
+                                                  SkillDefinition skill, Position targetPos) {
+        if (targetPos == null) {
+            return new ValidationResult(false, "Target position is required for LINE skill");
+        }
+
+        // Check bounds
+        if (!isInBounds(targetPos, state.getBoard())) {
+            return new ValidationResult(false, "Target position is outside the board");
+        }
+
+        // Must be in a straight line (orthogonal)
+        if (!isOrthogonal(actingUnit.getPosition(), targetPos)) {
+            return new ValidationResult(false, "Target must be in a straight line");
+        }
+
+        // Check range
+        int distance = manhattanDistance(actingUnit.getPosition(), targetPos);
+        if (distance > skill.getRange()) {
+            return new ValidationResult(false, "Target is out of range (range: " + skill.getRange() + ")");
+        }
+
+        return new ValidationResult(true, null);
+    }
+
+    private ValidationResult validateAreaAroundTarget(GameState state, Unit actingUnit,
+                                                        SkillDefinition skill, Position targetPos) {
+        if (targetPos == null) {
+            return new ValidationResult(false, "Target position is required for this skill");
+        }
+
+        // Check bounds
+        if (!isInBounds(targetPos, state.getBoard())) {
+            return new ValidationResult(false, "Target position is outside the board");
+        }
+
+        // Check range
+        int distance = manhattanDistance(actingUnit.getPosition(), targetPos);
+        if (distance > skill.getRange()) {
+            return new ValidationResult(false, "Target is out of range (range: " + skill.getRange() + ")");
         }
 
         return new ValidationResult(true, null);
@@ -1094,6 +1349,11 @@ public class RuleEngine {
         // V3: DEATH_CHOICE action
         if (type == ActionType.DEATH_CHOICE) {
             return applyDeathChoice(state, action);
+        }
+
+        // V3: USE_SKILL action
+        if (type == ActionType.USE_SKILL) {
+            return applyUseSkill(state, action);
         }
 
         // Should not reach here if validation passed
@@ -1447,17 +1707,14 @@ public class RuleEngine {
     }
 
     /**
-     * Reset actionsUsed to 0 and clear preparing state for all units at round start.
+     * Reset actionsUsed to 0, clear preparing state, and decrement skill cooldowns for all units at round end.
+     * V3: Also decrements hero skill cooldowns by 1 (minimum 0).
      */
     private List<Unit> resetActionsUsedAndPreparingState(List<Unit> units) {
         List<Unit> newUnits = new ArrayList<>();
         for (Unit u : units) {
-            if (u.getActionsUsed() > 0 || u.isPreparing()) {
-                // Create new unit with reset actionsUsed and cleared preparing state
-                newUnits.add(u.withResetActionState());
-            } else {
-                newUnits.add(u);
-            }
+            // V3: Use withRoundEndReset which handles actionsUsed, preparing, AND cooldown
+            newUnits.add(u.withRoundEndReset());
         }
         return newUnits;
     }
@@ -1766,6 +2023,134 @@ public class RuleEngine {
             state.getCurrentRound(),
             null  // Clear pending death choice
         );
+    }
+
+    /**
+     * Apply USE_SKILL action (V3).
+     * Executes the hero's selected skill based on skill type and effects.
+     */
+    private GameState applyUseSkill(GameState state, Action action) {
+        String actingUnitId = action.getActingUnitId();
+        Unit actingUnit = findUnitById(state.getUnits(), actingUnitId);
+        String skillId = actingUnit.getSelectedSkillId();
+        SkillDefinition skill = SkillRegistry.getSkill(skillId);
+
+        // Dispatch to skill-specific handler based on skill ID
+        // Phase 4A: Only Endure and Spirit Hawk are implemented
+        GameState result;
+        switch (skillId) {
+            case SkillRegistry.WARRIOR_ENDURE:
+                result = applySkillEndure(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.HUNTRESS_SPIRIT_HAWK:
+                result = applySkillSpiritHawk(state, action, actingUnit, skill);
+                break;
+            default:
+                // Placeholder for unimplemented skills - just consume action and set cooldown
+                result = applySkillPlaceholder(state, action, actingUnit, skill);
+                break;
+        }
+
+        return result;
+    }
+
+    /**
+     * Placeholder for unimplemented skills.
+     * Just consumes the action and sets cooldown.
+     */
+    private GameState applySkillPlaceholder(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        // Update unit with cooldown set and action used
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+            u -> u.withSkillUsed(skill.getCooldown()));
+
+        return state.withUnits(newUnits);
+    }
+
+    /**
+     * Apply Warrior Endure skill.
+     * Effect: Gain 3 shield for 2 rounds, remove BLEED debuff.
+     */
+    private GameState applySkillEndure(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        int shieldAmount = skill.getShieldAmount();  // 3
+        int cooldown = skill.getCooldown();  // 2
+
+        // Update unit with shield added and skill on cooldown
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+            u -> u.withShieldAndSkillUsed(u.getShield() + shieldAmount, cooldown));
+
+        // Remove BLEED debuffs from the unit
+        Map<String, List<BuffInstance>> newUnitBuffs = removeBleedBuffs(state.getUnitBuffs(), actingUnit.getId());
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Remove BLEED buffs from a unit.
+     */
+    private Map<String, List<BuffInstance>> removeBleedBuffs(Map<String, List<BuffInstance>> unitBuffs, String unitId) {
+        if (unitBuffs == null) {
+            return unitBuffs;
+        }
+
+        List<BuffInstance> buffs = unitBuffs.get(unitId);
+        if (buffs == null || buffs.isEmpty()) {
+            return unitBuffs;
+        }
+
+        // Filter out BLEED buffs
+        List<BuffInstance> remainingBuffs = new ArrayList<>();
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() == null || !buff.getFlags().isBleedBuff()) {
+                remainingBuffs.add(buff);
+            }
+        }
+
+        // Create new map with updated buffs
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(unitBuffs);
+        if (remainingBuffs.isEmpty()) {
+            newUnitBuffs.remove(unitId);
+        } else {
+            newUnitBuffs.put(unitId, remainingBuffs);
+        }
+
+        return newUnitBuffs;
+    }
+
+    /**
+     * Apply Huntress Spirit Hawk skill.
+     * Effect: Deal 2 damage to enemy at long range (4 tiles).
+     */
+    private GameState applySkillSpiritHawk(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        // V3: Skills use skillTargetUnitId for targeting
+        String targetUnitId = action.getSkillTargetUnitId() != null
+            ? action.getSkillTargetUnitId()
+            : action.getTargetUnitId();
+        Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
+        int damage = skill.getDamageAmount();  // 2
+        int cooldown = skill.getCooldown();  // 2
+
+        // V3: Check for Guardian intercept
+        Unit guardian = findGuardian(state, targetUnit);
+        Unit actualDamageReceiver = (guardian != null) ? guardian : targetUnit;
+        String damageReceiverId = actualDamageReceiver.getId();
+
+        // Update units: caster uses skill, target takes damage
+        Map<String, UnitTransformer> transformers = new HashMap<>();
+        transformers.put(actingUnit.getId(), u -> u.withSkillUsed(cooldown));
+        if (!actingUnit.getId().equals(damageReceiverId)) {
+            transformers.put(damageReceiverId, u -> u.withDamage(damage));
+        } else {
+            // Self-damage case (shouldn't happen for Spirit Hawk, but handle it)
+            transformers.put(actingUnit.getId(), u -> u.withSkillUsed(cooldown).withDamage(damage));
+        }
+        List<Unit> newUnits = updateUnitsInList(state.getUnits(), transformers);
+
+        // V3: Pass active player for simultaneous death rule
+        GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
+
+        return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
     }
 
     // =========================================================================
