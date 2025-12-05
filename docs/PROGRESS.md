@@ -4,27 +4,37 @@ This document tracks completed work and outlines the roadmap for future developm
 
 ---
 
-## Current Status: V3 Phase 2 Complete + V3 Tests
+## Current Status: V3 Phase 3 Complete + Game Rules Implemented
 
-The game engine now supports V3 BUFF system with all 6 buff types:
-- **POWER**: +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK, enables DESTROY_OBSTACLE
+The game engine now supports all V3 BUFF types and game rules:
+
+### BUFF System (6 types)
+- **POWER**: +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK, instant obstacle destroy
 - **LIFE**: +3 HP instant
 - **SPEED**: -1 ATK, grants 2 actions per turn
 - **WEAKNESS**: -2 ATK, -1 HP instant
 - **BLEED**: -1 HP per round (damage over time)
 - **SLOW**: Actions delayed by 1 round
 
-Additional V3 features implemented:
-- Round tracking with `player1TurnEnded`/`player2TurnEnded` flags
-- Round increment after both players END_TURN
-- Buff tile triggering with RngProvider for randomness
-- SLOW buff preparing state and execution at round start
+### Game Rules Implemented
+- **Obstacle HP System**: Obstacles have 3 HP, any unit can attack via ATTACK action
+- **POWER Instant Destroy**: POWER buff destroys obstacles in 1 hit
+- **Active Player Wins**: On simultaneous death, attacker wins
+- **Exhaustion Rule**: Opponent takes consecutive turns when one side exhausted
+- **Minion Decay**: Minions lose 1 HP per round at round end
+- **Round 8 Pressure**: All units lose 1 HP per round after R8
+- **Guardian Passive**: TANK protects adjacent allied units (damage redirected to TANK)
+- **Removed DESTROY_OBSTACLE**: Use ATTACK on obstacles instead
 
-**V3 Test Coverage Added** (36 new tests):
-- BuffFactoryTest: 12 tests (BM-series)
-- BuffTileTest: 10 tests (BT-series)
-- RuleEngineSpeedBuffTest: 7 tests (BSP-series)
-- RuleEngineSlowBuffTest: 7 tests (BSL-series)
+### Code Refactoring
+- Added `GameState.with*()` helper methods (11 methods)
+- Added `Unit.with*()` helper methods (withHpBonus, withDamage, etc.)
+- Added `updateUnitInList()`/`updateUnitsInList()` helpers
+- RuleEngine reduced from 2141 to 1906 lines
+
+**Test Coverage**: 298 tests passing
+- RuleEngineGuardianTest: 16 tests (GRD-series)
+- RuleEngineAttritionTest: 11 tests (ATR-series)
 
 ---
 
@@ -116,7 +126,7 @@ Additional V3 features implemented:
 | Done | Unit V3 Extension | actionsUsed, preparing, preparingAction (for SPEED/SLOW buffs) |
 | Done | GameState V3 Extension | buffTiles, obstacles, currentRound, pendingDeathChoice |
 | Done | GameState V3 Extension | player1TurnEnded, player2TurnEnded flags |
-| Done | ActionType V3 Extension | USE_SKILL, DESTROY_OBSTACLE, DEATH_CHOICE |
+| Done | ActionType V3 Extension | USE_SKILL, DEATH_CHOICE (DESTROY_OBSTACLE removed) |
 | Done | Action V3 Extension | actingUnitId, skillTargetUnitId, deathChoiceType |
 | Done | GameStateSerializer | Updated for all new V3 fields |
 
@@ -127,8 +137,7 @@ Additional V3 features implemented:
 | Done | BuffInstance V3 | Added BuffType, instantHpBonus, withDecreasedDuration() |
 | Done | BuffFlags V3 | Added powerBuff, speedBuff, slowBuff, bleedBuff flags |
 | Done | BuffFactory | Factory methods for all 6 buff types with correct modifiers |
-| Done | POWER buff | +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK |
-| Done | POWER buff | Enables DESTROY_OBSTACLE action |
+| Done | POWER buff | +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK, instant obstacle destroy |
 | Done | LIFE buff | +3 HP instant |
 | Done | SPEED buff | -1 ATK, allows 2 actions per turn (actionsUsed tracking) |
 | Done | WEAKNESS buff | -2 ATK, -1 HP instant |
@@ -150,6 +159,35 @@ Additional V3 features implemented:
 | Done | RuleEngineSpeedBuffTest | 7 tests: BSP-series (2 actions/turn, -1 ATK, action tracking, round reset) |
 | Done | RuleEngineSlowBuffTest | 7 tests: BSL-series (preparing state, delayed execution, attack miss on target move) |
 
+### Phase 10: V3 Game Rules & Guardian Passive
+
+| Status | Component | Description |
+|--------|-----------|-------------|
+| Done | Obstacle HP System | Obstacles have 3 HP (Obstacle.DEFAULT_HP), can be attacked by any unit |
+| Done | Obstacle Attack | ATTACK action validates/applies for both units and obstacles |
+| Done | POWER Instant Destroy | POWER buff destroys obstacles in 1 hit (applyAttackObstacle) |
+| Done | Active Player Wins | checkGameOver() accepts activePlayer param for simultaneous death |
+| Done | Exhaustion Rule | getNextActingPlayer() handles consecutive turns |
+| Done | Minion Decay | applyMinionDecay() - all minions lose 1 HP at round end |
+| Done | Round 8 Pressure | applyRound8Pressure() - all units lose 1 HP when round >= 8 |
+| Done | Guardian Passive | TANK protects adjacent friendly units via findGuardian() |
+| Done | Remove DESTROY_OBSTACLE | Removed action type - use ATTACK on obstacles instead |
+| Done | RuleEngineGuardianTest | 16 tests: GRD-series (basic intercept, adjacency, edge cases, MOVE_AND_ATTACK) |
+| Done | RuleEngineAttritionTest | 11 tests: ATR-series (minion decay, round 8 pressure, survival duration) |
+
+### Phase 10.5: Code Refactoring
+
+| Status | Component | Description |
+|--------|-----------|-------------|
+| Done | GameState.with*() | 11 helper methods for immutable state updates |
+| Done | Unit.with*() | Added withHpBonus(), enhanced withDamage(), withActionUsed() |
+| Done | UnitTransformer | Functional interface for unit transformations |
+| Done | updateUnitInList() | Helper to reduce repetitive iteration patterns |
+| Done | updateUnitsInList() | Batch unit updates with Map<String, UnitTransformer> |
+| Done | PlayerId constants | PLAYER_1, PLAYER_2, isPlayer1(), isPlayer2() |
+| Done | Obstacle.ID_PREFIX | Constant for obstacle ID generation |
+| Done | RuleEngine cleanup | Reduced from 2141 to 1906 lines |
+
 ---
 
 ## Test Coverage Summary
@@ -169,21 +207,23 @@ Additional V3 features implemented:
 | BuffTileTest | V3 Buff tile triggering | Done |
 | RuleEngineSpeedBuffTest | V3 SPEED buff mechanics | Done |
 | RuleEngineSlowBuffTest | V3 SLOW buff mechanics | Done |
+| RuleEngineGuardianTest | V3 Guardian passive (TANK protect) | Done |
+| RuleEngineAttritionTest | V3 Minion decay & Round 8 pressure | Done |
 
-**Total: 271 tests passing**
+**Total: 298 tests passing**
 
 ---
 
 ## Roadmap: V3 Development Phases
 
-### Phase 3: Guardian Passive (Next)
+### Phase 3: Guardian Passive ✅ COMPLETE
 
-| Priority | Feature | Description | Complexity |
-|----------|---------|-------------|------------|
-| High | TANK Guardian | TANK protects adjacent allied units from attacks | Medium |
-| High | Attack Redirection | Attacks on protected units redirect to TANK | Medium |
+| Priority | Feature | Description | Status |
+|----------|---------|-------------|--------|
+| High | TANK Guardian | TANK protects adjacent allied units from attacks | ✅ Done |
+| High | Attack Redirection | Attacks on protected units redirect to TANK | ✅ Done |
 
-### Phase 4: Hero Skill System
+### Phase 4: Hero Skill System (Next)
 
 | Priority | Feature | Description | Complexity |
 |----------|---------|-------------|------------|
@@ -191,13 +231,13 @@ Additional V3 features implemented:
 | High | Skill Execution | 18 hero skills with various effects | High |
 | High | Cooldown Tracking | 2-round cooldown after skill use | Low |
 
-### Phase 5: Game Flow Extension
+### Phase 5: Game Flow Extension ✅ COMPLETE
 
-| Priority | Feature | Description | Complexity |
-|----------|---------|-------------|------------|
-| High | Minion Decay | Minions lose 1 HP per round | Low |
-| High | Round 8 Pressure | All units lose 1 HP per round after R8 | Low |
-| Medium | Death Choice Flow | SPAWN_OBSTACLE or SPAWN_BUFF_TILE on minion death | Medium |
+| Priority | Feature | Description | Status |
+|----------|---------|-------------|--------|
+| High | Minion Decay | Minions lose 1 HP per round | ✅ Done |
+| High | Round 8 Pressure | All units lose 1 HP per round after R8 | ✅ Done |
+| Medium | Death Choice Flow | SPAWN_OBSTACLE or SPAWN_BUFF_TILE on minion death | Partial (validation exists) |
 
 ### Phase 6: Draft Phase
 
@@ -289,6 +329,7 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| V3.0-Phase3 | 2025-12-05 | Guardian passive, game rules (obstacle HP, decay, exhaustion), refactoring, 298 tests |
 | V3.0-Phase2+Tests | 2025-12-04 | Added 36 V3 tests (BuffFactory, BuffTile, SPEED, SLOW), 271 total tests |
 | V3.0-Phase2 | 2025-12-03 | V3 Model Layer + BUFF System complete (6 buff types, SPEED/SLOW mechanics, round tracking) |
 | V2.1 | 2025-12-02 | Build fixes, 235 tests passing, buff system tests |
@@ -297,4 +338,4 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 ---
 
-*Last updated: 2025-12-04*
+*Last updated: 2025-12-05*
