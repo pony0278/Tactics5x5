@@ -71,14 +71,26 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 0 | Complete V1 BUFF Foundation |
 | ✅ | Phase 1 | Model Layer Extension |
 | ✅ | Phase 2 | V3 BUFF System |
-| 🔄 | **Phase 3** | Guardian Passive |
-| ⬜ | Phase 4 | Hero Skill System |
+| ✅ | Phase 3 | Guardian Passive |
+| 🔄 | **Phase 4** | Hero Skill System (4 sub-phases) |
 | ⬜ | Phase 5 | Game Flow Extension |
 | ⬜ | Phase 6 | Draft Phase |
 
-**Next Step**: Implement TANK Guardian passive (protect adjacent allies)
+### Phase 4 Sub-phases: Hero Skill System
 
-**Detailed Roadmap**: `/docs/V3_IMPLEMENTATION_ROADMAP.md`
+| Status | Sub-phase | Description | Skills |
+|--------|-----------|-------------|--------|
+| 🔄 | **Phase 4A** | Core framework + simple skills | Validation, cooldown, Endure, Spirit Hawk |
+| ⬜ | Phase 4B | Damage/heal skills | Elemental Blast, Trinity, Shockwave, Nature's Power |
+| ⬜ | Phase 4C | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
+| ⬜ | Phase 4D | Complex skills | Shadow Clone, Death Mark, Feint, Challenge, Wild Magic, etc. |
+
+**Current Task**: Phase 4A - Build skill validation framework and implement 2 simple skills
+
+**Reference Documents**:
+- `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
+- `/docs/HERO_SKILLS_REFERENCE.md` - Quick skill reference (中英對照)
+- `/docs/SKILL_SYSTEM_V3_TESTPLAN.md` - 201 test cases
 
 ---
 
