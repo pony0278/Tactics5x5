@@ -14,5 +14,6 @@ public enum BuffType {
     // Negative BUFFs
     WEAKNESS,  // -2 ATK, -1 HP
     BLEED,     // -1 HP per round (damage over time)
-    SLOW       // Actions delayed by 1 round
+    SLOW,      // Actions delayed by 1 round
+    BLIND      // Cannot attack for 1 round (from Smoke Bomb)
 }

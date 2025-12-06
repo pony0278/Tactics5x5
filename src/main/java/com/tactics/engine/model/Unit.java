@@ -287,13 +287,16 @@ public class Unit {
 
     /**
      * Create a copy with updated HP and alive status.
+     * V3 Phase 4C: Clears skillState (beacon) when unit dies.
      */
     public Unit withHp(int newHp) {
         boolean newAlive = newHp > 0;
+        // Clear skillState when unit dies (e.g., Warp Beacon disappears on Mage death)
+        Map<String, Object> newSkillState = newAlive ? skillState : null;
         return new Unit(id, owner, newHp, attack, moveRange, attackRange, position, newAlive,
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, skillCooldown,
-                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, newSkillState,
                         actionsUsed, preparing, preparingAction,
                         bonusAttackDamage, bonusAttackCharges);
     }
@@ -472,18 +475,95 @@ public class Unit {
     }
 
     /**
+     * Create a copy with updated invisible state.
+     */
+    public Unit withInvisible(boolean newInvisible) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, newInvisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
+     * Create a copy with updated skill state map.
+     */
+    public Unit withSkillState(Map<String, Object> newSkillState) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, newSkillState,
+                        actionsUsed, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
+     * Create a copy with position updated, skill used (cooldown set, actionsUsed incremented).
+     * Used for movement skills like Heroic Leap, Smoke Bomb, Warp Beacon teleport.
+     */
+    public Unit withPositionAndSkillUsed(Position newPosition, int newCooldown) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, newPosition, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, newCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed + 1, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
+     * Create a copy with position updated, invisible set, skill used.
+     * Used for Smoke Bomb skill.
+     */
+    public Unit withPositionInvisibleAndSkillUsed(Position newPosition, boolean newInvisible, int newCooldown) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, newPosition, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, newCooldown,
+                        shield, newInvisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed + 1, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
+     * Create a copy with skill state updated and action used (no cooldown change).
+     * Used for Warp Beacon place action.
+     */
+    public Unit withSkillStateAndActionUsed(Map<String, Object> newSkillState) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, newSkillState,
+                        actionsUsed + 1, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
+     * Create a copy with position updated, skill state cleared, skill used.
+     * Used for Warp Beacon teleport action.
+     */
+    public Unit withPositionSkillStateClearedAndSkillUsed(Position newPosition, int newCooldown) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, newPosition, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, newCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, null,
+                        actionsUsed + 1, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
      * Create a copy with reset action state and decremented cooldown (for round end).
      */
     public Unit withRoundEndReset() {
         int newCooldown = Math.max(0, skillCooldown - 1);
-        boolean needsChange = actionsUsed > 0 || preparing || skillCooldown > 0;
+        // V3 Phase 4C: Invisible expires at round end (lasts 1 round)
+        boolean needsChange = actionsUsed > 0 || preparing || skillCooldown > 0 || invisible;
         if (!needsChange) {
             return this;  // No change needed
         }
         return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, newCooldown,
-                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        shield, false, invulnerable, isTemporary, temporaryDuration, skillState,
                         0, false, null,
                         bonusAttackDamage, bonusAttackCharges);
     }

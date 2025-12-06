@@ -34,6 +34,8 @@ public class BuffFactory {
                 return createBleed(sourceUnitId);
             case SLOW:
                 return createSlow(sourceUnitId);
+            case BLIND:
+                return createBlind(sourceUnitId);
             default:
                 throw new IllegalArgumentException("Unknown buff type: " + type);
         }
@@ -137,6 +139,23 @@ public class BuffFactory {
             false,  // not stackable
             new BuffModifier(0, 0, 0, 0),  // No stat modifiers
             BuffFlags.slow(),
+            0  // no instant HP change
+        );
+    }
+
+    /**
+     * Create a BLIND buff.
+     * Effects: Cannot attack for 1 round (from Smoke Bomb)
+     */
+    public static BuffInstance createBlind(String sourceUnitId) {
+        return new BuffInstance(
+            generateBuffId(),
+            sourceUnitId,
+            BuffType.BLIND,
+            1,  // Duration: 1 round only
+            false,  // not stackable
+            new BuffModifier(0, 0, 0, 0),  // No stat modifiers
+            BuffFlags.blind(),
             0  // no instant HP change
         );
     }

@@ -4,9 +4,9 @@ This document tracks completed work and outlines the roadmap for future developm
 
 ---
 
-## Current Status: V3 Phase 3 Complete + Game Rules Implemented
+## Current Status: V3 Phase 4C Complete (Movement Skills)
 
-The game engine now supports all V3 BUFF types and game rules:
+The game engine now supports all V3 BUFF types, game rules, and Phase 4C movement skills:
 
 ### BUFF System (6 types)
 - **POWER**: +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK, instant obstacle destroy
@@ -15,6 +15,7 @@ The game engine now supports all V3 BUFF types and game rules:
 - **WEAKNESS**: -2 ATK, -1 HP instant
 - **BLEED**: -1 HP per round (damage over time)
 - **SLOW**: Actions delayed by 1 round
+- **BLIND**: Cannot attack for 1 round (duration 1, from Smoke Bomb)
 
 ### Game Rules Implemented
 - **Obstacle HP System**: Obstacles have 3 HP, any unit can attack via ATTACK action
@@ -26,15 +27,31 @@ The game engine now supports all V3 BUFF types and game rules:
 - **Guardian Passive**: TANK protects adjacent allied units (damage redirected to TANK)
 - **Removed DESTROY_OBSTACLE**: Use ATTACK on obstacles instead
 
+### Hero Skills Implemented (Phase 4A-C)
+- **Endure** (Warrior): Gain 3 shield, remove BLEED
+- **Spirit Hawk** (Huntress): 2 damage at range 4
+- **Elemental Blast** (Mage): 3 damage, 50% random debuff
+- **Trinity** (Cleric): Heal 3 HP, remove debuff, apply LIFE
+- **Shockwave** (Warrior): 1 damage to adjacent + knockback
+- **Nature's Power** (Huntress): +2 damage for 2 attacks, LIFE buff
+- **Power of Many** (Cleric): Heal all 1 HP, +1 ATK for 1 round
+- **Heroic Leap** (Warrior): Leap to tile, 2 damage to adjacent enemies on landing
+- **Smoke Bomb** (Rogue): Teleport, invisible 1 round, blind adjacent enemies
+- **Warp Beacon** (Mage): Place beacon or teleport to existing beacon
+- **Spectral Blades** (Huntress): 1 damage to all enemies in a line (pierces)
+
 ### Code Refactoring
 - Added `GameState.with*()` helper methods (11 methods)
 - Added `Unit.with*()` helper methods (withHpBonus, withDamage, etc.)
 - Added `updateUnitInList()`/`updateUnitsInList()` helpers
 - RuleEngine reduced from 2141 to 1906 lines
 
-**Test Coverage**: 298 tests passing
+**Test Coverage**: 374 tests passing
 - RuleEngineGuardianTest: 16 tests (GRD-series)
 - RuleEngineAttritionTest: 11 tests (ATR-series)
+- RuleEngineSkillTest: 24 tests (skill framework)
+- RuleEngineSkillPhase4BTest: 26 tests (damage/heal skills)
+- RuleEngineSkillPhase4CTest: 26 tests (movement skills, BLIND, invisible)
 
 ---
 
@@ -209,8 +226,11 @@ The game engine now supports all V3 BUFF types and game rules:
 | RuleEngineSlowBuffTest | V3 SLOW buff mechanics | Done |
 | RuleEngineGuardianTest | V3 Guardian passive (TANK protect) | Done |
 | RuleEngineAttritionTest | V3 Minion decay & Round 8 pressure | Done |
+| RuleEngineSkillTest | Skill framework, Endure, Spirit Hawk | Done |
+| RuleEngineSkillPhase4BTest | Phase 4B damage/heal skills | Done |
+| RuleEngineSkillPhase4CTest | Phase 4C movement skills, BLIND, invisible | Done |
 
-**Total: 298 tests passing**
+**Total: 374 tests passing**
 
 ---
 
@@ -223,13 +243,14 @@ The game engine now supports all V3 BUFF types and game rules:
 | High | TANK Guardian | TANK protects adjacent allied units from attacks | ✅ Done |
 | High | Attack Redirection | Attacks on protected units redirect to TANK | ✅ Done |
 
-### Phase 4: Hero Skill System (Next)
+### Phase 4: Hero Skill System (In Progress)
 
-| Priority | Feature | Description | Complexity |
-|----------|---------|-------------|------------|
-| High | Skill Validation | USE_SKILL action validation (cooldown, range, target) | Medium |
-| High | Skill Execution | 18 hero skills with various effects | High |
-| High | Cooldown Tracking | 2-round cooldown after skill use | Low |
+| Sub-phase | Status | Description |
+|-----------|--------|-------------|
+| Phase 4A | ✅ Done | Skill framework, validation, cooldown, Endure, Spirit Hawk |
+| Phase 4B | ✅ Done | Damage/heal skills (Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many) |
+| Phase 4C | ✅ Done | Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades) |
+| Phase 4D | 🔄 Next | Complex skills (Shadow Clone, Death Mark, Feint, Challenge, Wild Magic) |
 
 ### Phase 5: Game Flow Extension ✅ COMPLETE
 
@@ -329,6 +350,9 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| V3.0-Phase4C | 2025-12-07 | Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades), BLIND buff, invisible mechanic, 374 tests |
+| V3.0-Phase4B | 2025-12-06 | Damage/heal skills (Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many), 348 tests |
+| V3.0-Phase4A | 2025-12-06 | Skill framework, validation, cooldown, Endure, Spirit Hawk, 322 tests |
 | V3.0-Phase3 | 2025-12-05 | Guardian passive, game rules (obstacle HP, decay, exhaustion), refactoring, 298 tests |
 | V3.0-Phase2+Tests | 2025-12-04 | Added 36 V3 tests (BuffFactory, BuffTile, SPEED, SLOW), 271 total tests |
 | V3.0-Phase2 | 2025-12-03 | V3 Model Layer + BUFF System complete (6 buff types, SPEED/SLOW mechanics, round tracking) |
@@ -338,4 +362,4 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 ---
 
-*Last updated: 2025-12-05*
+*Last updated: 2025-12-07*

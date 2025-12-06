@@ -100,6 +100,7 @@ public class GameStateSerializer {
     private static final String KEY_SLOW_BUFF = "slowBuff";
     private static final String KEY_BLEED_BUFF = "bleedBuff";
     private static final String KEY_LIFE_BUFF = "lifeBuff";
+    private static final String KEY_BLIND_BUFF = "blindBuff";  // Phase 4C
 
     // BuffInstance V3 keys
     private static final String KEY_INSTANT_HP_BONUS = "instantHpBonus";
@@ -570,6 +571,7 @@ public class GameStateSerializer {
         flagsMap.put(KEY_SLOW_BUFF, flags.isSlowBuff());
         flagsMap.put(KEY_BLEED_BUFF, flags.isBleedBuff());
         flagsMap.put(KEY_LIFE_BUFF, flags.isLifeBuff());
+        flagsMap.put(KEY_BLIND_BUFF, flags.isBlindBuff());  // Phase 4C
         return flagsMap;
     }
 
@@ -704,7 +706,7 @@ public class GameStateSerializer {
     private BuffFlags deserializeBuffFlags(Object flagsObj) {
         if (!(flagsObj instanceof Map)) {
             // Default to all false if missing
-            return new BuffFlags(false, false, false, false, false, false, false, false, false, false);
+            return new BuffFlags(false, false, false, false, false, false, false, false, false, false, false);
         }
 
         Map<String, Object> flagsMap = (Map<String, Object>) flagsObj;
@@ -721,9 +723,10 @@ public class GameStateSerializer {
         boolean slowBuff = toBooleanOrDefault(flagsMap.get(KEY_SLOW_BUFF), false);
         boolean bleedBuff = toBooleanOrDefault(flagsMap.get(KEY_BLEED_BUFF), false);
         boolean lifeBuff = toBooleanOrDefault(flagsMap.get(KEY_LIFE_BUFF), false);
+        boolean blindBuff = toBooleanOrDefault(flagsMap.get(KEY_BLIND_BUFF), false);  // Phase 4C
 
         return new BuffFlags(stunned, rooted, poison, silenced, taunted,
-                            powerBuff, speedBuff, slowBuff, bleedBuff, lifeBuff);
+                            powerBuff, speedBuff, slowBuff, bleedBuff, lifeBuff, blindBuff);
     }
 
     // =========================================================================

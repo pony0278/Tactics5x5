@@ -25,10 +25,10 @@ class BuffFactoryTest {
     class BuffModelCorrectness {
 
         @Test
-        @DisplayName("BM1: BuffType enum contains all 6 types")
+        @DisplayName("BM1: BuffType enum contains all 7 types")
         void buffTypeContainsAll6Types() {
             BuffType[] types = BuffType.values();
-            assertEquals(6, types.length, "BuffType should have 6 values");
+            assertEquals(7, types.length, "BuffType should have 7 values (6 V3 + BLIND)");
 
             assertNotNull(BuffType.POWER);
             assertNotNull(BuffType.LIFE);
@@ -36,6 +36,7 @@ class BuffFactoryTest {
             assertNotNull(BuffType.WEAKNESS);
             assertNotNull(BuffType.BLEED);
             assertNotNull(BuffType.SLOW);
+            assertNotNull(BuffType.BLIND);  // Phase 4C: Added for Smoke Bomb skill
         }
 
         @Test
@@ -109,12 +110,14 @@ class BuffFactoryTest {
         }
 
         @Test
-        @DisplayName("BM11: All buffs have duration = 2 by default")
+        @DisplayName("BM11: Most buffs have duration = 2 by default (BLIND has duration 1)")
         void allBuffsHaveDuration2() {
             for (BuffType type : BuffType.values()) {
                 BuffInstance buff = BuffFactory.create(type, SOURCE_ID);
-                assertEquals(2, buff.getDuration(),
-                    String.format("Buff type %s should have duration 2", type));
+                // BLIND is special: only lasts 1 round (from Smoke Bomb)
+                int expectedDuration = (type == BuffType.BLIND) ? 1 : 2;
+                assertEquals(expectedDuration, buff.getDuration(),
+                    String.format("Buff type %s should have duration %d", type, expectedDuration));
             }
         }
 

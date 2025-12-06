@@ -82,10 +82,10 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 |--------|-----------|-------------|--------|
 | ✅ | Phase 4A | Core framework + simple skills | Validation, cooldown, Endure, Spirit Hawk |
 | ✅ | Phase 4B | Damage/heal skills | Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many |
-| 🔄 | **Phase 4C** | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
-| ⬜ | Phase 4D | Complex skills | Shadow Clone, Death Mark, Feint, Challenge, Wild Magic, etc. |
+| ✅ | Phase 4C | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
+| 🔄 | **Phase 4D** | Complex skills | Shadow Clone, Death Mark, Feint, Challenge, Wild Magic, etc. |
 
-**Current Task**: Phase 4C - Implement movement skills
+**Current Task**: Phase 4D - Implement complex skills
 
 **Reference Documents**:
 - `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
@@ -94,16 +94,32 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 
 ---
 
-## 📋 Phase 4C Todo List
+## 📋 Phase 4D Todo List
 
 | Status | Task | Description |
 |--------|------|-------------|
-| ⬜ | Heroic Leap | Warrior: Leap to tile, 2 damage to adjacent on landing |
-| ⬜ | Smoke Bomb | Rogue: Teleport, invisible 1 round, blind adjacent |
-| ⬜ | Warp Beacon | Mage: Place beacon or teleport to existing beacon |
-| ⬜ | Spectral Blades | Huntress: 1 damage to all enemies in a line |
-| ⬜ | Write tests | Test all Phase 4C skills |
+| ⬜ | Shadow Clone | Rogue: Create clone that mirrors attacks |
+| ⬜ | Death Mark | Huntress: Mark target, bonus damage on next hit |
+| ⬜ | Feint | Warrior: Dodge next attack, counter if attacked |
+| ⬜ | Challenge | Warrior: Taunt enemy, they must attack you |
+| ⬜ | Wild Magic | Mage: Random powerful effect |
+| ⬜ | Write tests | Test all Phase 4D skills |
 | ⬜ | Run all tests | Verify no regressions |
+
+### Phase 4C Completed Items
+- ✅ Implemented Heroic Leap (Warrior: Leap to tile, 2 damage to adjacent enemies on landing)
+- ✅ Implemented Smoke Bomb (Rogue: Teleport, invisible 1 round, blind adjacent enemies)
+- ✅ Implemented Warp Beacon (Mage: Place beacon or teleport to existing beacon)
+- ✅ Implemented Spectral Blades (Huntress: 1 damage to all enemies in a line, pierces)
+- ✅ Added BuffType.BLIND (cannot attack for 1 round, duration 1)
+- ✅ Added BuffFlags.blindBuff for BLIND buff tracking
+- ✅ Added Unit.invisible field and related mechanics
+- ✅ Added Unit.skillState map for beacon storage
+- ✅ Added invisible expiry at round end
+- ✅ Added invisible break on attack/skill use
+- ✅ Added BLIND and INVISIBLE validation for ATTACK and MOVE_AND_ATTACK
+- ✅ Added serialization for BuffFlags.blindBuff
+- ✅ Added 26 Phase 4C tests (all passing, 374 total tests)
 
 ### Phase 4B Completed Items
 - ✅ Implemented Elemental Blast (Mage: 3 damage, 50% random debuff)
@@ -273,15 +289,16 @@ See `/docs/PROGRESS.md` for details.
 - [x] Removed DESTROY_OBSTACLE (use ATTACK instead)
 - [x] Phase 4A: Skill framework (validation, cooldown, Endure, Spirit Hawk)
 - [x] Phase 4B: Damage/heal skills (Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many)
+- [x] Phase 4C: Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades)
 
 ### In Progress
-- [ ] Phase 4C: Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades)
+- [ ] Phase 4D: Complex skills (Shadow Clone, Death Mark, Feint, Challenge, Wild Magic)
 
 ---
 
 ## Test Coverage
 
-**Total: 348 tests passing**
+**Total: 374 tests passing**
 
 ### Existing Tests
 | Test Class | Coverage |
@@ -304,6 +321,7 @@ See `/docs/PROGRESS.md` for details.
 | RuleEngineAttritionTest | Minion decay, Round 8 pressure | 11 |
 | RuleEngineSkillTest | Skill framework, Endure, Spirit Hawk | 24 |
 | RuleEngineSkillPhase4BTest | Phase 4B skills: damage/heal | 26 |
+| RuleEngineSkillPhase4CTest | Phase 4C skills: movement, BLIND, invisible | 26 |
 
 ### V3 Tests (To Be Implemented)
 | Test Plan | Test Count |

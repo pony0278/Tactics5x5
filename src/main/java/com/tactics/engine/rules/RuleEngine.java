@@ -955,6 +955,11 @@ public class RuleEngine {
 
     private ValidationResult validateSingleTileTarget(GameState state, Unit actingUnit,
                                                         SkillDefinition skill, Position targetPos) {
+        // Special handling for Warp Beacon
+        if (skill.getSkillId().equals(SkillRegistry.MAGE_WARP_BEACON)) {
+            return validateWarpBeaconTarget(state, actingUnit, skill, targetPos);
+        }
+
         if (targetPos == null) {
             return new ValidationResult(false, "Target position is required for this skill");
         }
@@ -978,6 +983,54 @@ public class RuleEngine {
         }
 
         return new ValidationResult(true, null);
+    }
+
+    /**
+     * Special validation for Warp Beacon skill.
+     * - First use: place beacon at target position (must be empty, in range)
+     * - Second use: teleport to beacon position (beacon must not be blocked)
+     */
+    private ValidationResult validateWarpBeaconTarget(GameState state, Unit actingUnit,
+                                                       SkillDefinition skill, Position targetPos) {
+        Map<String, Object> skillState = actingUnit.getSkillState();
+        boolean hasBeacon = skillState != null && skillState.containsKey("beacon_x");
+
+        if (!hasBeacon) {
+            // First use: placing beacon
+            if (targetPos == null) {
+                return new ValidationResult(false, "Target position is required to place beacon");
+            }
+
+            // Check bounds
+            if (!isInBounds(targetPos, state.getBoard())) {
+                return new ValidationResult(false, "Target position is outside the board");
+            }
+
+            // Check range
+            int distance = manhattanDistance(actingUnit.getPosition(), targetPos);
+            if (distance > skill.getRange()) {
+                return new ValidationResult(false, "Target is out of range (range: " + skill.getRange() + ")");
+            }
+
+            // Target tile must be empty for placing beacon
+            if (isTileBlocked(state, targetPos)) {
+                return new ValidationResult(false, "Cannot place beacon on blocked tile");
+            }
+
+            return new ValidationResult(true, null);
+        } else {
+            // Second use: teleporting to beacon
+            int beaconX = (Integer) skillState.get("beacon_x");
+            int beaconY = (Integer) skillState.get("beacon_y");
+            Position beaconPos = new Position(beaconX, beaconY);
+
+            // Check if beacon position is still unblocked
+            if (isTileBlocked(state, beaconPos)) {
+                return new ValidationResult(false, "Cannot teleport - beacon position is blocked");
+            }
+
+            return new ValidationResult(true, null);
+        }
     }
 
     private ValidationResult validateLineTarget(GameState state, Unit actingUnit,
@@ -1199,9 +1252,34 @@ public class RuleEngine {
             return new ValidationResult(false, "Unit is stunned");
         }
 
+        // V3 Phase 4C: BLIND check - blinded units cannot attack
+        if (isUnitBlinded(attackerBuffs)) {
+            return new ValidationResult(false, "Unit is blinded and cannot attack");
+        }
+
+        // V3 Phase 4C: INVISIBLE check - cannot target invisible units (but AoE still affects them)
+        if (!isAttackingObstacle) {
+            Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
+            if (targetUnit != null && targetUnit.isInvisible()) {
+                return new ValidationResult(false, "Cannot target invisible unit");
+            }
+        }
+
         // Rooted units CAN attack (only movement is blocked)
 
         return new ValidationResult(true, null);
+    }
+
+    /**
+     * Check if unit has any buff with blind flag.
+     */
+    private boolean isUnitBlinded(List<BuffInstance> buffs) {
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isBlindBuff()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1291,9 +1369,19 @@ public class RuleEngine {
             return new ValidationResult(false, "Unit is rooted");
         }
 
+        // V3 Phase 4C: BLIND check - blinded units cannot attack
+        if (isUnitBlinded(moverBuffs)) {
+            return new ValidationResult(false, "Unit is blinded and cannot attack");
+        }
+
         // V3: POWER buff check - POWER buff blocks MOVE_AND_ATTACK
         if (hasPowerBuff(moverBuffs)) {
             return new ValidationResult(false, "Unit cannot use MOVE_AND_ATTACK with Power buff");
+        }
+
+        // V3 Phase 4C: INVISIBLE check - cannot target invisible units
+        if (targetUnit.isInvisible()) {
+            return new ValidationResult(false, "Cannot target invisible unit");
         }
 
         // MA3: After moving, check if target unit is within effective attack range
@@ -1817,10 +1905,16 @@ public class RuleEngine {
         int totalDamage = attacker.getAttack() + bonusAttack;
 
         // Create new units list with updated damage receiver HP and attacker's actionsUsed
+        // V3 Phase 4C: Attacking breaks invisibility
         Map<String, UnitTransformer> transformers = new HashMap<>();
         transformers.put(damageReceiverId, u -> u.withDamage(totalDamage));
         if (!attacker.getId().equals(damageReceiverId)) {
-            transformers.put(attacker.getId(), Unit::withActionUsed);
+            // Clear invisible when attacking
+            if (attacker.isInvisible()) {
+                transformers.put(attacker.getId(), u -> u.withActionUsed().withInvisible(false));
+            } else {
+                transformers.put(attacker.getId(), Unit::withActionUsed);
+            }
         } else {
             // Attacker is the same as damage receiver (e.g., self-damage) - already handled above
             transformers.put(damageReceiverId, u -> u.withDamage(totalDamage).withActionUsed());
@@ -1871,7 +1965,14 @@ public class RuleEngine {
         }
 
         // Update attacker's actionsUsed
-        List<Unit> newUnits = updateUnitInList(state.getUnits(), attacker.getId(), Unit::withActionUsed);
+        // V3 Phase 4C: Attacking breaks invisibility
+        List<Unit> newUnits;
+        if (attacker.isInvisible()) {
+            newUnits = updateUnitInList(state.getUnits(), attacker.getId(),
+                u -> u.withActionUsed().withInvisible(false));
+        } else {
+            newUnits = updateUnitInList(state.getUnits(), attacker.getId(), Unit::withActionUsed);
+        }
 
         // ATTACK on obstacle does not switch turn
         return state.withUnits(newUnits).withObstacles(newObstacles);
@@ -1915,12 +2016,16 @@ public class RuleEngine {
         int totalDamage = mover.getAttack() + bonusAttack;
 
         // Create new units list with mover at new position, damage receiver with new HP
+        // V3 Phase 4C: Attacking breaks invisibility
         List<Unit> newUnits = new ArrayList<>();
         Unit movedUnit = null;
         for (Unit u : state.getUnits()) {
             if (u.getId().equals(mover.getId())) {
-                // Move + attack as single action
+                // Move + attack as single action, clear invisible if present
                 movedUnit = u.withPositionAndActionUsed(targetPos);
+                if (u.isInvisible()) {
+                    movedUnit = movedUnit.withInvisible(false);
+                }
                 newUnits.add(movedUnit);
             } else if (u.getId().equals(damageReceiverId)) {
                 // Apply damage to actual receiver (either target or guardian)
@@ -2038,6 +2143,7 @@ public class RuleEngine {
         // Dispatch to skill-specific handler based on skill ID
         // Phase 4A: Endure, Spirit Hawk
         // Phase 4B: Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many
+        // Phase 4C: Heroic Leap, Spectral Blades, Smoke Bomb, Warp Beacon
         GameState result;
         switch (skillId) {
             case SkillRegistry.WARRIOR_ENDURE:
@@ -2046,11 +2152,23 @@ public class RuleEngine {
             case SkillRegistry.WARRIOR_SHOCKWAVE:
                 result = applySkillShockwave(state, action, actingUnit, skill);
                 break;
+            case SkillRegistry.WARRIOR_HEROIC_LEAP:
+                result = applySkillHeroicLeap(state, action, actingUnit, skill);
+                break;
             case SkillRegistry.MAGE_ELEMENTAL_BLAST:
                 result = applySkillElementalBlast(state, action, actingUnit, skill);
                 break;
+            case SkillRegistry.MAGE_WARP_BEACON:
+                result = applySkillWarpBeacon(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.ROGUE_SMOKE_BOMB:
+                result = applySkillSmokeBomb(state, action, actingUnit, skill);
+                break;
             case SkillRegistry.HUNTRESS_SPIRIT_HAWK:
                 result = applySkillSpiritHawk(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.HUNTRESS_SPECTRAL_BLADES:
+                result = applySkillSpectralBlades(state, action, actingUnit, skill);
                 break;
             case SkillRegistry.HUNTRESS_NATURES_POWER:
                 result = applySkillNaturesPower(state, action, actingUnit, skill);
@@ -2067,7 +2185,21 @@ public class RuleEngine {
                 break;
         }
 
+        // V3 Phase 4C: Using a skill breaks invisibility (except Smoke Bomb which grants it)
+        if (actingUnit.isInvisible() && !skillId.equals(SkillRegistry.ROGUE_SMOKE_BOMB)) {
+            result = clearInvisibleOnUnit(result, actingUnitId);
+        }
+
         return result;
+    }
+
+    /**
+     * Clear invisible status on a unit.
+     */
+    private GameState clearInvisibleOnUnit(GameState state, String unitId) {
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), unitId,
+            u -> u.withInvisible(false));
+        return state.withUnits(newUnits);
     }
 
     /**
@@ -2512,6 +2644,204 @@ public class RuleEngine {
             new BuffModifier(0, bonusAtk, 0, 0),  // bonusHp, bonusAttack, bonusMoveRange, bonusAttackRange
             null
         );
+    }
+
+    // =========================================================================
+    // Phase 4C Skill Implementations
+    // =========================================================================
+
+    /**
+     * Apply Warrior Heroic Leap skill.
+     * Effect: Leap to target tile, deal 2 damage to all adjacent enemies on landing.
+     */
+    private GameState applySkillHeroicLeap(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        Position targetPos = action.getTargetPosition();
+        int damage = skill.getDamageAmount();  // 2
+        int cooldown = skill.getCooldown();  // 2
+
+        // Find all enemies adjacent to the landing position
+        List<Unit> adjacentEnemies = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.isAlive() &&
+                !u.getOwner().getValue().equals(actingUnit.getOwner().getValue()) &&
+                isAdjacent(targetPos, u.getPosition())) {
+                adjacentEnemies.add(u);
+            }
+        }
+
+        // Sort by ID for deterministic order
+        adjacentEnemies.sort((a, b) -> a.getId().compareTo(b.getId()));
+
+        // Track damage to be dealt (with Guardian interception)
+        Map<String, Integer> damageAmounts = new HashMap<>();
+        for (Unit enemy : adjacentEnemies) {
+            Unit guardian = findGuardian(state, enemy);
+            String damageReceiverId = (guardian != null) ? guardian.getId() : enemy.getId();
+            damageAmounts.merge(damageReceiverId, damage, Integer::sum);
+        }
+
+        // Apply all changes
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                // Caster leaps to target and uses skill
+                newUnits.add(u.withPositionAndSkillUsed(targetPos, cooldown));
+            } else if (damageAmounts.containsKey(u.getId())) {
+                // Unit takes damage
+                newUnits.add(u.withDamage(damageAmounts.get(u.getId())));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
+        return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Huntress Spectral Blades skill.
+     * Effect: Deal 1 damage to all enemies in a line (pierces through).
+     */
+    private GameState applySkillSpectralBlades(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        Position targetPos = action.getTargetPosition();
+        Position heroPos = actingUnit.getPosition();
+        int damage = skill.getDamageAmount();  // 1
+        int cooldown = skill.getCooldown();  // 2
+        int range = skill.getRange();  // 3
+
+        // Calculate direction
+        int dx = Integer.compare(targetPos.getX() - heroPos.getX(), 0);
+        int dy = Integer.compare(targetPos.getY() - heroPos.getY(), 0);
+
+        // Find all enemies in the line
+        List<Unit> enemiesInLine = new ArrayList<>();
+        for (int i = 1; i <= range; i++) {
+            Position checkPos = new Position(heroPos.getX() + dx * i, heroPos.getY() + dy * i);
+            if (!isInBounds(checkPos, state.getBoard())) {
+                break;  // Stop at board edge
+            }
+            for (Unit u : state.getUnits()) {
+                if (u.isAlive() &&
+                    !u.getOwner().getValue().equals(actingUnit.getOwner().getValue()) &&
+                    u.getPosition().equals(checkPos)) {
+                    enemiesInLine.add(u);
+                }
+            }
+        }
+
+        // Sort by ID for deterministic order
+        enemiesInLine.sort((a, b) -> a.getId().compareTo(b.getId()));
+
+        // Track damage to be dealt (with Guardian interception)
+        Map<String, Integer> damageAmounts = new HashMap<>();
+        for (Unit enemy : enemiesInLine) {
+            Unit guardian = findGuardian(state, enemy);
+            String damageReceiverId = (guardian != null) ? guardian.getId() : enemy.getId();
+            damageAmounts.merge(damageReceiverId, damage, Integer::sum);
+        }
+
+        // Apply all changes
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                // Caster uses skill
+                newUnits.add(u.withSkillUsed(cooldown));
+            } else if (damageAmounts.containsKey(u.getId())) {
+                // Unit takes damage
+                newUnits.add(u.withDamage(damageAmounts.get(u.getId())));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
+        return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Rogue Smoke Bomb skill.
+     * Effect: Teleport to target tile, become invisible for 1 round, blind adjacent enemies at original position.
+     */
+    private GameState applySkillSmokeBomb(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        Position targetPos = action.getTargetPosition();
+        Position originalPos = actingUnit.getPosition();
+        int cooldown = skill.getCooldown();  // 2
+
+        // Find all enemies adjacent to the ORIGINAL position (before teleport)
+        List<Unit> adjacentEnemies = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.isAlive() &&
+                !u.getOwner().getValue().equals(actingUnit.getOwner().getValue()) &&
+                isAdjacent(originalPos, u.getPosition())) {
+                adjacentEnemies.add(u);
+            }
+        }
+
+        // Sort by ID for deterministic order
+        adjacentEnemies.sort((a, b) -> a.getId().compareTo(b.getId()));
+
+        // Update unit: teleport and become invisible
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                newUnits.add(u.withPositionInvisibleAndSkillUsed(targetPos, true, cooldown));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        // Apply BLIND debuff to adjacent enemies
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        for (Unit enemy : adjacentEnemies) {
+            BuffInstance blindBuff = BuffFactory.create(BuffType.BLIND, actingUnit.getId());
+            List<BuffInstance> enemyBuffs = new ArrayList<>(
+                newUnitBuffs.getOrDefault(enemy.getId(), Collections.emptyList())
+            );
+            enemyBuffs.add(blindBuff);
+            newUnitBuffs.put(enemy.getId(), enemyBuffs);
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Mage Warp Beacon skill.
+     * Effect: First use - place beacon at target tile. Second use - teleport to beacon position.
+     * Placing beacon does NOT trigger cooldown. Teleporting DOES trigger cooldown.
+     */
+    private GameState applySkillWarpBeacon(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        Position targetPos = action.getTargetPosition();
+        int cooldown = skill.getCooldown();  // 2
+
+        // Check if beacon already exists
+        Map<String, Object> skillState = actingUnit.getSkillState();
+        boolean hasBeacon = skillState != null && skillState.containsKey("beacon_x");
+
+        if (!hasBeacon) {
+            // First use: place beacon at target position
+            Map<String, Object> newSkillState = new HashMap<>();
+            newSkillState.put("beacon_x", targetPos.getX());
+            newSkillState.put("beacon_y", targetPos.getY());
+
+            // Update unit with beacon placed (NO cooldown trigger)
+            List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+                u -> u.withSkillStateAndActionUsed(newSkillState));
+
+            return state.withUnits(newUnits);
+        } else {
+            // Second use: teleport to beacon position
+            int beaconX = (Integer) skillState.get("beacon_x");
+            int beaconY = (Integer) skillState.get("beacon_y");
+            Position beaconPos = new Position(beaconX, beaconY);
+
+            // Update unit: teleport to beacon, clear skill state, trigger cooldown
+            List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+                u -> u.withPositionSkillStateClearedAndSkillUsed(beaconPos, cooldown));
+
+            GameOverResult gameOver = checkGameOver(newUnits);
+            return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
+        }
     }
 
     // =========================================================================
