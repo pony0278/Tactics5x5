@@ -485,6 +485,183 @@ public class RuleEngineSkillPhase4BTest {
 
             assertEquals(2, updatedHero.getSkillCooldown());
         }
+
+        @Test
+        @DisplayName("SH11: Attack with bonus damage deals extra damage")
+        void testAttackWithBonusDamageDealsExtraDamage() {
+            // Create hero with bonus attack already set (simulating after Nature's Power)
+            Unit hero = new Unit("h1", PlayerId.PLAYER_1, 10, 3, 2, 1, new Position(0, 0), true,
+                UnitCategory.HERO, null, HeroClass.HUNTRESS, 10,
+                SkillRegistry.HUNTRESS_SPIRIT_HAWK, 2,
+                0, false, false, false, 0, null,
+                0, false, null,
+                2, 2);  // bonusAttackDamage=2, bonusAttackCharges=2
+
+            Unit enemy = createMinion("m1", PlayerId.PLAYER_2, 10, 2, new Position(1, 0), MinionType.ARCHER);
+
+            GameState state = createGameState(Arrays.asList(hero, enemy), PlayerId.PLAYER_1);
+
+            // Attack enemy (hero attack=3, bonus=+2, total=5)
+            Action action = new Action(ActionType.ATTACK, PlayerId.PLAYER_1, enemy.getPosition(), "m1");
+            GameState result = ruleEngine.applyAction(state, action);
+
+            Unit updatedEnemy = result.getUnits().stream()
+                .filter(u -> u.getId().equals("m1"))
+                .findFirst().orElse(null);
+
+            // Enemy HP: 10 - 5 = 5
+            assertEquals(5, updatedEnemy.getHp(), "Enemy should take 5 damage (3 base + 2 bonus)");
+
+            // Check bonus charge was consumed
+            Unit updatedHero = result.getUnits().stream()
+                .filter(u -> u.getId().equals("h1"))
+                .findFirst().orElse(null);
+
+            assertEquals(1, updatedHero.getBonusAttackCharges(), "One charge should be consumed");
+            assertEquals(2, updatedHero.getBonusAttackDamage(), "Bonus damage should remain until charges depleted");
+        }
+
+        @Test
+        @DisplayName("SH12: Second attack consumes last charge and clears bonus damage")
+        void testSecondAttackClearsBonus() {
+            // Create hero with 1 bonus charge remaining
+            Unit hero = new Unit("h1", PlayerId.PLAYER_1, 10, 3, 2, 1, new Position(0, 0), true,
+                UnitCategory.HERO, null, HeroClass.HUNTRESS, 10,
+                SkillRegistry.HUNTRESS_SPIRIT_HAWK, 2,
+                0, false, false, false, 0, null,
+                0, false, null,
+                2, 1);  // bonusAttackDamage=2, bonusAttackCharges=1 (last charge)
+
+            Unit enemy = createMinion("m1", PlayerId.PLAYER_2, 10, 2, new Position(1, 0), MinionType.ARCHER);
+
+            GameState state = createGameState(Arrays.asList(hero, enemy), PlayerId.PLAYER_1);
+
+            Action action = new Action(ActionType.ATTACK, PlayerId.PLAYER_1, enemy.getPosition(), "m1");
+            GameState result = ruleEngine.applyAction(state, action);
+
+            Unit updatedHero = result.getUnits().stream()
+                .filter(u -> u.getId().equals("h1"))
+                .findFirst().orElse(null);
+
+            assertEquals(0, updatedHero.getBonusAttackCharges(), "All charges should be consumed");
+            assertEquals(0, updatedHero.getBonusAttackDamage(), "Bonus damage should be cleared when charges depleted");
+        }
+
+        @Test
+        @DisplayName("SH13: Attack without bonus charges deals normal damage")
+        void testAttackWithoutBonusDealsNormalDamage() {
+            // Create hero with no bonus charges
+            Unit hero = createHero("h1", PlayerId.PLAYER_1, 10, 3, new Position(0, 0),
+                HeroClass.HUNTRESS, SkillRegistry.HUNTRESS_SPIRIT_HAWK);
+
+            Unit enemy = createMinion("m1", PlayerId.PLAYER_2, 10, 2, new Position(1, 0), MinionType.ARCHER);
+
+            GameState state = createGameState(Arrays.asList(hero, enemy), PlayerId.PLAYER_1);
+
+            Action action = new Action(ActionType.ATTACK, PlayerId.PLAYER_1, enemy.getPosition(), "m1");
+            GameState result = ruleEngine.applyAction(state, action);
+
+            Unit updatedEnemy = result.getUnits().stream()
+                .filter(u -> u.getId().equals("m1"))
+                .findFirst().orElse(null);
+
+            // Enemy HP: 10 - 3 = 7 (no bonus)
+            assertEquals(7, updatedEnemy.getHp(), "Enemy should take 3 damage (base only, no bonus)");
+        }
+
+        @Test
+        @DisplayName("SH14: MOVE_AND_ATTACK with bonus damage deals extra damage and consumes charge")
+        void testMoveAndAttackWithBonusDamage() {
+            // Create hero with bonus attack already set
+            Unit hero = new Unit("h1", PlayerId.PLAYER_1, 10, 3, 2, 1, new Position(0, 0), true,
+                UnitCategory.HERO, null, HeroClass.HUNTRESS, 10,
+                SkillRegistry.HUNTRESS_SPIRIT_HAWK, 2,
+                0, false, false, false, 0, null,
+                0, false, null,
+                2, 2);  // bonusAttackDamage=2, bonusAttackCharges=2
+
+            Unit enemy = createMinion("m1", PlayerId.PLAYER_2, 10, 2, new Position(2, 0), MinionType.ARCHER);
+
+            GameState state = createGameState(Arrays.asList(hero, enemy), PlayerId.PLAYER_1);
+
+            // Move to (1,0) and attack enemy at (2,0)
+            Action action = new Action(ActionType.MOVE_AND_ATTACK, PlayerId.PLAYER_1, new Position(1, 0), "m1");
+            GameState result = ruleEngine.applyAction(state, action);
+
+            Unit updatedEnemy = result.getUnits().stream()
+                .filter(u -> u.getId().equals("m1"))
+                .findFirst().orElse(null);
+
+            // Enemy HP: 10 - 5 = 5 (3 base + 2 bonus)
+            assertEquals(5, updatedEnemy.getHp(), "Enemy should take 5 damage (3 base + 2 bonus)");
+
+            // Check bonus charge was consumed
+            Unit updatedHero = result.getUnits().stream()
+                .filter(u -> u.getId().equals("h1"))
+                .findFirst().orElse(null);
+
+            assertEquals(1, updatedHero.getBonusAttackCharges(), "One charge should be consumed");
+        }
+
+        @Test
+        @DisplayName("SH15: Full flow - Nature's Power then two attacks")
+        void testNaturesPowerFullFlow() {
+            Unit hero = createHero("h1", PlayerId.PLAYER_1, 10, 3, new Position(0, 0),
+                HeroClass.HUNTRESS, SkillRegistry.HUNTRESS_NATURES_POWER);
+            Unit enemy = createMinion("m1", PlayerId.PLAYER_2, 15, 2, new Position(1, 0), MinionType.ARCHER);
+
+            GameState state = createGameState(Arrays.asList(hero, enemy), PlayerId.PLAYER_1);
+
+            // Step 1: Use Nature's Power
+            Action skillAction = Action.useSkill(PlayerId.PLAYER_1, "h1", null, null);
+            GameState afterSkill = ruleEngine.applyAction(state, skillAction);
+
+            Unit heroAfterSkill = afterSkill.getUnits().stream()
+                .filter(u -> u.getId().equals("h1"))
+                .findFirst().orElse(null);
+
+            assertEquals(2, heroAfterSkill.getBonusAttackDamage());
+            assertEquals(2, heroAfterSkill.getBonusAttackCharges());
+
+            // Step 2: First attack (5 damage = 3 base + 2 bonus)
+            Action attack1 = new Action(ActionType.ATTACK, PlayerId.PLAYER_1, enemy.getPosition(), "m1");
+            GameState afterAttack1 = ruleEngine.applyAction(afterSkill, attack1);
+
+            Unit enemyAfterAttack1 = afterAttack1.getUnits().stream()
+                .filter(u -> u.getId().equals("m1"))
+                .findFirst().orElse(null);
+            Unit heroAfterAttack1 = afterAttack1.getUnits().stream()
+                .filter(u -> u.getId().equals("h1"))
+                .findFirst().orElse(null);
+
+            assertEquals(10, enemyAfterAttack1.getHp(), "Enemy should have 10 HP (15 - 5)");
+            assertEquals(1, heroAfterAttack1.getBonusAttackCharges(), "One charge remaining");
+
+            // Step 3: Second attack (5 damage = 3 base + 2 bonus)
+            Action attack2 = new Action(ActionType.ATTACK, PlayerId.PLAYER_1, enemy.getPosition(), "m1");
+            GameState afterAttack2 = ruleEngine.applyAction(afterAttack1, attack2);
+
+            Unit enemyAfterAttack2 = afterAttack2.getUnits().stream()
+                .filter(u -> u.getId().equals("m1"))
+                .findFirst().orElse(null);
+            Unit heroAfterAttack2 = afterAttack2.getUnits().stream()
+                .filter(u -> u.getId().equals("h1"))
+                .findFirst().orElse(null);
+
+            assertEquals(5, enemyAfterAttack2.getHp(), "Enemy should have 5 HP (10 - 5)");
+            assertEquals(0, heroAfterAttack2.getBonusAttackCharges(), "No charges remaining");
+            assertEquals(0, heroAfterAttack2.getBonusAttackDamage(), "Bonus damage cleared");
+
+            // Step 4: Third attack (3 damage = base only, no bonus)
+            Action attack3 = new Action(ActionType.ATTACK, PlayerId.PLAYER_1, enemy.getPosition(), "m1");
+            GameState afterAttack3 = ruleEngine.applyAction(afterAttack2, attack3);
+
+            Unit enemyAfterAttack3 = afterAttack3.getUnits().stream()
+                .filter(u -> u.getId().equals("m1"))
+                .findFirst().orElse(null);
+
+            assertEquals(2, enemyAfterAttack3.getHp(), "Enemy should have 2 HP (5 - 3, no bonus)");
+        }
     }
 
     // =========================================================================

@@ -1902,22 +1902,34 @@ public class RuleEngine {
 
         // Calculate damage including bonus attack from buffs
         int bonusAttack = getBonusAttack(attackerBuffs);
-        int totalDamage = attacker.getAttack() + bonusAttack;
+        // V3 Phase 4B: Add bonus attack damage from Nature's Power (unit-based, not buff-based)
+        int naturesPowerBonus = attacker.getBonusAttackCharges() > 0 ? attacker.getBonusAttackDamage() : 0;
+        int totalDamage = attacker.getAttack() + bonusAttack + naturesPowerBonus;
 
         // Create new units list with updated damage receiver HP and attacker's actionsUsed
         // V3 Phase 4C: Attacking breaks invisibility
+        // V3 Phase 4B: Consume bonus attack charge if applicable
+        final boolean hasBonusCharges = attacker.getBonusAttackCharges() > 0;
         Map<String, UnitTransformer> transformers = new HashMap<>();
         transformers.put(damageReceiverId, u -> u.withDamage(totalDamage));
         if (!attacker.getId().equals(damageReceiverId)) {
-            // Clear invisible when attacking
-            if (attacker.isInvisible()) {
+            // Clear invisible when attacking, consume bonus attack charge if applicable
+            if (attacker.isInvisible() && hasBonusCharges) {
+                transformers.put(attacker.getId(), u -> u.withActionUsed().withInvisible(false).withBonusAttackConsumed());
+            } else if (attacker.isInvisible()) {
                 transformers.put(attacker.getId(), u -> u.withActionUsed().withInvisible(false));
+            } else if (hasBonusCharges) {
+                transformers.put(attacker.getId(), u -> u.withActionUsed().withBonusAttackConsumed());
             } else {
                 transformers.put(attacker.getId(), Unit::withActionUsed);
             }
         } else {
             // Attacker is the same as damage receiver (e.g., self-damage) - already handled above
-            transformers.put(damageReceiverId, u -> u.withDamage(totalDamage).withActionUsed());
+            if (hasBonusCharges) {
+                transformers.put(damageReceiverId, u -> u.withDamage(totalDamage).withActionUsed().withBonusAttackConsumed());
+            } else {
+                transformers.put(damageReceiverId, u -> u.withDamage(totalDamage).withActionUsed());
+            }
         }
         List<Unit> newUnits = updateUnitsInList(state.getUnits(), transformers);
 
@@ -1939,7 +1951,9 @@ public class RuleEngine {
 
         // Calculate damage
         int bonusAttack = getBonusAttack(attackerBuffs);
-        int totalDamage = attacker.getAttack() + bonusAttack;
+        // V3 Phase 4B: Add bonus attack damage from Nature's Power (unit-based, not buff-based)
+        int naturesPowerBonus = attacker.getBonusAttackCharges() > 0 ? attacker.getBonusAttackDamage() : 0;
+        int totalDamage = attacker.getAttack() + bonusAttack + naturesPowerBonus;
 
         // Check if attacker has POWER buff (instant destroy)
         boolean hasPower = hasPowerBuff(attackerBuffs);
@@ -1966,10 +1980,18 @@ public class RuleEngine {
 
         // Update attacker's actionsUsed
         // V3 Phase 4C: Attacking breaks invisibility
+        // V3 Phase 4B: Consume bonus attack charge if applicable
+        final boolean hasBonusCharges = attacker.getBonusAttackCharges() > 0;
         List<Unit> newUnits;
-        if (attacker.isInvisible()) {
+        if (attacker.isInvisible() && hasBonusCharges) {
+            newUnits = updateUnitInList(state.getUnits(), attacker.getId(),
+                u -> u.withActionUsed().withInvisible(false).withBonusAttackConsumed());
+        } else if (attacker.isInvisible()) {
             newUnits = updateUnitInList(state.getUnits(), attacker.getId(),
                 u -> u.withActionUsed().withInvisible(false));
+        } else if (hasBonusCharges) {
+            newUnits = updateUnitInList(state.getUnits(), attacker.getId(),
+                u -> u.withActionUsed().withBonusAttackConsumed());
         } else {
             newUnits = updateUnitInList(state.getUnits(), attacker.getId(), Unit::withActionUsed);
         }
@@ -2013,18 +2035,25 @@ public class RuleEngine {
 
         // Calculate damage including bonus attack from buffs
         int bonusAttack = getBonusAttack(moverBuffs);
-        int totalDamage = mover.getAttack() + bonusAttack;
+        // V3 Phase 4B: Add bonus attack damage from Nature's Power (unit-based, not buff-based)
+        int naturesPowerBonus = mover.getBonusAttackCharges() > 0 ? mover.getBonusAttackDamage() : 0;
+        int totalDamage = mover.getAttack() + bonusAttack + naturesPowerBonus;
 
         // Create new units list with mover at new position, damage receiver with new HP
         // V3 Phase 4C: Attacking breaks invisibility
+        // V3 Phase 4B: Consume bonus attack charge if applicable
+        final boolean hasBonusCharges = mover.getBonusAttackCharges() > 0;
         List<Unit> newUnits = new ArrayList<>();
         Unit movedUnit = null;
         for (Unit u : state.getUnits()) {
             if (u.getId().equals(mover.getId())) {
-                // Move + attack as single action, clear invisible if present
+                // Move + attack as single action, clear invisible if present, consume bonus if applicable
                 movedUnit = u.withPositionAndActionUsed(targetPos);
                 if (u.isInvisible()) {
                     movedUnit = movedUnit.withInvisible(false);
+                }
+                if (hasBonusCharges) {
+                    movedUnit = movedUnit.withBonusAttackConsumed();
                 }
                 newUnits.add(movedUnit);
             } else if (u.getId().equals(damageReceiverId)) {

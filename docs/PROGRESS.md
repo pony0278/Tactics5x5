@@ -33,7 +33,7 @@ The game engine now supports all V3 BUFF types, game rules, and Phase 4C movemen
 - **Elemental Blast** (Mage): 3 damage, 50% random debuff
 - **Trinity** (Cleric): Heal 3 HP, remove debuff, apply LIFE
 - **Shockwave** (Warrior): 1 damage to adjacent + knockback
-- **Nature's Power** (Huntress): +2 damage for 2 attacks, LIFE buff
+- **Nature's Power** (Huntress): +2 damage for 2 attacks, LIFE buff (bonus damage fully integrated)
 - **Power of Many** (Cleric): Heal all 1 HP, +1 ATK for 1 round
 - **Heroic Leap** (Warrior): Leap to tile, 2 damage to adjacent enemies on landing
 - **Smoke Bomb** (Rogue): Teleport, invisible 1 round, blind adjacent enemies
@@ -46,11 +46,11 @@ The game engine now supports all V3 BUFF types, game rules, and Phase 4C movemen
 - Added `updateUnitInList()`/`updateUnitsInList()` helpers
 - RuleEngine reduced from 2141 to 1906 lines
 
-**Test Coverage**: 374 tests passing
+**Test Coverage**: 379 tests passing
 - RuleEngineGuardianTest: 16 tests (GRD-series)
 - RuleEngineAttritionTest: 11 tests (ATR-series)
 - RuleEngineSkillTest: 24 tests (skill framework)
-- RuleEngineSkillPhase4BTest: 26 tests (damage/heal skills)
+- RuleEngineSkillPhase4BTest: 31 tests (damage/heal skills, bonus damage consumption)
 - RuleEngineSkillPhase4CTest: 26 tests (movement skills, BLIND, invisible)
 
 ---
@@ -227,10 +227,10 @@ The game engine now supports all V3 BUFF types, game rules, and Phase 4C movemen
 | RuleEngineGuardianTest | V3 Guardian passive (TANK protect) | Done |
 | RuleEngineAttritionTest | V3 Minion decay & Round 8 pressure | Done |
 | RuleEngineSkillTest | Skill framework, Endure, Spirit Hawk | Done |
-| RuleEngineSkillPhase4BTest | Phase 4B damage/heal skills | Done |
+| RuleEngineSkillPhase4BTest | Phase 4B damage/heal skills, bonus damage | Done |
 | RuleEngineSkillPhase4CTest | Phase 4C movement skills, BLIND, invisible | Done |
 
-**Total: 374 tests passing**
+**Total: 379 tests passing**
 
 ---
 

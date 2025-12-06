@@ -131,10 +131,8 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 - ✅ Added Unit.bonusAttackDamage/bonusAttackCharges for Nature's Power
 - ✅ Added serialization for new Unit fields (bonusAttackDamage, bonusAttackCharges)
 - ✅ Added serialization for BuffFlags.lifeBuff
-- ✅ Added 26 Phase 4B tests (all passing, 348 total tests)
-
-### Phase 4D Deferred Items
-- ⏳ Nature's Power bonus damage integration in applyAttack() (stored state ready, needs consumption logic)
+- ✅ Integrated Nature's Power bonus damage in applyAttack(), applyAttackObstacle(), applyMoveAndAttack()
+- ✅ Added 31 Phase 4B tests (all passing, 379 total tests)
 
 ### Phase 4A Completed Items
 - ✅ Created skill package (TargetType, SkillEffect, SkillDefinition, SkillRegistry)
@@ -298,7 +296,7 @@ See `/docs/PROGRESS.md` for details.
 
 ## Test Coverage
 
-**Total: 374 tests passing**
+**Total: 379 tests passing**
 
 ### Existing Tests
 | Test Class | Coverage |
@@ -320,7 +318,7 @@ See `/docs/PROGRESS.md` for details.
 | RuleEngineGuardianTest | Guardian passive intercept | 16 |
 | RuleEngineAttritionTest | Minion decay, Round 8 pressure | 11 |
 | RuleEngineSkillTest | Skill framework, Endure, Spirit Hawk | 24 |
-| RuleEngineSkillPhase4BTest | Phase 4B skills: damage/heal | 26 |
+| RuleEngineSkillPhase4BTest | Phase 4B skills: damage/heal, bonus damage | 31 |
 | RuleEngineSkillPhase4CTest | Phase 4C skills: movement, BLIND, invisible | 26 |
 
 ### V3 Tests (To Be Implemented)
