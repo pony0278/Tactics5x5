@@ -44,6 +44,10 @@ public class Unit {
     private final boolean preparing;          // SLOW buff: unit is preparing an action
     private final Map<String, Object> preparingAction;  // SLOW buff: the action being prepared (serialized)
 
+    // V3 Phase 4B: Bonus Attack fields (for Nature's Power skill)
+    private final int bonusAttackDamage;      // Extra damage per attack (e.g., +2 from Nature's Power)
+    private final int bonusAttackCharges;     // Number of attacks with bonus damage remaining
+
     /**
      * V1/V2 backward-compatible constructor.
      * Creates a unit with default V3 fields (category = null, treated as legacy unit).
@@ -53,7 +57,8 @@ public class Unit {
              null, null, null, hp,
              null, 0,
              0, false, false, false, 0, null,
-             0, false, null);
+             0, false, null,
+             0, 0);
     }
 
     /**
@@ -68,11 +73,12 @@ public class Unit {
              category, minionType, heroClass, maxHp,
              selectedSkillId, skillCooldown,
              shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-             0, false, null);
+             0, false, null,
+             0, 0);
     }
 
     /**
-     * V3 full constructor with all fields including action state.
+     * V3 constructor with action state (for backward compatibility).
      */
     public Unit(String id, PlayerId owner, int hp, int attack, int moveRange, int attackRange, Position position, boolean alive,
                 UnitCategory category, MinionType minionType, HeroClass heroClass, int maxHp,
@@ -80,6 +86,24 @@ public class Unit {
                 int shield, boolean invisible, boolean invulnerable, boolean isTemporary, int temporaryDuration,
                 Map<String, Object> skillState,
                 int actionsUsed, boolean preparing, Map<String, Object> preparingAction) {
+        this(id, owner, hp, attack, moveRange, attackRange, position, alive,
+             category, minionType, heroClass, maxHp,
+             selectedSkillId, skillCooldown,
+             shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+             actionsUsed, preparing, preparingAction,
+             0, 0);
+    }
+
+    /**
+     * V3 full constructor with all fields including action state and bonus attack.
+     */
+    public Unit(String id, PlayerId owner, int hp, int attack, int moveRange, int attackRange, Position position, boolean alive,
+                UnitCategory category, MinionType minionType, HeroClass heroClass, int maxHp,
+                String selectedSkillId, int skillCooldown,
+                int shield, boolean invisible, boolean invulnerable, boolean isTemporary, int temporaryDuration,
+                Map<String, Object> skillState,
+                int actionsUsed, boolean preparing, Map<String, Object> preparingAction,
+                int bonusAttackDamage, int bonusAttackCharges) {
         this.id = id;
         this.owner = owner;
         this.hp = hp;
@@ -103,6 +127,8 @@ public class Unit {
         this.actionsUsed = actionsUsed;
         this.preparing = preparing;
         this.preparingAction = preparingAction != null ? Collections.unmodifiableMap(preparingAction) : null;
+        this.bonusAttackDamage = bonusAttackDamage;
+        this.bonusAttackCharges = bonusAttackCharges;
     }
 
     // Core getters (V1/V2)
@@ -207,6 +233,16 @@ public class Unit {
         return preparingAction;
     }
 
+    // V3 Phase 4B: Bonus Attack getters
+
+    public int getBonusAttackDamage() {
+        return bonusAttackDamage;
+    }
+
+    public int getBonusAttackCharges() {
+        return bonusAttackCharges;
+    }
+
     // Helper methods
 
     public boolean isHero() {
@@ -245,7 +281,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, skillCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        actionsUsed, preparing, preparingAction);
+                        actionsUsed, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -257,7 +294,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, skillCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        actionsUsed, preparing, preparingAction);
+                        actionsUsed, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -282,7 +320,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, skillCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        newActionsUsed, preparing, preparingAction);
+                        newActionsUsed, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -300,7 +339,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, skillCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        actionsUsed + 1, preparing, preparingAction);
+                        actionsUsed + 1, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -311,7 +351,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, skillCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        actionsUsed, newPreparing, newPreparingAction);
+                        actionsUsed, newPreparing, newPreparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -322,7 +363,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, skillCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        actionsUsed + 1, true, newPreparingAction);
+                        actionsUsed + 1, true, newPreparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -336,7 +378,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, skillCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        0, false, null);
+                        0, false, null,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -347,7 +390,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, newCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        actionsUsed, preparing, preparingAction);
+                        actionsUsed, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -358,7 +402,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, newCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        actionsUsed + 1, preparing, preparingAction);
+                        actionsUsed + 1, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -369,7 +414,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, skillCooldown,
                         newShield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        actionsUsed, preparing, preparingAction);
+                        actionsUsed, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     /**
@@ -387,7 +433,34 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, newCooldown,
                         newShield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        actionsUsed + 1, preparing, preparingAction);
+                        actionsUsed + 1, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
+     * Create a copy with cooldown set, bonus attack set, and actionsUsed incremented (for Nature's Power).
+     */
+    public Unit withSkillUsedAndBonusAttack(int newCooldown, int newBonusDamage, int newBonusCharges) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, newCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed + 1, preparing, preparingAction,
+                        newBonusDamage, newBonusCharges);
+    }
+
+    /**
+     * Create a copy with bonus attack consumed (after an attack with bonus damage).
+     */
+    public Unit withBonusAttackConsumed() {
+        int newCharges = Math.max(0, bonusAttackCharges - 1);
+        int newBonusDamage = newCharges > 0 ? bonusAttackDamage : 0;
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed, preparing, preparingAction,
+                        newBonusDamage, newCharges);
     }
 
     /**
@@ -411,7 +484,8 @@ public class Unit {
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, newCooldown,
                         shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                        0, false, null);
+                        0, false, null,
+                        bonusAttackDamage, bonusAttackCharges);
     }
 
     @Override
@@ -433,6 +507,8 @@ public class Unit {
                temporaryDuration == unit.temporaryDuration &&
                actionsUsed == unit.actionsUsed &&
                preparing == unit.preparing &&
+               bonusAttackDamage == unit.bonusAttackDamage &&
+               bonusAttackCharges == unit.bonusAttackCharges &&
                Objects.equals(id, unit.id) &&
                Objects.equals(owner, unit.owner) &&
                Objects.equals(position, unit.position) &&
@@ -449,7 +525,8 @@ public class Unit {
         return Objects.hash(id, owner, hp, attack, moveRange, attackRange, position, alive,
                            category, minionType, heroClass, maxHp, selectedSkillId, skillCooldown,
                            shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                           actionsUsed, preparing, preparingAction);
+                           actionsUsed, preparing, preparingAction,
+                           bonusAttackDamage, bonusAttackCharges);
     }
 
     @Override

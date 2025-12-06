@@ -99,6 +99,7 @@ public class GameStateSerializer {
     private static final String KEY_SPEED_BUFF = "speedBuff";
     private static final String KEY_SLOW_BUFF = "slowBuff";
     private static final String KEY_BLEED_BUFF = "bleedBuff";
+    private static final String KEY_LIFE_BUFF = "lifeBuff";
 
     // BuffInstance V3 keys
     private static final String KEY_INSTANT_HP_BONUS = "instantHpBonus";
@@ -107,6 +108,10 @@ public class GameStateSerializer {
     private static final String KEY_ACTIONS_USED = "actionsUsed";
     private static final String KEY_PREPARING = "preparing";
     private static final String KEY_PREPARING_ACTION = "preparingAction";
+
+    // Unit bonus attack keys (V3 Phase 4B)
+    private static final String KEY_BONUS_ATTACK_DAMAGE = "bonusAttackDamage";
+    private static final String KEY_BONUS_ATTACK_CHARGES = "bonusAttackCharges";
 
     // BuffTile keys
     private static final String KEY_BUFF_TYPE = "buffType";
@@ -308,6 +313,10 @@ public class GameStateSerializer {
             unitMap.put(KEY_PREPARING_ACTION, new HashMap<>(unit.getPreparingAction()));
         }
 
+        // V3 Phase 4B: Bonus attack fields
+        unitMap.put(KEY_BONUS_ATTACK_DAMAGE, unit.getBonusAttackDamage());
+        unitMap.put(KEY_BONUS_ATTACK_CHARGES, unit.getBonusAttackCharges());
+
         return unitMap;
     }
 
@@ -349,10 +358,15 @@ public class GameStateSerializer {
         @SuppressWarnings("unchecked")
         Map<String, Object> preparingAction = (Map<String, Object>) unitMap.get(KEY_PREPARING_ACTION);
 
+        // V3 Phase 4B: Bonus attack fields
+        int bonusAttackDamage = toIntOrDefault(unitMap.get(KEY_BONUS_ATTACK_DAMAGE), 0);
+        int bonusAttackCharges = toIntOrDefault(unitMap.get(KEY_BONUS_ATTACK_CHARGES), 0);
+
         return new Unit(id, new PlayerId(ownerStr), hp, attack, moveRange, attackRange, position, alive,
                        category, minionType, heroClass, maxHp, selectedSkillId, skillCooldown,
                        shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
-                       actionsUsed, preparing, preparingAction);
+                       actionsUsed, preparing, preparingAction,
+                       bonusAttackDamage, bonusAttackCharges);
     }
 
     // =========================================================================
@@ -555,6 +569,7 @@ public class GameStateSerializer {
         flagsMap.put(KEY_SPEED_BUFF, flags.isSpeedBuff());
         flagsMap.put(KEY_SLOW_BUFF, flags.isSlowBuff());
         flagsMap.put(KEY_BLEED_BUFF, flags.isBleedBuff());
+        flagsMap.put(KEY_LIFE_BUFF, flags.isLifeBuff());
         return flagsMap;
     }
 
@@ -689,7 +704,7 @@ public class GameStateSerializer {
     private BuffFlags deserializeBuffFlags(Object flagsObj) {
         if (!(flagsObj instanceof Map)) {
             // Default to all false if missing
-            return new BuffFlags(false, false, false, false, false, false, false, false, false);
+            return new BuffFlags(false, false, false, false, false, false, false, false, false, false);
         }
 
         Map<String, Object> flagsMap = (Map<String, Object>) flagsObj;
@@ -705,9 +720,10 @@ public class GameStateSerializer {
         boolean speedBuff = toBooleanOrDefault(flagsMap.get(KEY_SPEED_BUFF), false);
         boolean slowBuff = toBooleanOrDefault(flagsMap.get(KEY_SLOW_BUFF), false);
         boolean bleedBuff = toBooleanOrDefault(flagsMap.get(KEY_BLEED_BUFF), false);
+        boolean lifeBuff = toBooleanOrDefault(flagsMap.get(KEY_LIFE_BUFF), false);
 
         return new BuffFlags(stunned, rooted, poison, silenced, taunted,
-                            powerBuff, speedBuff, slowBuff, bleedBuff);
+                            powerBuff, speedBuff, slowBuff, bleedBuff, lifeBuff);
     }
 
     // =========================================================================

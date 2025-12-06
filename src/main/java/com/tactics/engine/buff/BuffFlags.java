@@ -22,19 +22,28 @@ public class BuffFlags {
     private final boolean speedBuff;   // Grants extra action per round
     private final boolean slowBuff;    // Delays actions by 1 round
     private final boolean bleedBuff;   // -1 HP per round at round end
+    private final boolean lifeBuff;    // +3 HP instant (from Trinity, Nature's Power)
 
     /**
      * V1/V2 backward-compatible constructor.
      */
     public BuffFlags(boolean stunned, boolean rooted, boolean poison, boolean silenced, boolean taunted) {
-        this(stunned, rooted, poison, silenced, taunted, false, false, false, false);
+        this(stunned, rooted, poison, silenced, taunted, false, false, false, false, false);
     }
 
     /**
-     * V3 full constructor with all flags.
+     * V3 constructor without lifeBuff (backward compatibility).
      */
     public BuffFlags(boolean stunned, boolean rooted, boolean poison, boolean silenced, boolean taunted,
                      boolean powerBuff, boolean speedBuff, boolean slowBuff, boolean bleedBuff) {
+        this(stunned, rooted, poison, silenced, taunted, powerBuff, speedBuff, slowBuff, bleedBuff, false);
+    }
+
+    /**
+     * V3 full constructor with all flags including lifeBuff.
+     */
+    public BuffFlags(boolean stunned, boolean rooted, boolean poison, boolean silenced, boolean taunted,
+                     boolean powerBuff, boolean speedBuff, boolean slowBuff, boolean bleedBuff, boolean lifeBuff) {
         this.stunned = stunned;
         this.rooted = rooted;
         this.poison = poison;
@@ -44,6 +53,7 @@ public class BuffFlags {
         this.speedBuff = speedBuff;
         this.slowBuff = slowBuff;
         this.bleedBuff = bleedBuff;
+        this.lifeBuff = lifeBuff;
     }
 
     // V1 getters
@@ -86,60 +96,71 @@ public class BuffFlags {
         return bleedBuff;
     }
 
+    public boolean isLifeBuff() {
+        return lifeBuff;
+    }
+
     /**
      * Create a new BuffFlags with all flags set to false.
      */
     public static BuffFlags none() {
-        return new BuffFlags(false, false, false, false, false, false, false, false, false);
+        return new BuffFlags(false, false, false, false, false, false, false, false, false, false);
     }
 
     /**
      * Create a BuffFlags with only powerBuff set.
      */
     public static BuffFlags power() {
-        return new BuffFlags(false, false, false, false, false, true, false, false, false);
+        return new BuffFlags(false, false, false, false, false, true, false, false, false, false);
     }
 
     /**
      * Create a BuffFlags with only speedBuff set.
      */
     public static BuffFlags speed() {
-        return new BuffFlags(false, false, false, false, false, false, true, false, false);
+        return new BuffFlags(false, false, false, false, false, false, true, false, false, false);
     }
 
     /**
      * Create a BuffFlags with only slowBuff set.
      */
     public static BuffFlags slow() {
-        return new BuffFlags(false, false, false, false, false, false, false, true, false);
+        return new BuffFlags(false, false, false, false, false, false, false, true, false, false);
     }
 
     /**
      * Create a BuffFlags with only bleedBuff set.
      */
     public static BuffFlags bleed() {
-        return new BuffFlags(false, false, false, false, false, false, false, false, true);
+        return new BuffFlags(false, false, false, false, false, false, false, false, true, false);
+    }
+
+    /**
+     * Create a BuffFlags with only lifeBuff set.
+     */
+    public static BuffFlags life() {
+        return new BuffFlags(false, false, false, false, false, false, false, false, false, true);
     }
 
     /**
      * Create a BuffFlags with only stunned set.
      */
     public static BuffFlags stunned() {
-        return new BuffFlags(true, false, false, false, false, false, false, false, false);
+        return new BuffFlags(true, false, false, false, false, false, false, false, false, false);
     }
 
     /**
      * Create a BuffFlags with only rooted set.
      */
     public static BuffFlags rooted() {
-        return new BuffFlags(false, true, false, false, false, false, false, false, false);
+        return new BuffFlags(false, true, false, false, false, false, false, false, false, false);
     }
 
     /**
      * Create a BuffFlags with only poison set.
      */
     public static BuffFlags poison() {
-        return new BuffFlags(false, false, true, false, false, false, false, false, false);
+        return new BuffFlags(false, false, true, false, false, false, false, false, false, false);
     }
 
     @Override
@@ -155,13 +176,14 @@ public class BuffFlags {
                powerBuff == buffFlags.powerBuff &&
                speedBuff == buffFlags.speedBuff &&
                slowBuff == buffFlags.slowBuff &&
-               bleedBuff == buffFlags.bleedBuff;
+               bleedBuff == buffFlags.bleedBuff &&
+               lifeBuff == buffFlags.lifeBuff;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(stunned, rooted, poison, silenced, taunted,
-                           powerBuff, speedBuff, slowBuff, bleedBuff);
+                           powerBuff, speedBuff, slowBuff, bleedBuff, lifeBuff);
     }
 
     @Override
@@ -177,7 +199,8 @@ public class BuffFlags {
         if (powerBuff) { if (!first) sb.append(", "); sb.append("powerBuff"); first = false; }
         if (speedBuff) { if (!first) sb.append(", "); sb.append("speedBuff"); first = false; }
         if (slowBuff) { if (!first) sb.append(", "); sb.append("slowBuff"); first = false; }
-        if (bleedBuff) { if (!first) sb.append(", "); sb.append("bleedBuff"); }
+        if (bleedBuff) { if (!first) sb.append(", "); sb.append("bleedBuff"); first = false; }
+        if (lifeBuff) { if (!first) sb.append(", "); sb.append("lifeBuff"); }
 
         sb.append("}");
         return sb.toString();

@@ -2036,14 +2036,30 @@ public class RuleEngine {
         SkillDefinition skill = SkillRegistry.getSkill(skillId);
 
         // Dispatch to skill-specific handler based on skill ID
-        // Phase 4A: Only Endure and Spirit Hawk are implemented
+        // Phase 4A: Endure, Spirit Hawk
+        // Phase 4B: Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many
         GameState result;
         switch (skillId) {
             case SkillRegistry.WARRIOR_ENDURE:
                 result = applySkillEndure(state, action, actingUnit, skill);
                 break;
+            case SkillRegistry.WARRIOR_SHOCKWAVE:
+                result = applySkillShockwave(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.MAGE_ELEMENTAL_BLAST:
+                result = applySkillElementalBlast(state, action, actingUnit, skill);
+                break;
             case SkillRegistry.HUNTRESS_SPIRIT_HAWK:
                 result = applySkillSpiritHawk(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.HUNTRESS_NATURES_POWER:
+                result = applySkillNaturesPower(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.CLERIC_TRINITY:
+                result = applySkillTrinity(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.CLERIC_POWER_OF_MANY:
+                result = applySkillPowerOfMany(state, action, actingUnit, skill);
                 break;
             default:
                 // Placeholder for unimplemented skills - just consume action and set cooldown
@@ -2151,6 +2167,351 @@ public class RuleEngine {
         GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
 
         return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
+    }
+
+    // =========================================================================
+    // Phase 4B Skill Implementations
+    // =========================================================================
+
+    /**
+     * Apply Mage Elemental Blast skill.
+     * Effect: Deal 3 damage to target, 50% chance to apply random debuff (WEAKNESS, BLEED, or SLOW).
+     */
+    private GameState applySkillElementalBlast(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        String targetUnitId = action.getSkillTargetUnitId() != null
+            ? action.getSkillTargetUnitId()
+            : action.getTargetUnitId();
+        Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
+        int damage = skill.getDamageAmount();  // 3
+        int cooldown = skill.getCooldown();  // 2
+
+        // Check for Guardian intercept
+        Unit guardian = findGuardian(state, targetUnit);
+        Unit actualDamageReceiver = (guardian != null) ? guardian : targetUnit;
+        String damageReceiverId = actualDamageReceiver.getId();
+
+        // Update units: caster uses skill, target takes damage
+        Map<String, UnitTransformer> transformers = new HashMap<>();
+        transformers.put(actingUnit.getId(), u -> u.withSkillUsed(cooldown));
+        if (!actingUnit.getId().equals(damageReceiverId)) {
+            transformers.put(damageReceiverId, u -> u.withDamage(damage));
+        } else {
+            transformers.put(actingUnit.getId(), u -> u.withSkillUsed(cooldown).withDamage(damage));
+        }
+        List<Unit> newUnits = updateUnitsInList(state.getUnits(), transformers);
+
+        // 50% chance to apply random debuff
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        if (rngProvider.nextInt(100) < 50) {
+            // Random debuff: WEAKNESS, BLEED, or SLOW
+            BuffType[] debuffs = {BuffType.WEAKNESS, BuffType.BLEED, BuffType.SLOW};
+            BuffType debuffType = debuffs[rngProvider.nextInt(3)];
+            BuffInstance debuff = BuffFactory.create(debuffType, actingUnit.getId());
+
+            List<BuffInstance> targetBuffs = new ArrayList<>(
+                newUnitBuffs.getOrDefault(damageReceiverId, Collections.emptyList())
+            );
+            targetBuffs.add(debuff);
+            newUnitBuffs.put(damageReceiverId, targetBuffs);
+
+            // Apply instant HP effects for WEAKNESS (-1 HP)
+            if (debuff.getInstantHpBonus() != 0) {
+                List<Unit> unitsWithDebuffHp = new ArrayList<>();
+                for (Unit u : newUnits) {
+                    if (u.getId().equals(damageReceiverId)) {
+                        unitsWithDebuffHp.add(u.withHpBonus(debuff.getInstantHpBonus()));
+                    } else {
+                        unitsWithDebuffHp.add(u);
+                    }
+                }
+                newUnits = unitsWithDebuffHp;
+            }
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Warrior Shockwave skill.
+     * Effect: Deal 1 damage to all adjacent enemies and push them 1 tile away.
+     * If enemy cannot be pushed (blocked), deal +1 damage instead.
+     */
+    private GameState applySkillShockwave(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        int damage = skill.getDamageAmount();  // 1
+        int cooldown = skill.getCooldown();  // 2
+        Position heroPos = actingUnit.getPosition();
+
+        // Find all adjacent enemies
+        List<Unit> adjacentEnemies = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.isAlive() &&
+                !u.getOwner().getValue().equals(actingUnit.getOwner().getValue()) &&
+                isAdjacent(heroPos, u.getPosition())) {
+                adjacentEnemies.add(u);
+            }
+        }
+
+        // Sort by ID for deterministic order
+        adjacentEnemies.sort((a, b) -> a.getId().compareTo(b.getId()));
+
+        // Track units being moved and damaged
+        Map<String, Position> newPositions = new HashMap<>();
+        Map<String, Integer> damageAmounts = new HashMap<>();
+
+        for (Unit enemy : adjacentEnemies) {
+            // Calculate push direction (away from hero)
+            int dx = enemy.getPosition().getX() - heroPos.getX();
+            int dy = enemy.getPosition().getY() - heroPos.getY();
+            Position pushDest = new Position(
+                enemy.getPosition().getX() + dx,
+                enemy.getPosition().getY() + dy
+            );
+
+            // Check if push destination is valid
+            boolean canPush = isInBounds(pushDest, state.getBoard()) &&
+                              !isTileBlocked(state, pushDest) &&
+                              !newPositions.containsValue(pushDest);  // Check if another unit is being pushed there
+
+            // Check Guardian intercept
+            Unit guardian = findGuardian(state, enemy);
+            String damageReceiverId = (guardian != null) ? guardian.getId() : enemy.getId();
+
+            if (canPush) {
+                // Push the enemy
+                newPositions.put(enemy.getId(), pushDest);
+                damageAmounts.merge(damageReceiverId, damage, Integer::sum);
+            } else {
+                // Cannot push - deal +1 extra damage
+                damageAmounts.merge(damageReceiverId, damage + 1, Integer::sum);
+            }
+        }
+
+        // Apply all changes
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                // Caster uses skill
+                newUnits.add(u.withSkillUsed(cooldown));
+            } else if (newPositions.containsKey(u.getId())) {
+                // Enemy is pushed and takes damage
+                int totalDamage = damageAmounts.getOrDefault(u.getId(), 0);
+                newUnits.add(u.withPosition(newPositions.get(u.getId())).withDamage(totalDamage));
+            } else if (damageAmounts.containsKey(u.getId())) {
+                // Unit takes damage (guardian or blocked enemy)
+                newUnits.add(u.withDamage(damageAmounts.get(u.getId())));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
+        return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Huntress Nature's Power skill.
+     * Effect: Next 2 attacks deal +2 damage, gain LIFE buff (+3 HP instant).
+     */
+    private GameState applySkillNaturesPower(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        int cooldown = skill.getCooldown();  // 2
+        int bonusDamage = skill.getDamageAmount();  // 2 (bonus per attack)
+        int attackCharges = 2;  // Number of empowered attacks
+
+        // Update unit with skill cooldown and bonus attack charges
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+            u -> u.withSkillUsedAndBonusAttack(cooldown, bonusDamage, attackCharges));
+
+        // Apply LIFE buff (+3 HP instant)
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        BuffInstance lifeBuff = BuffFactory.create(BuffType.LIFE, actingUnit.getId());
+        List<BuffInstance> heroBuffs = new ArrayList<>(
+            newUnitBuffs.getOrDefault(actingUnit.getId(), Collections.emptyList())
+        );
+        heroBuffs.add(lifeBuff);
+        newUnitBuffs.put(actingUnit.getId(), heroBuffs);
+
+        // Apply instant HP bonus from LIFE buff
+        if (lifeBuff.getInstantHpBonus() != 0) {
+            newUnits = updateUnitInList(newUnits, actingUnit.getId(),
+                u -> u.withHpBonus(lifeBuff.getInstantHpBonus()));
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Cleric Trinity skill.
+     * Effect: Heal target for 3 HP, remove one random debuff, apply LIFE buff (+3 HP instant).
+     */
+    private GameState applySkillTrinity(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        String targetUnitId = action.getSkillTargetUnitId() != null
+            ? action.getSkillTargetUnitId()
+            : action.getTargetUnitId();
+        Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
+        int healAmount = skill.getHealAmount();  // 3
+        int cooldown = skill.getCooldown();  // 2
+
+        // Update units: caster uses skill, target heals
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                if (u.getId().equals(targetUnitId)) {
+                    // Self-heal case
+                    newUnits.add(u.withSkillUsed(cooldown).withHpBonus(healAmount));
+                } else {
+                    newUnits.add(u.withSkillUsed(cooldown));
+                }
+            } else if (u.getId().equals(targetUnitId)) {
+                newUnits.add(u.withHpBonus(healAmount));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        // Remove one random debuff from target
+        Map<String, List<BuffInstance>> newUnitBuffs = removeOneRandomDebuff(state.getUnitBuffs(), targetUnitId);
+
+        // Apply LIFE buff to target (+3 HP instant)
+        BuffInstance lifeBuff = BuffFactory.create(BuffType.LIFE, actingUnit.getId());
+        List<BuffInstance> targetBuffs = new ArrayList<>(
+            newUnitBuffs.getOrDefault(targetUnitId, Collections.emptyList())
+        );
+        targetBuffs.add(lifeBuff);
+        newUnitBuffs.put(targetUnitId, targetBuffs);
+
+        // Apply instant HP bonus from LIFE buff
+        if (lifeBuff.getInstantHpBonus() != 0) {
+            newUnits = updateUnitInList(newUnits, targetUnitId,
+                u -> u.withHpBonus(lifeBuff.getInstantHpBonus()));
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Remove one random debuff from a unit.
+     * Debuffs are: WEAKNESS, BLEED, SLOW (and potentially STUN, ROOT if implemented).
+     */
+    private Map<String, List<BuffInstance>> removeOneRandomDebuff(Map<String, List<BuffInstance>> unitBuffs, String unitId) {
+        if (unitBuffs == null) {
+            return new HashMap<>();
+        }
+
+        List<BuffInstance> buffs = unitBuffs.get(unitId);
+        if (buffs == null || buffs.isEmpty()) {
+            return new HashMap<>(unitBuffs);
+        }
+
+        // Find all debuffs
+        List<BuffInstance> debuffs = new ArrayList<>();
+        for (BuffInstance buff : buffs) {
+            if (isDebuff(buff)) {
+                debuffs.add(buff);
+            }
+        }
+
+        if (debuffs.isEmpty()) {
+            return new HashMap<>(unitBuffs);
+        }
+
+        // Pick a random debuff to remove
+        BuffInstance toRemove = debuffs.get(rngProvider.nextInt(debuffs.size()));
+
+        // Create new buff list without the removed debuff
+        List<BuffInstance> remainingBuffs = new ArrayList<>();
+        boolean removed = false;
+        for (BuffInstance buff : buffs) {
+            if (!removed && buff.getBuffId().equals(toRemove.getBuffId())) {
+                removed = true;  // Only remove the first matching one
+                continue;
+            }
+            remainingBuffs.add(buff);
+        }
+
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(unitBuffs);
+        if (remainingBuffs.isEmpty()) {
+            newUnitBuffs.remove(unitId);
+        } else {
+            newUnitBuffs.put(unitId, remainingBuffs);
+        }
+
+        return newUnitBuffs;
+    }
+
+    /**
+     * Check if a buff is a debuff (negative effect).
+     */
+    private boolean isDebuff(BuffInstance buff) {
+        if (buff.getFlags() == null) {
+            return false;
+        }
+        // Debuffs: WEAKNESS, BLEED, SLOW, STUN, ROOT
+        return buff.getFlags().isBleedBuff() ||
+               buff.getFlags().isSlowBuff() ||
+               buff.getFlags().isStunned() ||
+               buff.getFlags().isRooted() ||
+               (buff.getModifiers() != null && buff.getModifiers().getBonusAttack() < 0);  // WEAKNESS has -2 ATK
+    }
+
+    /**
+     * Apply Cleric Power of Many skill.
+     * Effect: Heal ALL friendly units for 1 HP, grant all allies +1 ATK for 1 round.
+     */
+    private GameState applySkillPowerOfMany(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        int healAmount = skill.getHealAmount();  // 1
+        int cooldown = skill.getCooldown();  // 2
+        int atkBonusDuration = skill.getEffectDuration();  // 1 round
+
+        // Find all friendly units
+        List<String> friendlyUnitIds = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.isAlive() && u.getOwner().getValue().equals(actingUnit.getOwner().getValue())) {
+                friendlyUnitIds.add(u.getId());
+            }
+        }
+
+        // Update units: heal all friendlies, caster uses skill
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                newUnits.add(u.withSkillUsed(cooldown).withHpBonus(healAmount));
+            } else if (friendlyUnitIds.contains(u.getId())) {
+                newUnits.add(u.withHpBonus(healAmount));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        // Apply +1 ATK buff to all friendlies for 1 round
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        for (String unitId : friendlyUnitIds) {
+            BuffInstance atkBuff = createAtkBuff(actingUnit.getId(), 1, atkBonusDuration);
+            List<BuffInstance> unitBuffs = new ArrayList<>(
+                newUnitBuffs.getOrDefault(unitId, Collections.emptyList())
+            );
+            unitBuffs.add(atkBuff);
+            newUnitBuffs.put(unitId, unitBuffs);
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Create a temporary ATK bonus buff.
+     */
+    private BuffInstance createAtkBuff(String sourceUnitId, int bonusAtk, int duration) {
+        return new BuffInstance(
+            "power_of_many_" + System.currentTimeMillis(),
+            sourceUnitId,
+            duration,
+            true,
+            new BuffModifier(0, bonusAtk, 0, 0),  // bonusHp, bonusAttack, bonusMoveRange, bonusAttackRange
+            null
+        );
     }
 
     // =========================================================================

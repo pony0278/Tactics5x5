@@ -68,7 +68,7 @@ public class BuffFactory {
             DEFAULT_DURATION,
             false,  // not stackable
             new BuffModifier(0, 0, 0, 0),  // No ongoing modifiers
-            BuffFlags.none(),
+            BuffFlags.life(),
             3  // +3 HP instant
         );
     }

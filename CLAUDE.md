@@ -81,11 +81,11 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | Status | Sub-phase | Description | Skills |
 |--------|-----------|-------------|--------|
 | ✅ | Phase 4A | Core framework + simple skills | Validation, cooldown, Endure, Spirit Hawk |
-| 🔄 | **Phase 4B** | Damage/heal skills | Elemental Blast, Trinity, Shockwave, Nature's Power |
-| ⬜ | Phase 4C | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
+| ✅ | Phase 4B | Damage/heal skills | Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many |
+| 🔄 | **Phase 4C** | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
 | ⬜ | Phase 4D | Complex skills | Shadow Clone, Death Mark, Feint, Challenge, Wild Magic, etc. |
 
-**Current Task**: Phase 4B - Implement damage and healing skills
+**Current Task**: Phase 4C - Implement movement skills
 
 **Reference Documents**:
 - `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
@@ -94,17 +94,31 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 
 ---
 
-## 📋 Phase 4B Todo List
+## 📋 Phase 4C Todo List
 
 | Status | Task | Description |
 |--------|------|-------------|
-| ⬜ | Elemental Blast | Mage: Deal 3 damage, 50% chance random debuff |
-| ⬜ | Trinity | Cleric: Heal 3 HP, remove debuffs, apply LIFE buff |
-| ⬜ | Shockwave | Warrior: 1 damage to adjacent + knockback |
-| ⬜ | Nature's Power | Huntress: +2 damage on next 2 attacks, gain LIFE |
-| ⬜ | Power of Many | Cleric: Heal all allies 1 HP, +1 ATK for 1 round |
-| ⬜ | Write tests | Test all Phase 4B skills |
+| ⬜ | Heroic Leap | Warrior: Leap to tile, 2 damage to adjacent on landing |
+| ⬜ | Smoke Bomb | Rogue: Teleport, invisible 1 round, blind adjacent |
+| ⬜ | Warp Beacon | Mage: Place beacon or teleport to existing beacon |
+| ⬜ | Spectral Blades | Huntress: 1 damage to all enemies in a line |
+| ⬜ | Write tests | Test all Phase 4C skills |
 | ⬜ | Run all tests | Verify no regressions |
+
+### Phase 4B Completed Items
+- ✅ Implemented Elemental Blast (Mage: 3 damage, 50% random debuff)
+- ✅ Implemented Trinity (Cleric: Heal 3 HP, remove debuff, apply LIFE)
+- ✅ Implemented Shockwave (Warrior: 1 damage adjacent + knockback)
+- ✅ Implemented Nature's Power (Huntress: +2 damage for 2 attacks, LIFE buff)
+- ✅ Implemented Power of Many (Cleric: Heal all 1 HP, +1 ATK for 1 round)
+- ✅ Added BuffFlags.lifeBuff for LIFE buff tracking
+- ✅ Added Unit.bonusAttackDamage/bonusAttackCharges for Nature's Power
+- ✅ Added serialization for new Unit fields (bonusAttackDamage, bonusAttackCharges)
+- ✅ Added serialization for BuffFlags.lifeBuff
+- ✅ Added 26 Phase 4B tests (all passing, 348 total tests)
+
+### Phase 4D Deferred Items
+- ⏳ Nature's Power bonus damage integration in applyAttack() (stored state ready, needs consumption logic)
 
 ### Phase 4A Completed Items
 - ✅ Created skill package (TargetType, SkillEffect, SkillDefinition, SkillRegistry)
@@ -258,15 +272,16 @@ See `/docs/PROGRESS.md` for details.
 - [x] Round 8 Pressure (-1 HP/round to all)
 - [x] Removed DESTROY_OBSTACLE (use ATTACK instead)
 - [x] Phase 4A: Skill framework (validation, cooldown, Endure, Spirit Hawk)
+- [x] Phase 4B: Damage/heal skills (Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many)
 
 ### In Progress
-- [ ] Phase 4B: Damage/heal skills (Elemental Blast, Trinity, Shockwave, etc.)
+- [ ] Phase 4C: Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades)
 
 ---
 
 ## Test Coverage
 
-**Total: 322 tests passing**
+**Total: 348 tests passing**
 
 ### Existing Tests
 | Test Class | Coverage |
@@ -288,11 +303,12 @@ See `/docs/PROGRESS.md` for details.
 | RuleEngineGuardianTest | Guardian passive intercept | 16 |
 | RuleEngineAttritionTest | Minion decay, Round 8 pressure | 11 |
 | RuleEngineSkillTest | Skill framework, Endure, Spirit Hawk | 24 |
+| RuleEngineSkillPhase4BTest | Phase 4B skills: damage/heal | 26 |
 
 ### V3 Tests (To Be Implemented)
 | Test Plan | Test Count |
 |-----------|------------|
-| SKILL_SYSTEM_V3_TESTPLAN.md | ~180 remaining |
+| SKILL_SYSTEM_V3_TESTPLAN.md | ~150 remaining |
 | Remaining BUFF tests | ~100 |
 
 ---
