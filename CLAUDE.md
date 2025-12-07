@@ -72,8 +72,8 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 1 | Model Layer Extension |
 | ✅ | Phase 2 | V3 BUFF System |
 | ✅ | Phase 3 | Guardian Passive |
-| 🔄 | **Phase 4** | Hero Skill System (4 sub-phases) |
-| ⬜ | Phase 5 | Game Flow Extension |
+| ✅ | **Phase 4** | Hero Skill System (4 sub-phases) |
+| 🔄 | **Phase 5** | Game Flow Extension |
 | ⬜ | Phase 6 | Draft Phase |
 
 ### Phase 4 Sub-phases: Hero Skill System
@@ -83,9 +83,9 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 4A | Core framework + simple skills | Validation, cooldown, Endure, Spirit Hawk |
 | ✅ | Phase 4B | Damage/heal skills | Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many |
 | ✅ | Phase 4C | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
-| 🔄 | **Phase 4D** | Complex skills | Shadow Clone, Death Mark, Feint, Challenge, Wild Magic, etc. |
+| ✅ | Phase 4D | Complex skills | Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge |
 
-**Current Task**: Phase 4D - Implement complex skills
+**Current Task**: Phase 5 - Game Flow Extension
 
 **Reference Documents**:
 - `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
@@ -94,17 +94,19 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 
 ---
 
-## 📋 Phase 4D Todo List
+## 📋 Phase 4D Completed Items
 
 | Status | Task | Description |
 |--------|------|-------------|
-| ⬜ | Shadow Clone | Rogue: Create clone that mirrors attacks |
-| ⬜ | Death Mark | Huntress: Mark target, bonus damage on next hit |
-| ⬜ | Feint | Warrior: Dodge next attack, counter if attacked |
-| ⬜ | Challenge | Warrior: Taunt enemy, they must attack you |
-| ⬜ | Wild Magic | Mage: Random powerful effect |
-| ⬜ | Write tests | Test all Phase 4D skills |
-| ⬜ | Run all tests | Verify no regressions |
+| ✅ | Wild Magic | Mage: 1 damage to ALL enemies + 33% random debuff each |
+| ✅ | Elemental Strike | Duelist: 3 damage + player-chosen debuff (BLEED/SLOW/WEAKNESS) |
+| ✅ | Death Mark | Rogue: Mark target 2 rounds, +2 damage taken, heal on kill |
+| ✅ | Ascended Form | Cleric: Invulnerable 1 round, 2x healing, cannot attack |
+| ✅ | Shadow Clone | Rogue: Spawn 1HP/1ATK clone for 2 rounds |
+| ✅ | Feint | Duelist: Dodge next attack, counter 2 damage |
+| ✅ | Challenge | Duelist: Mark enemy, 50% damage to others, counter on attack |
+| ✅ | Write tests | 14 Phase 4D tests added |
+| ✅ | Run all tests | 393 tests passing |
 
 ### Phase 4C Completed Items
 - ✅ Implemented Heroic Leap (Warrior: Leap to tile, 2 damage to adjacent enemies on landing)
@@ -288,15 +290,16 @@ See `/docs/PROGRESS.md` for details.
 - [x] Phase 4A: Skill framework (validation, cooldown, Endure, Spirit Hawk)
 - [x] Phase 4B: Damage/heal skills (Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many)
 - [x] Phase 4C: Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades)
+- [x] Phase 4D: Complex skills (Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge)
 
 ### In Progress
-- [ ] Phase 4D: Complex skills (Shadow Clone, Death Mark, Feint, Challenge, Wild Magic)
+- [ ] Phase 5: Game Flow Extension
 
 ---
 
 ## Test Coverage
 
-**Total: 379 tests passing**
+**Total: 393 tests passing**
 
 ### Existing Tests
 | Test Class | Coverage |
@@ -320,6 +323,7 @@ See `/docs/PROGRESS.md` for details.
 | RuleEngineSkillTest | Skill framework, Endure, Spirit Hawk | 24 |
 | RuleEngineSkillPhase4BTest | Phase 4B skills: damage/heal, bonus damage | 31 |
 | RuleEngineSkillPhase4CTest | Phase 4C skills: movement, BLIND, invisible | 26 |
+| RuleEngineSkillPhase4DTest | Phase 4D skills: complex skills, buff types | 14 |
 
 ### V3 Tests (To Be Implemented)
 | Test Plan | Test Count |

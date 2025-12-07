@@ -36,6 +36,14 @@ public class BuffFactory {
                 return createSlow(sourceUnitId);
             case BLIND:
                 return createBlind(sourceUnitId);
+            case DEATH_MARK:
+                return createDeathMark(sourceUnitId);
+            case FEINT:
+                return createFeint(sourceUnitId);
+            case CHALLENGE:
+                return createChallenge(sourceUnitId);
+            case INVULNERABLE:
+                return createInvulnerable(sourceUnitId);
             default:
                 throw new IllegalArgumentException("Unknown buff type: " + type);
         }
@@ -156,6 +164,78 @@ public class BuffFactory {
             false,  // not stackable
             new BuffModifier(0, 0, 0, 0),  // No stat modifiers
             BuffFlags.blind(),
+            0  // no instant HP change
+        );
+    }
+
+    // =========================================================================
+    // Phase 4D Skill-specific Buffs
+    // =========================================================================
+
+    /**
+     * Create a DEATH_MARK buff.
+     * Effects: +2 damage taken, source heals 2 HP on kill. Duration: 2 rounds.
+     */
+    public static BuffInstance createDeathMark(String sourceUnitId) {
+        return new BuffInstance(
+            generateBuffId(),
+            sourceUnitId,
+            BuffType.DEATH_MARK,
+            DEFAULT_DURATION,  // 2 rounds
+            false,  // not stackable
+            new BuffModifier(0, 0, 0, 0),  // No stat modifiers (damage bonus handled separately)
+            BuffFlags.deathMark(),
+            0  // no instant HP change
+        );
+    }
+
+    /**
+     * Create a FEINT buff.
+     * Effects: Dodge next attack, counter 2 damage. Duration: 2 rounds or until triggered.
+     */
+    public static BuffInstance createFeint(String sourceUnitId) {
+        return new BuffInstance(
+            generateBuffId(),
+            sourceUnitId,
+            BuffType.FEINT,
+            DEFAULT_DURATION,  // 2 rounds or until triggered
+            false,  // not stackable
+            new BuffModifier(0, 0, 0, 0),  // No stat modifiers
+            BuffFlags.feint(),
+            0  // no instant HP change
+        );
+    }
+
+    /**
+     * Create a CHALLENGE buff.
+     * Effects: Challenged enemy deals 50% damage to non-Duelist, Duelist counter-attacks for 2 damage.
+     */
+    public static BuffInstance createChallenge(String sourceUnitId) {
+        return new BuffInstance(
+            generateBuffId(),
+            sourceUnitId,
+            BuffType.CHALLENGE,
+            DEFAULT_DURATION,  // 2 rounds
+            false,  // not stackable
+            new BuffModifier(0, 0, 0, 0),  // No stat modifiers
+            BuffFlags.challenge(),
+            0  // no instant HP change
+        );
+    }
+
+    /**
+     * Create an INVULNERABLE buff.
+     * Effects: Cannot take damage for 1 round (from Ascended Form).
+     */
+    public static BuffInstance createInvulnerable(String sourceUnitId) {
+        return new BuffInstance(
+            generateBuffId(),
+            sourceUnitId,
+            BuffType.INVULNERABLE,
+            1,  // Duration: 1 round only
+            false,  // not stackable
+            new BuffModifier(0, 0, 0, 0),  // No stat modifiers
+            BuffFlags.invulnerable(),
             0  // no instant HP change
         );
     }

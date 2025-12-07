@@ -25,11 +25,12 @@ class BuffFactoryTest {
     class BuffModelCorrectness {
 
         @Test
-        @DisplayName("BM1: BuffType enum contains all 7 types")
+        @DisplayName("BM1: BuffType enum contains all 11 types")
         void buffTypeContainsAll6Types() {
             BuffType[] types = BuffType.values();
-            assertEquals(7, types.length, "BuffType should have 7 values (6 V3 + BLIND)");
+            assertEquals(11, types.length, "BuffType should have 11 values (6 V3 + BLIND + 4 Phase 4D)");
 
+            // V3 buffs
             assertNotNull(BuffType.POWER);
             assertNotNull(BuffType.LIFE);
             assertNotNull(BuffType.SPEED);
@@ -37,6 +38,11 @@ class BuffFactoryTest {
             assertNotNull(BuffType.BLEED);
             assertNotNull(BuffType.SLOW);
             assertNotNull(BuffType.BLIND);  // Phase 4C: Added for Smoke Bomb skill
+            // Phase 4D buffs
+            assertNotNull(BuffType.DEATH_MARK);
+            assertNotNull(BuffType.FEINT);
+            assertNotNull(BuffType.CHALLENGE);
+            assertNotNull(BuffType.INVULNERABLE);
         }
 
         @Test
@@ -110,12 +116,12 @@ class BuffFactoryTest {
         }
 
         @Test
-        @DisplayName("BM11: Most buffs have duration = 2 by default (BLIND has duration 1)")
+        @DisplayName("BM11: Most buffs have duration = 2 by default (BLIND and INVULNERABLE have duration 1)")
         void allBuffsHaveDuration2() {
             for (BuffType type : BuffType.values()) {
                 BuffInstance buff = BuffFactory.create(type, SOURCE_ID);
-                // BLIND is special: only lasts 1 round (from Smoke Bomb)
-                int expectedDuration = (type == BuffType.BLIND) ? 1 : 2;
+                // BLIND and INVULNERABLE are special: only last 1 round
+                int expectedDuration = (type == BuffType.BLIND || type == BuffType.INVULNERABLE) ? 1 : 2;
                 assertEquals(expectedDuration, buff.getDuration(),
                     String.format("Buff type %s should have duration %d", type, expectedDuration));
             }

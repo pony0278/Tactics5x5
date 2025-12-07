@@ -2208,6 +2208,28 @@ public class RuleEngine {
             case SkillRegistry.CLERIC_POWER_OF_MANY:
                 result = applySkillPowerOfMany(state, action, actingUnit, skill);
                 break;
+            // Phase 4D Skills
+            case SkillRegistry.MAGE_WILD_MAGIC:
+                result = applySkillWildMagic(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.DUELIST_ELEMENTAL_STRIKE:
+                result = applySkillElementalStrike(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.ROGUE_DEATH_MARK:
+                result = applySkillDeathMark(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.CLERIC_ASCENDED_FORM:
+                result = applySkillAscendedForm(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.ROGUE_SHADOW_CLONE:
+                result = applySkillShadowClone(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.DUELIST_FEINT:
+                result = applySkillFeint(state, action, actingUnit, skill);
+                break;
+            case SkillRegistry.DUELIST_CHALLENGE:
+                result = applySkillChallenge(state, action, actingUnit, skill);
+                break;
             default:
                 // Placeholder for unimplemented skills - just consume action and set cooldown
                 result = applySkillPlaceholder(state, action, actingUnit, skill);
@@ -2871,6 +2893,302 @@ public class RuleEngine {
             GameOverResult gameOver = checkGameOver(newUnits);
             return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
         }
+    }
+
+    // =========================================================================
+    // Phase 4D Skill Implementations
+    // =========================================================================
+
+    /**
+     * Apply Mage Wild Magic skill.
+     * Effect: Deal 1 damage to ALL enemy units, 33% chance each to apply random debuff.
+     */
+    private GameState applySkillWildMagic(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        int damage = skill.getDamageAmount();  // 1
+        int cooldown = skill.getCooldown();  // 2
+
+        // Find all enemy units
+        List<Unit> enemies = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.isAlive() && !u.getOwner().getValue().equals(actingUnit.getOwner().getValue())) {
+                enemies.add(u);
+            }
+        }
+
+        // Sort by ID for deterministic order
+        enemies.sort((a, b) -> a.getId().compareTo(b.getId()));
+
+        // Track damage to be dealt (with Guardian interception)
+        Map<String, Integer> damageAmounts = new HashMap<>();
+        // Track which enemies should get debuff chance (before Guardian redirect)
+        List<String> debuffTargets = new ArrayList<>();
+        for (Unit enemy : enemies) {
+            Unit guardian = findGuardian(state, enemy);
+            String damageReceiverId = (guardian != null) ? guardian.getId() : enemy.getId();
+            damageAmounts.merge(damageReceiverId, damage, Integer::sum);
+            debuffTargets.add(damageReceiverId);  // Debuff goes to actual damage receiver
+        }
+
+        // Apply all damage changes
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                // Caster uses skill
+                newUnits.add(u.withSkillUsed(cooldown));
+            } else if (damageAmounts.containsKey(u.getId())) {
+                // Unit takes damage
+                newUnits.add(u.withDamage(damageAmounts.get(u.getId())));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        // 33% chance to apply random debuff to each damaged target
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        BuffType[] debuffs = {BuffType.WEAKNESS, BuffType.BLEED, BuffType.SLOW};
+
+        for (String targetId : debuffTargets) {
+            if (rngProvider.nextInt(100) < 33) {
+                BuffType debuffType = debuffs[rngProvider.nextInt(3)];
+                BuffInstance debuff = BuffFactory.create(debuffType, actingUnit.getId());
+
+                List<BuffInstance> targetBuffs = new ArrayList<>(
+                    newUnitBuffs.getOrDefault(targetId, Collections.emptyList())
+                );
+                targetBuffs.add(debuff);
+                newUnitBuffs.put(targetId, targetBuffs);
+
+                // Apply instant HP effects for WEAKNESS (-1 HP)
+                if (debuff.getInstantHpBonus() != 0) {
+                    newUnits = updateUnitInList(newUnits, targetId,
+                        u -> u.withHpBonus(debuff.getInstantHpBonus()));
+                }
+            }
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Duelist Elemental Strike skill.
+     * Effect: Deal 3 damage to adjacent enemy, apply player-chosen debuff (BLEED, SLOW, or WEAKNESS).
+     */
+    private GameState applySkillElementalStrike(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        String targetUnitId = action.getSkillTargetUnitId() != null
+            ? action.getSkillTargetUnitId()
+            : action.getTargetUnitId();
+        Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
+        int damage = skill.getDamageAmount();  // 3
+        int cooldown = skill.getCooldown();  // 2
+
+        // Get player's chosen debuff type (default to BLEED if not specified)
+        BuffType chosenDebuff = action.getSkillChosenBuffType();
+        if (chosenDebuff == null) {
+            chosenDebuff = BuffType.BLEED;  // Default
+        }
+
+        // Check for Guardian intercept
+        Unit guardian = findGuardian(state, targetUnit);
+        Unit actualDamageReceiver = (guardian != null) ? guardian : targetUnit;
+        String damageReceiverId = actualDamageReceiver.getId();
+
+        // Update units: caster uses skill, target takes damage
+        Map<String, UnitTransformer> transformers = new HashMap<>();
+        transformers.put(actingUnit.getId(), u -> u.withSkillUsed(cooldown));
+        if (!actingUnit.getId().equals(damageReceiverId)) {
+            transformers.put(damageReceiverId, u -> u.withDamage(damage));
+        } else {
+            transformers.put(actingUnit.getId(), u -> u.withSkillUsed(cooldown).withDamage(damage));
+        }
+        List<Unit> newUnits = updateUnitsInList(state.getUnits(), transformers);
+
+        // Apply the chosen debuff to the damage receiver
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        BuffInstance debuff = BuffFactory.create(chosenDebuff, actingUnit.getId());
+
+        List<BuffInstance> targetBuffs = new ArrayList<>(
+            newUnitBuffs.getOrDefault(damageReceiverId, Collections.emptyList())
+        );
+        targetBuffs.add(debuff);
+        newUnitBuffs.put(damageReceiverId, targetBuffs);
+
+        // Apply instant HP effects for WEAKNESS (-1 HP)
+        if (debuff.getInstantHpBonus() != 0) {
+            newUnits = updateUnitInList(newUnits, damageReceiverId,
+                u -> u.withHpBonus(debuff.getInstantHpBonus()));
+        }
+
+        GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Rogue Death Mark skill.
+     * Effect: Mark target for 2 rounds. Marked targets take +2 damage from all sources.
+     * If marked target dies, Rogue heals 2 HP.
+     */
+    private GameState applySkillDeathMark(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        String targetUnitId = action.getSkillTargetUnitId() != null
+            ? action.getSkillTargetUnitId()
+            : action.getTargetUnitId();
+        int cooldown = skill.getCooldown();  // 2
+
+        // Update caster: use skill
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+            u -> u.withSkillUsed(cooldown));
+
+        // Apply DEATH_MARK debuff to target
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        BuffInstance deathMarkBuff = BuffFactory.create(BuffType.DEATH_MARK, actingUnit.getId());
+
+        List<BuffInstance> targetBuffs = new ArrayList<>(
+            newUnitBuffs.getOrDefault(targetUnitId, Collections.emptyList())
+        );
+        targetBuffs.add(deathMarkBuff);
+        newUnitBuffs.put(targetUnitId, targetBuffs);
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Cleric Ascended Form skill.
+     * Effect: Become invulnerable for 1 round, cannot attack while invulnerable.
+     * (Double healing effect would be handled in healing skills, not here)
+     */
+    private GameState applySkillAscendedForm(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        int cooldown = skill.getCooldown();  // 2
+
+        // Update caster: use skill, set invulnerable
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+            u -> u.withSkillUsedAndInvulnerable(cooldown, true));
+
+        // Apply INVULNERABLE buff to self
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        BuffInstance invulnerableBuff = BuffFactory.create(BuffType.INVULNERABLE, actingUnit.getId());
+
+        List<BuffInstance> selfBuffs = new ArrayList<>(
+            newUnitBuffs.getOrDefault(actingUnit.getId(), Collections.emptyList())
+        );
+        selfBuffs.add(invulnerableBuff);
+        newUnitBuffs.put(actingUnit.getId(), selfBuffs);
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Rogue Shadow Clone skill.
+     * Effect: Spawn a Shadow Clone on adjacent tile.
+     * Clone has 1 HP, 1 ATK, can move and attack, lasts 2 rounds.
+     * Clone does not trigger death mechanics (no obstacle/BUFF tile).
+     */
+    private GameState applySkillShadowClone(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        Position targetPos = action.getTargetPosition();
+        int cooldown = skill.getCooldown();  // 2
+        int cloneDuration = skill.getEffectDuration();  // 2 rounds
+
+        // Update caster: use skill
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                newUnits.add(u.withSkillUsed(cooldown));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        // Create the Shadow Clone
+        String cloneId = actingUnit.getId() + "_clone_" + System.currentTimeMillis();
+        Unit clone = new Unit(
+            cloneId,
+            actingUnit.getOwner(),
+            1,  // HP = 1
+            1,  // ATK = 1
+            actingUnit.getMoveRange(),  // Same move range as Rogue
+            1,  // Attack range = 1 (melee)
+            targetPos,
+            true,  // alive
+            UnitCategory.MINION,  // Category: MINION (so it doesn't end game if killed)
+            MinionType.ASSASSIN,  // Type: ASSASSIN (fast minion)
+            null,  // No hero class
+            1,  // maxHp = 1
+            null,  // No skill
+            0,  // No cooldown
+            0,  // No shield
+            false,  // Not invisible
+            false,  // Not invulnerable
+            true,  // isTemporary = true (Shadow Clone)
+            cloneDuration,  // Duration: 2 rounds
+            null,  // No skill state
+            0,  // actionsUsed = 0
+            false,  // Not preparing
+            null,  // No preparing action
+            0,  // No bonus attack damage
+            0   // No bonus attack charges
+        );
+
+        newUnits.add(clone);
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+        return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Duelist Feint skill.
+     * Effect: Dodge next attack and counter for 2 damage.
+     * Lasts until triggered or 2 rounds.
+     */
+    private GameState applySkillFeint(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        int cooldown = skill.getCooldown();  // 2
+
+        // Update caster: use skill
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+            u -> u.withSkillUsed(cooldown));
+
+        // Apply FEINT buff to self
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        BuffInstance feintBuff = BuffFactory.create(BuffType.FEINT, actingUnit.getId());
+
+        List<BuffInstance> selfBuffs = new ArrayList<>(
+            newUnitBuffs.getOrDefault(actingUnit.getId(), Collections.emptyList())
+        );
+        selfBuffs.add(feintBuff);
+        newUnitBuffs.put(actingUnit.getId(), selfBuffs);
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Apply Duelist Challenge skill.
+     * Effect: Mark target as "Challenged" for 2 rounds.
+     * Challenged enemy deals 50% damage to non-Duelist targets.
+     * If Challenged enemy attacks Duelist, Duelist counter-attacks for 2 damage.
+     */
+    private GameState applySkillChallenge(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
+        String targetUnitId = action.getSkillTargetUnitId() != null
+            ? action.getSkillTargetUnitId()
+            : action.getTargetUnitId();
+        int cooldown = skill.getCooldown();  // 2
+
+        // Update caster: use skill
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), actingUnit.getId(),
+            u -> u.withSkillUsed(cooldown));
+
+        // Apply CHALLENGE buff to target (sourceUnitId tracks who challenged them)
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>(state.getUnitBuffs());
+        BuffInstance challengeBuff = BuffFactory.create(BuffType.CHALLENGE, actingUnit.getId());
+
+        List<BuffInstance> targetBuffs = new ArrayList<>(
+            newUnitBuffs.getOrDefault(targetUnitId, Collections.emptyList())
+        );
+        targetBuffs.add(challengeBuff);
+        newUnitBuffs.put(targetUnitId, targetBuffs);
+
+        GameOverResult gameOver = checkGameOver(newUnits);
+        return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
     }
 
     // =========================================================================

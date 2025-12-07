@@ -551,19 +551,46 @@ public class Unit {
     }
 
     /**
+     * Create a copy with skill used and invulnerable state set.
+     * Used for Ascended Form skill.
+     */
+    public Unit withSkillUsedAndInvulnerable(int newCooldown, boolean newInvulnerable) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, newCooldown,
+                        shield, invisible, newInvulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed + 1, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
+     * Create a copy with updated invulnerable state.
+     */
+    public Unit withInvulnerable(boolean newInvulnerable) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, newInvulnerable, isTemporary, temporaryDuration, skillState,
+                        actionsUsed, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
      * Create a copy with reset action state and decremented cooldown (for round end).
+     * Also clears invisible and invulnerable status (they last 1 round).
      */
     public Unit withRoundEndReset() {
         int newCooldown = Math.max(0, skillCooldown - 1);
         // V3 Phase 4C: Invisible expires at round end (lasts 1 round)
-        boolean needsChange = actionsUsed > 0 || preparing || skillCooldown > 0 || invisible;
+        // Phase 4D: Invulnerable expires at round end (lasts 1 round)
+        boolean needsChange = actionsUsed > 0 || preparing || skillCooldown > 0 || invisible || invulnerable;
         if (!needsChange) {
             return this;  // No change needed
         }
         return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
                         category, minionType, heroClass, maxHp,
                         selectedSkillId, newCooldown,
-                        shield, false, invulnerable, isTemporary, temporaryDuration, skillState,
+                        shield, false, false, isTemporary, temporaryDuration, skillState,
                         0, false, null,
                         bonusAttackDamage, bonusAttackCharges);
     }

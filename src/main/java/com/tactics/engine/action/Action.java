@@ -1,5 +1,6 @@
 package com.tactics.engine.action;
 
+import com.tactics.engine.buff.BuffType;
 import com.tactics.engine.model.DeathChoice;
 import com.tactics.engine.model.PlayerId;
 import com.tactics.engine.model.Position;
@@ -13,6 +14,7 @@ import java.util.Objects;
  * - actingUnitId: The unit performing the action (for skill/obstacle actions)
  * - skillTargetUnitId: Target unit for skills that target units
  * - deathChoiceType: Player's choice after minion death (SPAWN_OBSTACLE or SPAWN_BUFF_TILE)
+ * - skillChosenBuffType: Player's choice of buff/debuff for skills like Elemental Strike
  */
 public class Action {
 
@@ -26,19 +28,29 @@ public class Action {
     private final String actingUnitId;                    // Unit performing the action
     private final String skillTargetUnitId;              // Target unit for skills
     private final DeathChoice.ChoiceType deathChoiceType; // For DEATH_CHOICE action
+    private final BuffType skillChosenBuffType;          // Phase 4D: Player's chosen buff type (e.g., for Elemental Strike)
 
     /**
      * V1/V2 backward-compatible constructor.
      */
     public Action(ActionType type, PlayerId playerId, Position targetPosition, String targetUnitId) {
-        this(type, playerId, targetPosition, targetUnitId, null, null, null);
+        this(type, playerId, targetPosition, targetUnitId, null, null, null, null);
     }
 
     /**
-     * V3 full constructor with all fields.
+     * V3 constructor (backward compatible).
      */
     public Action(ActionType type, PlayerId playerId, Position targetPosition, String targetUnitId,
                   String actingUnitId, String skillTargetUnitId, DeathChoice.ChoiceType deathChoiceType) {
+        this(type, playerId, targetPosition, targetUnitId, actingUnitId, skillTargetUnitId, deathChoiceType, null);
+    }
+
+    /**
+     * V3 Phase 4D full constructor with all fields including skillChosenBuffType.
+     */
+    public Action(ActionType type, PlayerId playerId, Position targetPosition, String targetUnitId,
+                  String actingUnitId, String skillTargetUnitId, DeathChoice.ChoiceType deathChoiceType,
+                  BuffType skillChosenBuffType) {
         this.type = type;
         this.playerId = playerId;
         this.targetPosition = targetPosition;
@@ -46,6 +58,7 @@ public class Action {
         this.actingUnitId = actingUnitId;
         this.skillTargetUnitId = skillTargetUnitId;
         this.deathChoiceType = deathChoiceType;
+        this.skillChosenBuffType = skillChosenBuffType;
     }
 
     // V1/V2 Core getters
@@ -80,6 +93,10 @@ public class Action {
         return deathChoiceType;
     }
 
+    public BuffType getSkillChosenBuffType() {
+        return skillChosenBuffType;
+    }
+
     // Factory methods for V3 actions
 
     /**
@@ -107,6 +124,15 @@ public class Action {
                          null, null, choiceType);
     }
 
+    /**
+     * Create a USE_SKILL action with a chosen buff type (e.g., for Elemental Strike).
+     */
+    public static Action useSkillWithBuffChoice(PlayerId playerId, String actingUnitId,
+                                                 String skillTargetUnitId, BuffType chosenBuffType) {
+        return new Action(ActionType.USE_SKILL, playerId, null, null,
+                         actingUnitId, skillTargetUnitId, null, chosenBuffType);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -118,13 +144,14 @@ public class Action {
                Objects.equals(targetUnitId, action.targetUnitId) &&
                Objects.equals(actingUnitId, action.actingUnitId) &&
                Objects.equals(skillTargetUnitId, action.skillTargetUnitId) &&
-               deathChoiceType == action.deathChoiceType;
+               deathChoiceType == action.deathChoiceType &&
+               skillChosenBuffType == action.skillChosenBuffType;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(type, playerId, targetPosition, targetUnitId,
-                           actingUnitId, skillTargetUnitId, deathChoiceType);
+                           actingUnitId, skillTargetUnitId, deathChoiceType, skillChosenBuffType);
     }
 
     @Override
@@ -146,6 +173,9 @@ public class Action {
         }
         if (deathChoiceType != null) {
             sb.append(", deathChoiceType=").append(deathChoiceType);
+        }
+        if (skillChosenBuffType != null) {
+            sb.append(", skillChosenBuffType=").append(skillChosenBuffType);
         }
         sb.append("}");
         return sb.toString();
