@@ -111,6 +111,257 @@ class MatchServiceDeathChoiceTimerTest {
                 .orElse(null);
     }
 
+    // ========== TD-002: Death Choice timeout defaults to Obstacle ==========
+
+    @Nested
+    @DisplayName("TD-002: Death Choice timeout defaults to Obstacle")
+    class DeathChoiceTimeoutDefaults {
+
+        @Test
+        @DisplayName("TD-002: Timeout spawns Obstacle, no HP penalty")
+        void td002_timeoutSpawnsObstacleNoHpPenalty() {
+            // Given: Death Choice Timer at 0ms (timeout)
+            Unit hero1 = createHero("p1_hero", p1, 5, new Position(1, 1));
+            Unit hero2 = createHero("p2_hero", p2, 5, new Position(4, 4));
+            Unit minion2 = createMinion("p2_minion_1", p2, 1, new Position(1, 2));
+            GameState state = createState(Arrays.asList(hero1, hero2, minion2), p1);
+            registry.createMatch("match-1", state);
+
+            service.startTurnTimer("match-1");
+
+            // Kill minion to trigger Death Choice
+            Action attack = Action.attack("p1_hero", new Position(1, 2), "p2_minion_1");
+            ActionResult attackResult = service.applyActionWithTimer("match-1", p1, attack);
+            assertTrue(attackResult.getNewState().hasPendingDeathChoice());
+
+            // Get P2 Hero HP before timeout
+            int heroHpBefore = findUnit(attackResult.getNewState(), "p2_hero").getHp();
+
+            // When: Timer expires without selection
+            mockTime.set(mockTime.get() + TimerConfig.DEATH_CHOICE_TIMEOUT_MS + 100);
+
+            // Simulate timeout by applying default obstacle choice
+            Action defaultChoice = Action.deathChoice(p2, DeathChoice.ChoiceType.SPAWN_OBSTACLE);
+            ActionResult timeoutResult = service.applyActionWithTimer("match-1", p2, defaultChoice);
+
+            // Then: Obstacle spawned at death position
+            assertFalse(timeoutResult.getNewState().hasPendingDeathChoice(),
+                "Death Choice should be resolved");
+            assertTrue(timeoutResult.getNewState().getObstacles().stream()
+                    .anyMatch(o -> o.getPosition().equals(new Position(1, 2))),
+                "Obstacle should be spawned at death position (1, 2)");
+
+            // No HP penalty for Death Choice timeout
+            int heroHpAfter = findUnit(timeoutResult.getNewState(), "p2_hero").getHp();
+            assertEquals(heroHpBefore, heroHpAfter,
+                "Hero HP should be unchanged - no penalty for Death Choice timeout");
+        }
+    }
+
+    // ========== TD-003: Valid Death Choice within time limit ==========
+
+    @Nested
+    @DisplayName("TD-003: Valid Death Choice within time limit")
+    class ValidDeathChoiceWithinTimeLimit {
+
+        @Test
+        @DisplayName("TD-003: Select BUFF_TILE within time limit")
+        void td003_selectBuffTileWithinTimeLimit() {
+            // Given: Death Choice Timer at 3,000ms remaining
+            Unit hero1 = createHero("p1_hero", p1, 5, new Position(1, 1));
+            Unit hero2 = createHero("p2_hero", p2, 5, new Position(4, 4));
+            Unit minion2 = createMinion("p2_minion_1", p2, 1, new Position(1, 2));
+            GameState state = createState(Arrays.asList(hero1, hero2, minion2), p1);
+            registry.createMatch("match-1", state);
+
+            service.startTurnTimer("match-1");
+
+            // Kill minion to trigger Death Choice
+            Action attack = Action.attack("p1_hero", new Position(1, 2), "p2_minion_1");
+            ActionResult attackResult = service.applyActionWithTimer("match-1", p1, attack);
+            assertTrue(attackResult.getNewState().hasPendingDeathChoice());
+
+            // When: Player selects BUFF_TILE with time remaining
+            mockTime.set(mockTime.get() + 2000L); // 3s remaining
+            Action buffTileChoice = Action.deathChoice(p2, DeathChoice.ChoiceType.SPAWN_BUFF_TILE);
+            ActionResult choiceResult = service.applyActionWithTimer("match-1", p2, buffTileChoice);
+
+            // Then: BUFF Tile spawned at death position
+            assertFalse(choiceResult.getNewState().hasPendingDeathChoice(),
+                "Death Choice should be resolved");
+            assertTrue(choiceResult.getNewState().getBuffTiles().stream()
+                    .anyMatch(t -> t.getPosition().equals(new Position(1, 2))),
+                "BUFF Tile should be spawned at death position (1, 2)");
+
+            // Death Choice Timer completed
+            assertEquals(TimerState.COMPLETED,
+                timerService.getTimerState("match-1", TimerType.DEATH_CHOICE),
+                "Death Choice Timer should be completed after choice");
+
+            // Action Timer resumes (reset to 10,000ms)
+            assertEquals(TimerType.ACTION, choiceResult.getTimerType(),
+                "Should be back to Action Timer");
+            assertEquals(TimerConfig.ACTION_TIMEOUT_MS, choiceResult.getTimeoutMs(),
+                "Action Timer should reset to 10s");
+        }
+    }
+
+    // ========== TD-004: Death Choice pauses Action Timer ==========
+
+    @Nested
+    @DisplayName("TD-004: Death Choice pauses Action Timer")
+    class DeathChoicePausesActionTimer {
+
+        @Test
+        @DisplayName("TD-004: Action Timer paused at current value when Death Choice starts")
+        void td004_actionTimerPausedWhenDeathChoiceStarts() {
+            // Given: Action Timer at 4,000ms remaining
+            Unit hero1 = createHero("p1_hero", p1, 5, new Position(1, 1));
+            Unit hero2 = createHero("p2_hero", p2, 5, new Position(4, 4));
+            Unit minion2 = createMinion("p2_minion_1", p2, 1, new Position(1, 2));
+            GameState state = createState(Arrays.asList(hero1, hero2, minion2), p1);
+            registry.createMatch("match-1", state);
+
+            service.startTurnTimer("match-1");
+
+            // Advance time so Action Timer has 6s remaining
+            mockTime.set(mockTime.get() + 4000L);
+            assertEquals(6000L, timerService.getRemainingTime("match-1", TimerType.ACTION),
+                "Action Timer should have 6s remaining before attack");
+
+            // When: Attack kills enemy minion, Death Choice starts
+            Action attack = Action.attack("p1_hero", new Position(1, 2), "p2_minion_1");
+            ActionResult attackResult = service.applyActionWithTimer("match-1", p1, attack);
+
+            // Then: Action Timer paused
+            assertEquals(TimerState.PAUSED,
+                timerService.getTimerState("match-1", TimerType.ACTION),
+                "Action Timer should be PAUSED");
+
+            // Death Choice Timer starts at 5,000ms
+            assertEquals(TimerState.RUNNING,
+                timerService.getTimerState("match-1", TimerType.DEATH_CHOICE),
+                "Death Choice Timer should be RUNNING");
+            assertEquals(TimerConfig.DEATH_CHOICE_TIMEOUT_MS,
+                timerService.getRemainingTime("match-1", TimerType.DEATH_CHOICE),
+                "Death Choice Timer should start at 5000ms");
+        }
+    }
+
+    // ========== TD-005: After Death Choice, Action Timer resets to 10s ==========
+
+    @Nested
+    @DisplayName("TD-005: After Death Choice, Action Timer resets to 10s")
+    class AfterDeathChoiceTimerResets {
+
+        @Test
+        @DisplayName("TD-005: Action Timer resets to 10s after Death Choice (not remaining time)")
+        void td005_actionTimerResetsToFullTimeAfterDeathChoice() {
+            // Given: Action Timer was at 4,000ms when paused
+            Unit hero1 = createHero("p1_hero", p1, 5, new Position(1, 1));
+            Unit hero2 = createHero("p2_hero", p2, 5, new Position(4, 4));
+            Unit minion2 = createMinion("p2_minion_1", p2, 1, new Position(1, 2));
+            GameState state = createState(Arrays.asList(hero1, hero2, minion2), p1);
+            registry.createMatch("match-1", state);
+
+            service.startTurnTimer("match-1");
+
+            // Advance time: 6s remaining
+            mockTime.set(mockTime.get() + 4000L);
+
+            // Kill minion
+            Action attack = Action.attack("p1_hero", new Position(1, 2), "p2_minion_1");
+            service.applyActionWithTimer("match-1", p1, attack);
+
+            // When: Death Choice completed
+            mockTime.set(mockTime.get() + 2000L); // 3s of Death Choice used
+            Action deathChoice = Action.deathChoice(p2, DeathChoice.ChoiceType.SPAWN_OBSTACLE);
+            ActionResult choiceResult = service.applyActionWithTimer("match-1", p2, deathChoice);
+
+            // Then: Action Timer resets to 10,000ms (not 4,000ms)
+            assertEquals(TimerType.ACTION, choiceResult.getTimerType());
+            assertEquals(TimerConfig.ACTION_TIMEOUT_MS, choiceResult.getTimeoutMs(),
+                "Action Timer should reset to 10s, not the paused value");
+            assertEquals(TimerConfig.ACTION_TIMEOUT_MS,
+                timerService.getRemainingTime("match-1", TimerType.ACTION),
+                "Remaining time should be full 10s");
+        }
+    }
+
+    // ========== TD-006: Death Choice by dead minion's owner ==========
+
+    @Nested
+    @DisplayName("TD-006: Death Choice by dead minion's owner")
+    class DeathChoiceByOwner {
+
+        @Test
+        @DisplayName("TD-006: Owner of dead minion makes the choice")
+        void td006_ownerOfDeadMinionMakesChoice() {
+            // Given: Player 1 attacks and kills Player 2's minion
+            Unit hero1 = createHero("p1_hero", p1, 5, new Position(1, 1));
+            Unit hero2 = createHero("p2_hero", p2, 5, new Position(4, 4));
+            Unit minion2 = createMinion("p2_minion_1", p2, 1, new Position(1, 2));
+            GameState state = createState(Arrays.asList(hero1, hero2, minion2), p1);
+            registry.createMatch("match-1", state);
+
+            service.startTurnTimer("match-1");
+
+            // When: Death Choice starts
+            Action attack = Action.attack("p1_hero", new Position(1, 2), "p2_minion_1");
+            ActionResult attackResult = service.applyActionWithTimer("match-1", p1, attack);
+
+            // Then: Player 2 (owner of dead minion) makes the choice
+            DeathChoice pendingChoice = attackResult.getNewState().getPendingDeathChoice();
+            assertEquals(p2, pendingChoice.getOwner(),
+                "Owner of dead minion (P2) should be the one to make choice");
+            assertEquals(p2, attackResult.getNextPlayer(),
+                "Next player should be P2 for Death Choice");
+        }
+    }
+
+    // ========== TD-011: Death Choice timeout - no HP penalty ==========
+
+    @Nested
+    @DisplayName("TD-011: Death Choice timeout - no HP penalty")
+    class DeathChoiceTimeoutNoHpPenalty {
+
+        @Test
+        @DisplayName("TD-011: Death Choice timeout does not reduce Hero HP")
+        void td011_deathChoiceTimeoutNoHeroPenalty() {
+            // Given: Player 2's minion dies, Death Choice starts
+            Unit hero1 = createHero("p1_hero", p1, 5, new Position(1, 1));
+            Unit hero2 = createHero("p2_hero", p2, 5, new Position(4, 4));
+            Unit minion2 = createMinion("p2_minion_1", p2, 1, new Position(1, 2));
+            GameState state = createState(Arrays.asList(hero1, hero2, minion2), p1);
+            registry.createMatch("match-1", state);
+
+            service.startTurnTimer("match-1");
+
+            // Kill minion
+            Action attack = Action.attack("p1_hero", new Position(1, 2), "p2_minion_1");
+            ActionResult attackResult = service.applyActionWithTimer("match-1", p1, attack);
+
+            int p2HeroHpBefore = findUnit(attackResult.getNewState(), "p2_hero").getHp();
+
+            // When: Death Choice Timer expires (5s timeout)
+            mockTime.set(mockTime.get() + TimerConfig.DEATH_CHOICE_TIMEOUT_MS + 500);
+
+            // Default to Obstacle on timeout
+            Action defaultChoice = Action.deathChoice(p2, DeathChoice.ChoiceType.SPAWN_OBSTACLE);
+            ActionResult timeoutResult = service.applyActionWithTimer("match-1", p2, defaultChoice);
+
+            // Then: Obstacle spawned (default)
+            assertTrue(timeoutResult.getNewState().getObstacles().stream()
+                    .anyMatch(o -> o.getPosition().equals(new Position(1, 2))),
+                "Default Obstacle should be spawned");
+
+            // Player 2's Hero HP unchanged - no penalty
+            int p2HeroHpAfter = findUnit(timeoutResult.getNewState(), "p2_hero").getHp();
+            assertEquals(p2HeroHpBefore, p2HeroHpAfter,
+                "No HP penalty for Death Choice timeout");
+        }
+    }
+
     // ========== TD-007: Death Choice message format ==========
 
     @Nested

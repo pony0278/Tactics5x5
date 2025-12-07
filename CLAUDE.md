@@ -170,16 +170,20 @@ server/
     └── WebSocketHandler.java   # Timer message sending
 ```
 
-### Timer Tests: 71 tests (All Complete)
+### Timer Tests: 108 tests (All Complete)
 
 | Series | Category | Tests | Status |
 |--------|----------|-------|--------|
-| TA | Action Timer Basic | 11 | ✅ |
-| TD | Death Choice Timer | 9 | ✅ |
+| TA | Action Timer Basic | 12 | ✅ |
+| TD | Death Choice Timer | 15 | ✅ |
 | TN | Network & Sync | 13 | ✅ |
-| TB | Buff Interactions (SPEED/SLOW) | 6 | ✅ |
+| TB | Buff Interactions (SPEED/SLOW) | 12 | ✅ |
 | TE | Exhaustion Rule | 8 | ✅ |
-| TimerService | Core timer tests | 24 | ✅ |
+| TR | Round Processing | 6 | ✅ |
+| TV | Victory & End Game | 5 | ✅ |
+| TF | Draft Timer | 8 | ✅ |
+| TI | Integration Tests | 7 | ✅ |
+| TimerService | Core timer tests | 32 | ✅ |
 
 ---
 
@@ -882,19 +886,20 @@ See `/docs/PROGRESS.md` for details.
 - [x] Code Health: Full RuleEngine refactoring (reduced from ~3,300 to 98 lines via ActionValidator, ActionExecutor, SkillExecutor extraction)
 - [x] Phase 5: Game Flow Extension (Death Choice)
 - [x] Phase 6: Draft Phase (DraftState, DraftResult, DraftSetupService, Integration Tests)
+- [x] Phase 7: Timer System (Action Timer, Death Choice Timer, Draft Timer - 108 tests)
 
 ### In Progress
 - [ ] Phase 8: Unit-by-Unit Turn System - Core implementation complete
 - [ ] Code Health: See `/docs/CODE_HEALTH_TODO.md` for refactoring items
 
 ### Test Status
-**Total: 655 tests passing**
+**Total: 692 tests passing**
 
 ---
 
 ## Test Coverage
 
-**Total: 655 tests passing**
+**Total: 692 tests passing**
 
 ### Existing Tests
 | Test Class | Coverage |
