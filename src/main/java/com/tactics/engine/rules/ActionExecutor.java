@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.tactics.engine.rules.RuleEngineHelper.*;
+
 /**
  * Executes game actions and updates game state.
  * Extracted from RuleEngine for better code organization.
@@ -126,27 +128,10 @@ public class ActionExecutor {
         return distance >= 1 && distance <= effectiveAttackRange;
     }
 
-    private Unit findUnitById(List<Unit> units, String unitId) {
-        for (Unit u : units) {
-            if (u.getId().equals(unitId)) {
-                return u;
-            }
-        }
-        return null;
-    }
-
-    private boolean hasSpeedBuff(List<BuffInstance> buffs) {
-        if (buffs == null) return false;
-        for (BuffInstance buff : buffs) {
-            if (buff.getFlags() != null && buff.getFlags().isSpeedBuff()) {
-                return true;
-            }
-        }
-        return false;
-    }
+    // findUnitById, hasSpeedBuff moved to RuleEngineHelper
 
     private int getMaxActions(List<BuffInstance> buffs) {
-        return hasSpeedBuff(buffs) ? 2 : 1;
+        return getMaxActionsForUnit(buffs);
     }
 
     /**
@@ -370,14 +355,7 @@ public class ActionExecutor {
     // Buff Helper Methods
     // =========================================================================
 
-    private List<BuffInstance> getBuffsForUnit(GameState state, String unitId) {
-        Map<String, List<BuffInstance>> unitBuffs = state.getUnitBuffs();
-        if (unitBuffs == null) {
-            return Collections.emptyList();
-        }
-        List<BuffInstance> buffs = unitBuffs.get(unitId);
-        return buffs != null ? buffs : Collections.emptyList();
-    }
+    // getBuffsForUnit moved to RuleEngineHelper
 
     private int getEffectiveMoveRange(Unit unit, List<BuffInstance> buffs) {
         int bonus = 0;
@@ -429,23 +407,7 @@ public class ActionExecutor {
         return count;
     }
 
-    private boolean hasPowerBuff(List<BuffInstance> buffs) {
-        for (BuffInstance buff : buffs) {
-            if (buff.getFlags() != null && buff.getFlags().isPowerBuff()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean hasSlowBuff(List<BuffInstance> buffs) {
-        for (BuffInstance buff : buffs) {
-            if (buff.getFlags() != null && buff.getFlags().isSlowBuff()) {
-                return true;
-            }
-        }
-        return false;
-    }
+    // hasPowerBuff, hasSlowBuff moved to RuleEngineHelper
 
     private boolean hasObstacleAt(GameState state, Position pos) {
         return state.hasObstacleAt(pos);

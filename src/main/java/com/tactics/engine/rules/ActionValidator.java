@@ -18,6 +18,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static com.tactics.engine.rules.RuleEngineHelper.*;
+
 /**
  * Validates game actions.
  * Extracted from RuleEngine for better code organization.
@@ -130,14 +132,7 @@ public class ActionValidator {
                pos.getY() >= 0 && pos.getY() < board.getHeight();
     }
 
-    private Unit findUnitById(List<Unit> units, String unitId) {
-        for (Unit u : units) {
-            if (u.getId().equals(unitId)) {
-                return u;
-            }
-        }
-        return null;
-    }
+    // findUnitById moved to RuleEngineHelper
 
     private boolean isTileOccupied(List<Unit> units, Position pos) {
         for (Unit u : units) {
@@ -161,14 +156,7 @@ public class ActionValidator {
     // Buff Helper Methods
     // =========================================================================
 
-    private List<BuffInstance> getBuffsForUnit(GameState state, String unitId) {
-        Map<String, List<BuffInstance>> unitBuffs = state.getUnitBuffs();
-        if (unitBuffs == null) {
-            return Collections.emptyList();
-        }
-        List<BuffInstance> buffs = unitBuffs.get(unitId);
-        return buffs != null ? buffs : Collections.emptyList();
-    }
+    // getBuffsForUnit moved to RuleEngineHelper
 
     private boolean isUnitStunned(List<BuffInstance> buffs) {
         for (BuffInstance buff : buffs) {
@@ -217,26 +205,10 @@ public class ActionValidator {
         return unit.getAttackRange() + bonus;
     }
 
-    private boolean hasPowerBuff(List<BuffInstance> buffs) {
-        for (BuffInstance buff : buffs) {
-            if (buff.getFlags() != null && buff.getFlags().isPowerBuff()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean hasSpeedBuff(List<BuffInstance> buffs) {
-        for (BuffInstance buff : buffs) {
-            if (buff.getFlags() != null && buff.getFlags().isSpeedBuff()) {
-                return true;
-            }
-        }
-        return false;
-    }
+    // hasPowerBuff, hasSpeedBuff moved to RuleEngineHelper
 
     private int getMaxActions(List<BuffInstance> buffs) {
-        return hasSpeedBuff(buffs) ? 2 : 1;
+        return getMaxActionsForUnit(buffs);
     }
 
     private boolean canUnitAct(Unit unit, List<BuffInstance> buffs) {

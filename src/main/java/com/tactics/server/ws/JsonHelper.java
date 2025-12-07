@@ -112,86 +112,125 @@ public class JsonHelper {
         return result;
     }
 
+    /**
+     * Parse a JSON value starting at the given position.
+     * Dispatches to type-specific parsing methods based on the first character.
+     */
     private static ParseResult parseValue(String content, int start) {
-        while (start < content.length() && Character.isWhitespace(content.charAt(start))) {
-            start++;
-        }
+        start = skipWhitespace(content, start);
         if (start >= content.length()) return null;
 
         char c = content.charAt(start);
 
-        if (c == '"') {
-            // String
-            int strStart = start + 1;
-            int strEnd = findStringEnd(content, strStart);
-            if (strEnd < 0) return null;
-            return new ParseResult(unescapeString(content.substring(strStart, strEnd)), strEnd + 1);
-        } else if (c == '{') {
-            // Object
-            int depth = 1;
-            int i = start + 1;
-            while (i < content.length() && depth > 0) {
-                char ch = content.charAt(i);
-                if (ch == '{') depth++;
-                else if (ch == '}') depth--;
-                else if (ch == '"') {
-                    int end = findStringEnd(content, i + 1);
-                    if (end < 0) return null;
-                    i = end;
+        switch (c) {
+            case '"': return parseStringValue(content, start);
+            case '{': return parseObjectValue(content, start);
+            case '[': return parseArrayValue(content, start);
+            case 'n': return parseNull(content, start);
+            case 't': return parseTrue(content, start);
+            case 'f': return parseFalse(content, start);
+            default:
+                if (c == '-' || Character.isDigit(c)) {
+                    return parseNumber(content, start);
                 }
-                i++;
+                return null;
+        }
+    }
+
+    private static int skipWhitespace(String content, int start) {
+        while (start < content.length() && Character.isWhitespace(content.charAt(start))) {
+            start++;
+        }
+        return start;
+    }
+
+    private static ParseResult parseStringValue(String content, int start) {
+        int strStart = start + 1;
+        int strEnd = findStringEnd(content, strStart);
+        if (strEnd < 0) return null;
+        return new ParseResult(unescapeString(content.substring(strStart, strEnd)), strEnd + 1);
+    }
+
+    private static ParseResult parseObjectValue(String content, int start) {
+        int depth = 1;
+        int i = start + 1;
+        while (i < content.length() && depth > 0) {
+            char ch = content.charAt(i);
+            if (ch == '{') depth++;
+            else if (ch == '}') depth--;
+            else if (ch == '"') {
+                int end = findStringEnd(content, i + 1);
+                if (end < 0) return null;
+                i = end;
             }
-            String objJson = content.substring(start, i);
-            Map<String, Object> obj = parseJsonObject(objJson);
-            return new ParseResult(obj, i);
-        } else if (c == '[') {
-            // Array
-            int depth = 1;
-            int i = start + 1;
-            while (i < content.length() && depth > 0) {
-                char ch = content.charAt(i);
-                if (ch == '[') depth++;
-                else if (ch == ']') depth--;
-                else if (ch == '"') {
-                    int end = findStringEnd(content, i + 1);
-                    if (end < 0) return null;
-                    i = end;
-                }
-                i++;
+            i++;
+        }
+        String objJson = content.substring(start, i);
+        Map<String, Object> obj = parseJsonObject(objJson);
+        return new ParseResult(obj, i);
+    }
+
+    private static ParseResult parseArrayValue(String content, int start) {
+        int depth = 1;
+        int i = start + 1;
+        while (i < content.length() && depth > 0) {
+            char ch = content.charAt(i);
+            if (ch == '[') depth++;
+            else if (ch == ']') depth--;
+            else if (ch == '"') {
+                int end = findStringEnd(content, i + 1);
+                if (end < 0) return null;
+                i = end;
             }
-            String arrJson = content.substring(start, i);
-            List<Object> arr = parseJsonArray(arrJson);
-            return new ParseResult(arr, i);
-        } else if (c == 'n' && content.substring(start).startsWith("null")) {
+            i++;
+        }
+        String arrJson = content.substring(start, i);
+        List<Object> arr = parseJsonArray(arrJson);
+        return new ParseResult(arr, i);
+    }
+
+    private static ParseResult parseNull(String content, int start) {
+        if (content.substring(start).startsWith("null")) {
             return new ParseResult(null, start + 4);
-        } else if (c == 't' && content.substring(start).startsWith("true")) {
-            return new ParseResult(true, start + 4);
-        } else if (c == 'f' && content.substring(start).startsWith("false")) {
-            return new ParseResult(false, start + 5);
-        } else if (c == '-' || Character.isDigit(c)) {
-            // Number
-            int i = start;
-            boolean hasDecimal = false;
-            if (content.charAt(i) == '-') i++;
-            while (i < content.length()) {
-                char ch = content.charAt(i);
-                if (Character.isDigit(ch)) {
-                    i++;
-                } else if (ch == '.' && !hasDecimal) {
-                    hasDecimal = true;
-                    i++;
-                } else {
-                    break;
-                }
-            }
-            String numStr = content.substring(start, i);
-            if (hasDecimal) {
-                return new ParseResult(Double.parseDouble(numStr), i);
-            } else {
-                return new ParseResult(Integer.parseInt(numStr), i);
-            }
         }
         return null;
+    }
+
+    private static ParseResult parseTrue(String content, int start) {
+        if (content.substring(start).startsWith("true")) {
+            return new ParseResult(true, start + 4);
+        }
+        return null;
+    }
+
+    private static ParseResult parseFalse(String content, int start) {
+        if (content.substring(start).startsWith("false")) {
+            return new ParseResult(false, start + 5);
+        }
+        return null;
+    }
+
+    private static ParseResult parseNumber(String content, int start) {
+        int i = start;
+        boolean hasDecimal = false;
+        if (content.charAt(i) == '-') i++;
+        while (i < content.length()) {
+            char ch = content.charAt(i);
+            if (Character.isDigit(ch)) {
+                i++;
+            } else if (ch == '.' && !hasDecimal) {
+                hasDecimal = true;
+                i++;
+            } else {
+                break;
+            }
+        }
+        String numStr = content.substring(start, i);
+        if (hasDecimal) {
+            return new ParseResult(Double.parseDouble(numStr), i);
+        } else {
+            return new ParseResult(Integer.parseInt(numStr), i);
+        }
     }
 
     private static List<Object> parseJsonArray(String json) {

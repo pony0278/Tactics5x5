@@ -2,9 +2,9 @@
 
 This document tracks code health issues identified during code review. Items are prioritized by severity and impact.
 
-**Last Updated**: 2025-12-07  
-**Total Tests**: 655 passing  
-**Next Review**: After Phase 7 Timer completion
+**Last Updated**: 2025-12-07
+**Total Tests**: 692 passing
+**Next Review**: After ActionExecutor split
 
 ---
 
@@ -12,11 +12,11 @@ This document tracks code health issues identified during code review. Items are
 
 These items provide high impact with low effort. Do these first!
 
-| Task | Impact | Time | Dependencies |
-|------|--------|------|--------------|
-| Create RuleEngineHelper.java | Removes 4 duplicate methods | 30 min | None |
-| Split SkillRegistry by hero | Better organization | 20 min | None |
-| Extract JsonHelper type parsers | Cleaner code | 30 min | None |
+| Task | Impact | Time | Dependencies | Status |
+|------|--------|------|--------------|--------|
+| Create RuleEngineHelper.java | Removes 4 duplicate methods | 30 min | None | ✅ Done |
+| Split SkillRegistry by hero | Better organization | 20 min | None | ⬜ Not Started |
+| Extract JsonHelper type parsers | Cleaner code | 30 min | None | ✅ Done |
 
 ---
 
@@ -121,14 +121,13 @@ These items provide high impact with low effort. Do these first!
 
 ---
 
-### 1.3 JsonHelper.parseValue() - 325 lines
+### 1.3 JsonHelper.parseValue() - REFACTORED
 
-**Status**: ⚠️ Critical  
-**Location**: `src/main/java/com/tactics/server/ws/JsonHelper.java:115`  
-**Estimated Time**: 1 hour  
-**Dependencies**: None
+**Status**: ✅ RESOLVED
+**Completed**: 2025-12-07
+**Solution**: Extracted type-specific parsing methods
 
-**Problem**: Single method with 325 lines handling all JSON parsing.
+**Original Problem**: Single method handling all JSON parsing (was ~80 lines, not 325 as noted).
 
 **Suggested Split**:
 
@@ -216,9 +215,9 @@ public class SkillRegistry {
 
 ### 2.1 Duplicate Helper Methods
 
-**Status**: ⚠️ Duplicate Code  
-**Estimated Time**: 30 minutes  
-**Dependencies**: None (Quick Win!)
+**Status**: ✅ RESOLVED
+**Completed**: 2025-12-07
+**Solution**: Created RuleEngineHelper.java
 
 **Problem**: The following methods are duplicated between `ActionValidator.java` and `ActionExecutor.java`:
 
@@ -467,8 +466,8 @@ Large test files are acceptable when well-organized:
 
 | Item | Priority | Est. Time | Status | Date | Notes |
 |------|----------|-----------|--------|------|-------|
-| RuleEngineHelper.java | Quick Win | 30 min | ⬜ Not Started | - | - |
-| JsonHelper refactor | P1 | 1 hour | ⬜ Not Started | - | - |
+| RuleEngineHelper.java | Quick Win | 30 min | ✅ Done | 2025-12-07 | Extracted 4 duplicate methods |
+| JsonHelper refactor | P1 | 30 min | ✅ Done | 2025-12-07 | Extracted 8 type-specific methods |
 | SkillRegistry refactor | P1 | 1 hour | ⬜ Not Started | - | - |
 | ActionExecutor split | P1 | 2-3 hours | ⬜ Not Started | - | - |
 | SkillExecutor split | P1 | 2 hours | ⬜ Not Started | - | - |
@@ -485,8 +484,8 @@ Large test files are acceptable when well-organized:
 | Files > 1000 lines | 2 | 0 |
 | Methods > 100 lines | 4 | 0 |
 | Methods > 50 lines | 14 | 0 |
-| Duplicate methods | 4 | 0 |
-| Total tests | 655 | Maintain |
+| Duplicate methods | 0 | 0 |
+| Total tests | 692 | Maintain |
 
 ### Target State (After Refactoring)
 | Metric | Value |
@@ -495,10 +494,10 @@ Large test files are acceptable when well-organized:
 | Methods > 100 lines | 0 |
 | Methods > 50 lines | 0 |
 | Duplicate methods | 0 |
-| Total tests | 655+ |
+| Total tests | 692+ |
 
 ---
 
-*Last updated: 2025-12-07*  
-*Total tests: 655 passing*  
-*Next scheduled refactoring: After Phase 7 Timer completion*
+*Last updated: 2025-12-07*
+*Total tests: 692 passing*
+*Next scheduled refactoring: ActionExecutor split*
