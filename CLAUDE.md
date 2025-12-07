@@ -74,9 +74,9 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 2 | V3 BUFF System |
 | ✅ | Phase 3 | Guardian Passive |
 | ✅ | Phase 4 | Hero Skill System (4 sub-phases) |
-| ✅ | **Code Health** | RuleEngine refactoring (SkillExecutor extraction) |
-| 🔄 | **Phase 5** | Game Flow Extension |
-| ⬜ | Phase 6 | Draft Phase |
+| ✅ | Code Health | RuleEngine refactoring (SkillExecutor extraction) |
+| ✅ | Phase 5 | Game Flow Extension (Death Choice) |
+| ✅ | **Phase 6** | Draft Phase |
 
 ### Phase 4 Sub-phases: Hero Skill System
 
@@ -87,12 +87,39 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 4C | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
 | ✅ | Phase 4D | Complex skills | Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge |
 
-**Current Task**: Phase 5 - Game Flow Extension
+**Current Status**: All core phases complete. 520 tests passing.
 
 **Reference Documents**:
 - `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
 - `/docs/HERO_SKILLS_REFERENCE.md` - Quick skill reference (中英對照)
-- `/docs/SKILL_SYSTEM_V3_TESTPLAN.md` - 201 test cases
+- `/docs/DRAFT_PHASE_TESTPLAN.md` - 88 test cases for Draft Phase
+
+---
+
+## 📋 Phase 6: Draft Phase (Completed)
+
+| Status | Task | Description |
+|--------|------|-------------|
+| ✅ | DraftState | Immutable draft state per player (hero class, minions, skill) |
+| ✅ | DraftResult | Combined draft results from both players |
+| ✅ | DraftSetupService | Create GameState from DraftResult with proper positions |
+| ✅ | Integration Tests | Full draft-to-battle flow testing |
+
+### Unit ID Format
+- Hero: `p1_hero`, `p2_hero`
+- Minions: `p1_minion_1`, `p1_minion_2`, `p2_minion_1`, `p2_minion_2`
+
+### Starting Positions
+- Player 1 (row 0): Hero at (2,0), Minions at (0,0) and (4,0)
+- Player 2 (row 4): Hero at (2,4), Minions at (0,4) and (4,4)
+
+### Draft Tests: 110 tests
+| Test Class | Coverage | Tests |
+|------------|----------|-------|
+| DraftStateTest | DS-series: state management, validation | 44 |
+| DraftResultTest | DR-series: combined results | 12 |
+| DraftSetupServiceTest | SP/PO/ID-series: GameState creation | 38 |
+| DraftIntegrationTest | DI-series: end-to-end flow | 16 |
 
 ---
 
@@ -757,15 +784,17 @@ See `/docs/PROGRESS.md` for details.
 - [x] Phase 4C: Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades)
 - [x] Phase 4D: Complex skills (Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge)
 - [x] Code Health: Full RuleEngine refactoring (reduced from ~3,300 to 98 lines via ActionValidator, ActionExecutor, SkillExecutor extraction)
+- [x] Phase 5: Game Flow Extension (Death Choice)
+- [x] Phase 6: Draft Phase (DraftState, DraftResult, DraftSetupService, Integration Tests)
 
-### In Progress
-- [ ] Phase 5: Game Flow Extension
+### All Core Phases Complete
+**Total: 520 tests passing**
 
 ---
 
 ## Test Coverage
 
-**Total: 393 tests passing**
+**Total: 520 tests passing**
 
 ### Existing Tests
 | Test Class | Coverage |
@@ -790,6 +819,11 @@ See `/docs/PROGRESS.md` for details.
 | RuleEngineSkillPhase4BTest | Phase 4B skills: damage/heal, bonus damage | 31 |
 | RuleEngineSkillPhase4CTest | Phase 4C skills: movement, BLIND, invisible | 26 |
 | RuleEngineSkillPhase4DTest | Phase 4D skills: complex skills, buff types | 14 |
+| RuleEngineDeathChoiceTest | Death choice flow | 17 |
+| DraftStateTest | DS-series: draft state management | 44 |
+| DraftResultTest | DR-series: combined results | 12 |
+| DraftSetupServiceTest | SP/PO/ID-series: GameState creation | 38 |
+| DraftIntegrationTest | DI-series: end-to-end flow | 16 |
 
 ### V3 Tests (To Be Implemented)
 | Test Plan | Test Count |

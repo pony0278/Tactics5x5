@@ -4,9 +4,9 @@ This document tracks completed work and outlines the roadmap for future developm
 
 ---
 
-## Current Status: V3 Phase 4D Complete + Code Health Refactoring
+## Current Status: V3 Phase 6 Complete (Draft Phase)
 
-The game engine now supports all V3 BUFF types, game rules, and all Phase 4 skills (A-D):
+The game engine now supports all V3 BUFF types, game rules, all Phase 4 skills (A-D), Death Choice flow, and Draft Phase:
 
 ### BUFF System (6 types)
 - **POWER**: +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK, instant obstacle destroy
@@ -57,13 +57,18 @@ RuleEngine refactored from ~3,300 lines (monolithic) to clean facade pattern:
 | ActionExecutor.java | 1,164 | All apply/execution logic |
 | SkillExecutor.java | ~1,100 | All skill implementations |
 
-**Test Coverage**: 393 tests passing
+**Test Coverage**: 520 tests passing
 - RuleEngineGuardianTest: 16 tests (GRD-series)
 - RuleEngineAttritionTest: 11 tests (ATR-series)
 - RuleEngineSkillTest: 24 tests (skill framework)
 - RuleEngineSkillPhase4BTest: 31 tests (damage/heal skills, bonus damage consumption)
 - RuleEngineSkillPhase4CTest: 26 tests (movement skills, BLIND, invisible)
 - RuleEngineSkillPhase4DTest: 14 tests (complex skills, buff types)
+- RuleEngineDeathChoiceTest: 17 tests (death choice flow)
+- DraftStateTest: 44 tests (DS-series, draft state management)
+- DraftResultTest: 12 tests (DR-series, combined results)
+- DraftSetupServiceTest: 38 tests (SP/PO/ID-series, GameState creation)
+- DraftIntegrationTest: 16 tests (DI-series, end-to-end flow)
 
 ---
 
@@ -226,6 +231,33 @@ RuleEngine refactored from ~3,300 lines (monolithic) to clean facade pattern:
 | Done | ActionExecutor extraction | All apply logic moved to ActionExecutor.java (1,164 lines) |
 | Done | RuleEngine facade | RuleEngine reduced to 98 lines (clean facade pattern) |
 
+### Phase 12: Death Choice Flow (Phase 5)
+
+| Status | Component | Description |
+|--------|-----------|-------------|
+| Done | DEATH_CHOICE action type | Player chooses SPAWN_OBSTACLE or SPAWN_BUFF_TILE on minion death |
+| Done | DeathChoice model | Pending choice with position, playerId |
+| Done | pendingDeathChoice field | GameState tracks pending choice |
+| Done | Validation | Only valid player can make choice, only when pending |
+| Done | Obstacle spawn | Creates obstacle at death position |
+| Done | Buff tile spawn | Creates random buff tile at death position |
+| Done | RuleEngineDeathChoiceTest | 17 tests (DC-series) |
+
+### Phase 13: Draft Phase (Phase 6)
+
+| Status | Component | Description |
+|--------|-----------|-------------|
+| Done | DraftState | Immutable draft state per player (hero class, minions, skill) |
+| Done | DraftResult | Combined draft results from both players |
+| Done | DraftSetupService | Create GameState from DraftResult with proper positions |
+| Done | SkillRegistry integration | Validate skill selection against hero class |
+| Done | Starting positions | P1 at row 0, P2 at row 4, hero center, minions edges |
+| Done | Unit ID format | p1_hero, p2_hero, p1_minion_1, p1_minion_2, p2_minion_1, p2_minion_2 |
+| Done | DraftStateTest | 44 tests (DS-series) |
+| Done | DraftResultTest | 12 tests (DR-series) |
+| Done | DraftSetupServiceTest | 38 tests (SP/PO/ID-series) |
+| Done | DraftIntegrationTest | 16 tests (DI-series) |
+
 **Final Architecture**:
 ```
 rules/
@@ -263,8 +295,13 @@ skill/
 | RuleEngineSkillPhase4BTest | Phase 4B damage/heal skills, bonus damage | Done |
 | RuleEngineSkillPhase4CTest | Phase 4C movement skills, BLIND, invisible | Done |
 | RuleEngineSkillPhase4DTest | Phase 4D complex skills, buff types | Done |
+| RuleEngineDeathChoiceTest | Death choice flow | Done |
+| DraftStateTest | Draft state management | Done |
+| DraftResultTest | Combined draft results | Done |
+| DraftSetupServiceTest | GameState creation from draft | Done |
+| DraftIntegrationTest | End-to-end draft flow | Done |
 
-**Total: 393 tests passing**
+**Total: 520 tests passing**
 
 ---
 
@@ -301,15 +338,16 @@ skill/
 |----------|---------|-------------|--------|
 | High | Minion Decay | Minions lose 1 HP per round | ✅ Done |
 | High | Round 8 Pressure | All units lose 1 HP per round after R8 | ✅ Done |
-| Medium | Death Choice Flow | SPAWN_OBSTACLE or SPAWN_BUFF_TILE on minion death | Partial (validation exists) |
+| High | Death Choice Flow | SPAWN_OBSTACLE or SPAWN_BUFF_TILE on minion death | ✅ Done |
 
-### Phase 6: Draft Phase
+### Phase 6: Draft Phase ✅ COMPLETE
 
-| Priority | Feature | Description | Complexity |
-|----------|---------|-------------|------------|
-| Medium | Hero Selection | Players choose hero class | Medium |
-| Medium | Minion Draft | Alternating minion selection (TANK, ARCHER, ASSASSIN) | Medium |
-| Medium | Initial Placement | Place units on starting positions | Medium |
+| Priority | Feature | Description | Status |
+|----------|---------|-------------|--------|
+| High | DraftState | Immutable draft state per player | ✅ Done |
+| High | DraftResult | Combined draft results | ✅ Done |
+| High | DraftSetupService | Create GameState from draft | ✅ Done |
+| High | Integration Tests | End-to-end draft-to-battle flow | ✅ Done |
 
 ---
 
@@ -393,6 +431,8 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| V3.0-Phase6 | 2025-12-07 | Draft Phase (DraftState, DraftResult, DraftSetupService, 110 draft tests), 520 tests |
+| V3.0-Phase5 | 2025-12-07 | Death Choice flow (SPAWN_OBSTACLE/SPAWN_BUFF_TILE on minion death), 410 tests |
 | V3.0-CodeHealth | 2025-12-07 | Full RuleEngine refactoring (98 lines facade + ActionValidator/ActionExecutor/SkillExecutor), 393 tests |
 | V3.0-Phase4D | 2025-12-07 | Complex skills (Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge), 393 tests |
 | V3.0-Phase4C | 2025-12-07 | Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades), BLIND buff, invisible mechanic, 374 tests |

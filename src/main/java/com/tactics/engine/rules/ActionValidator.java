@@ -45,10 +45,18 @@ public class ActionValidator {
             return new ValidationResult(false, "Game is already over");
         }
 
-        // G2: Wrong player turn
+        // V3: Pending death choice blocks all actions except DEATH_CHOICE
+        if (state.hasPendingDeathChoice() && action.getType() != ActionType.DEATH_CHOICE) {
+            return new ValidationResult(false, "Must resolve pending death choice first");
+        }
+
+        // G2: Wrong player turn (for DEATH_CHOICE, the owner must make the choice)
         if (action.getPlayerId() == null ||
             !action.getPlayerId().getValue().equals(state.getCurrentPlayer().getValue())) {
-            return new ValidationResult(false, "Not your turn");
+            // Special case: DEATH_CHOICE can be made by the death choice owner, not necessarily current player
+            if (action.getType() != ActionType.DEATH_CHOICE) {
+                return new ValidationResult(false, "Not your turn");
+            }
         }
 
         // Dispatch based on action type

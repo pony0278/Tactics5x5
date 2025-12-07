@@ -228,6 +228,47 @@ public class ActionExecutor {
         return checkGameOver(units, null);
     }
 
+    /**
+     * Check if any minion died in the units list (HP <= 0 but was created alive).
+     * Returns a DeathChoice for the first dead minion found (by ID order for determinism).
+     * Only checks minions, not heroes (hero death ends the game, no death choice).
+     *
+     * @param units The current units list
+     * @param originalUnits The units list before the action (to compare alive status)
+     * @return DeathChoice if a minion died, null otherwise
+     */
+    private com.tactics.engine.model.DeathChoice checkMinionDeath(List<Unit> units, List<Unit> originalUnits) {
+        // Build map of original alive minions
+        Map<String, Unit> originalMinionMap = new HashMap<>();
+        for (Unit u : originalUnits) {
+            if (u.isAlive() && u.getCategory() == UnitCategory.MINION) {
+                originalMinionMap.put(u.getId(), u);
+            }
+        }
+
+        // Find first minion that died (sort by ID for determinism)
+        List<Unit> deadMinions = new ArrayList<>();
+        for (Unit u : units) {
+            if (!u.isAlive() && u.getCategory() == UnitCategory.MINION && originalMinionMap.containsKey(u.getId())) {
+                deadMinions.add(u);
+            }
+        }
+
+        if (deadMinions.isEmpty()) {
+            return null;
+        }
+
+        // Sort by ID for deterministic order
+        deadMinions.sort((a, b) -> a.getId().compareTo(b.getId()));
+        Unit firstDead = deadMinions.get(0);
+
+        return new com.tactics.engine.model.DeathChoice(
+            firstDead.getId(),
+            firstDead.getOwner(),
+            firstDead.getPosition()
+        );
+    }
+
     private GameOverResult checkGameOver(List<Unit> units, PlayerId activePlayer) {
         boolean p1HasAlive = false;
         boolean p2HasAlive = false;
@@ -967,7 +1008,26 @@ public class ActionExecutor {
 
         GameOverResult gameOver = checkGameOver(newUnits, action.getPlayerId());
 
-        return state.withUpdates(newUnits, state.getUnitBuffs(), gameOver.isGameOver, gameOver.winner);
+        // Check for minion death - only if game is not over (hero death takes priority)
+        com.tactics.engine.model.DeathChoice deathChoice = null;
+        if (!gameOver.isGameOver) {
+            deathChoice = checkMinionDeath(newUnits, state.getUnits());
+        }
+
+        return new GameState(
+            state.getBoard(),
+            newUnits,
+            state.getCurrentPlayer(),
+            gameOver.isGameOver,
+            gameOver.winner,
+            state.getUnitBuffs(),
+            state.getBuffTiles(),
+            state.getObstacles(),
+            state.getCurrentRound(),
+            deathChoice != null ? deathChoice : state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
+        );
     }
 
     private GameState applyAttackObstacle(GameState state, Action action, Unit attacker,
@@ -1072,6 +1132,12 @@ public class ActionExecutor {
 
         GameOverResult gameOver = checkGameOver(turnEndResult.units, action.getPlayerId());
 
+        // Check for minion death - only if game is not over (hero death takes priority)
+        com.tactics.engine.model.DeathChoice deathChoice = null;
+        if (!gameOver.isGameOver) {
+            deathChoice = checkMinionDeath(turnEndResult.units, state.getUnits());
+        }
+
         GameState tempState = new GameState(
             state.getBoard(),
             turnEndResult.units,
@@ -1082,7 +1148,7 @@ public class ActionExecutor {
             tileResult.buffTiles,
             state.getObstacles(),
             state.getCurrentRound(),
-            state.getPendingDeathChoice(),
+            deathChoice != null ? deathChoice : state.getPendingDeathChoice(),
             state.isPlayer1TurnEnded(),
             state.isPlayer2TurnEnded()
         );
@@ -1103,7 +1169,7 @@ public class ActionExecutor {
             tileResult.buffTiles,
             state.getObstacles(),
             state.getCurrentRound(),
-            state.getPendingDeathChoice(),
+            deathChoice != null ? deathChoice : state.getPendingDeathChoice(),
             state.isPlayer1TurnEnded(),
             state.isPlayer2TurnEnded()
         );
