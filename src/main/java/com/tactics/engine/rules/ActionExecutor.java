@@ -56,7 +56,7 @@ public class ActionExecutor {
         ActionType type = action.getType();
 
         if (type == ActionType.END_TURN) {
-            return applyEndTurn(state);
+            return applyEndTurn(state, action);
         }
 
         if (type == ActionType.MOVE) {
@@ -133,6 +133,31 @@ public class ActionExecutor {
             }
         }
         return null;
+    }
+
+    private boolean hasSpeedBuff(List<BuffInstance> buffs) {
+        if (buffs == null) return false;
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isSpeedBuff()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int getMaxActions(List<BuffInstance> buffs) {
+        return hasSpeedBuff(buffs) ? 2 : 1;
+    }
+
+    /**
+     * Check if turn should switch after an action.
+     * SPEED buff units don't switch turn until they've used all actions.
+     */
+    private boolean shouldSwitchTurnAfterAction(GameState state, Unit actingUnit) {
+        List<BuffInstance> buffs = getBuffsForUnit(state, actingUnit.getId());
+        int maxActions = getMaxActions(buffs);
+        // If unit still has actions remaining, don't switch turn
+        return actingUnit.getActionsUsed() >= maxActions;
     }
 
     private List<Unit> updateUnitInList(List<Unit> units, String unitId, UnitTransformer transformer) {
@@ -270,10 +295,31 @@ public class ActionExecutor {
     }
 
     private GameOverResult checkGameOver(List<Unit> units, PlayerId activePlayer) {
+        // V3 Victory Condition: Kill the enemy Hero to win.
+        // Minion deaths do not end the game.
+        // For backward compatibility: if no Heroes exist, fall back to any unit check.
+
+        boolean p1HeroAlive = false;
+        boolean p2HeroAlive = false;
+        boolean p1HasHero = false;
+        boolean p2HasHero = false;
         boolean p1HasAlive = false;
         boolean p2HasAlive = false;
 
         for (Unit u : units) {
+            if (u.isHero()) {
+                if (u.getOwner().isPlayer1()) {
+                    p1HasHero = true;
+                    if (u.isAlive()) {
+                        p1HeroAlive = true;
+                    }
+                } else {
+                    p2HasHero = true;
+                    if (u.isAlive()) {
+                        p2HeroAlive = true;
+                    }
+                }
+            }
             if (u.isAlive()) {
                 if (u.getOwner().isPlayer1()) {
                     p1HasAlive = true;
@@ -283,6 +329,28 @@ public class ActionExecutor {
             }
         }
 
+        // V3 mode: Both players have Heroes - check Hero alive status
+        if (p1HasHero && p2HasHero) {
+            // Simultaneous Hero death: Active player wins
+            if (!p1HeroAlive && !p2HeroAlive) {
+                if (activePlayer != null) {
+                    return new GameOverResult(true, activePlayer);
+                }
+                return new GameOverResult(true, PlayerId.PLAYER_1);
+            }
+
+            // P1 Hero dead: P2 wins
+            if (!p1HeroAlive) {
+                return new GameOverResult(true, PlayerId.PLAYER_2);
+            }
+            // P2 Hero dead: P1 wins
+            if (!p2HeroAlive) {
+                return new GameOverResult(true, PlayerId.PLAYER_1);
+            }
+            return new GameOverResult(false, null);
+        }
+
+        // Legacy/backward compatibility: No Heroes - check any unit alive status
         if (!p1HasAlive && !p2HasAlive) {
             if (activePlayer != null) {
                 return new GameOverResult(true, activePlayer);
@@ -846,6 +914,51 @@ public class ActionExecutor {
         );
     }
 
+    /**
+     * Process round end after an action (MOVE/ATTACK/USE_SKILL) when all units have acted.
+     * Simplified version that works with the current state rather than TurnEndResult.
+     */
+    private GameState processRoundEndAfterAction(GameState state) {
+        // Execute preparing actions
+        PreparingActionsResult prepResult = executePreparingActions(state, state.getUnits(), state.getUnitBuffs());
+
+        GameOverResult gameOver = checkGameOver(prepResult.units);
+
+        List<Unit> unitsAfterDecay = applyMinionDecay(prepResult.units);
+
+        GameOverResult gameOverAfterDecay = checkGameOver(unitsAfterDecay);
+        if (gameOverAfterDecay.isGameOver) {
+            gameOver = gameOverAfterDecay;
+        }
+
+        List<Unit> unitsAfterPressure = unitsAfterDecay;
+        if (state.getCurrentRound() >= 8) {
+            unitsAfterPressure = applyRound8Pressure(unitsAfterDecay);
+
+            GameOverResult gameOverAfterPressure = checkGameOver(unitsAfterPressure);
+            if (gameOverAfterPressure.isGameOver) {
+                gameOver = gameOverAfterPressure;
+            }
+        }
+
+        List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(unitsAfterPressure);
+
+        return new GameState(
+            state.getBoard(),
+            unitsWithResetActions,
+            getNextPlayer(state.getCurrentPlayer()),
+            gameOver.isGameOver,
+            gameOver.winner,
+            prepResult.unitBuffs,
+            prepResult.buffTiles,
+            prepResult.obstacles,
+            state.getCurrentRound() + 1,
+            state.getPendingDeathChoice(),
+            false,
+            false
+        );
+    }
+
     // =========================================================================
     // Apply Action Methods
     // =========================================================================
@@ -859,14 +972,20 @@ public class ActionExecutor {
         return state.withUnits(newUnits);
     }
 
-    private GameState applyEndTurn(GameState state) {
+    private GameState applyEndTurn(GameState state, Action action) {
         PlayerId currentPlayer = state.getCurrentPlayer();
+        String actingUnitId = action.getActingUnitId();
 
+        // Unit-by-unit turn system: mark only the acting unit as acted
         List<Unit> unitsAfterEndTurn = new ArrayList<>();
         for (Unit u : state.getUnits()) {
-            if (u.isAlive() &&
+            if (actingUnitId != null && u.getId().equals(actingUnitId) && u.getActionsUsed() == 0) {
+                // Mark only this specific unit as acted
+                unitsAfterEndTurn.add(u.withActionsUsed(1));
+            } else if (actingUnitId == null && u.isAlive() &&
                 u.getOwner().getValue().equals(currentPlayer.getValue()) &&
                 u.getActionsUsed() == 0) {
+                // Legacy behavior: mark all current player's unacted units as acted
                 unitsAfterEndTurn.add(u.withActionsUsed(1));
             } else {
                 unitsAfterEndTurn.add(u);
@@ -916,17 +1035,26 @@ public class ActionExecutor {
 
     private GameState applyMove(GameState state, Action action) {
         Position targetPos = action.getTargetPosition();
+        String actingUnitId = action.getActingUnitId();
 
         Unit mover = null;
         List<BuffInstance> moverBuffs = null;
-        for (Unit u : state.getUnits()) {
-            if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-                List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
-                int effectiveMoveRange = getEffectiveMoveRange(u, buffs);
-                if (canMoveToPositionWithBuffs(u, targetPos, effectiveMoveRange)) {
-                    mover = u;
-                    moverBuffs = buffs;
-                    break;
+
+        // Unit-by-unit turn system: if actingUnitId is provided, use it to identify the mover
+        if (actingUnitId != null) {
+            mover = findUnitById(state.getUnits(), actingUnitId);
+            moverBuffs = getBuffsForUnit(state, mover.getId());
+        } else {
+            // Legacy behavior: find mover by position
+            for (Unit u : state.getUnits()) {
+                if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+                    List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
+                    int effectiveMoveRange = getEffectiveMoveRange(u, buffs);
+                    if (canMoveToPositionWithBuffs(u, targetPos, effectiveMoveRange)) {
+                        mover = u;
+                        moverBuffs = buffs;
+                        break;
+                    }
                 }
             }
         }
@@ -942,8 +1070,41 @@ public class ActionExecutor {
 
         GameOverResult gameOver = checkGameOver(tileResult.units);
 
-        return state.withMoveResult(tileResult.units, tileResult.unitBuffs, tileResult.buffTiles,
-                                     gameOver.isGameOver, gameOver.winner);
+        // Create intermediate state to check for turn switch
+        GameState tempState = new GameState(
+            state.getBoard(),
+            tileResult.units,
+            state.getCurrentPlayer(),
+            gameOver.isGameOver,
+            gameOver.winner,
+            tileResult.unitBuffs,
+            tileResult.buffTiles,
+            state.getObstacles(),
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
+        );
+
+        // Unit-by-unit turn system: switch player after action if not game over
+        if (!gameOver.isGameOver) {
+            // Check if acting unit still has actions (SPEED buff gives 2 actions)
+            Unit actingUnitAfterMove = findUnitById(tileResult.units, mover.getId());
+            if (!shouldSwitchTurnAfterAction(tempState, actingUnitAfterMove)) {
+                // SPEED unit still has actions - don't switch turn
+                return tempState;
+            }
+
+            // Check if round should end (all units acted)
+            if (allUnitsActed(tempState)) {
+                // Process round end - this resets all unit actions and increments round
+                return processRoundEndAfterAction(tempState);
+            }
+            PlayerId nextPlayer = getNextActingPlayer(tempState, state.getCurrentPlayer());
+            return tempState.withCurrentPlayer(nextPlayer);
+        }
+
+        return tempState;
     }
 
     private GameState applyAttack(GameState state, Action action) {
@@ -1014,7 +1175,8 @@ public class ActionExecutor {
             deathChoice = checkMinionDeath(newUnits, state.getUnits());
         }
 
-        return new GameState(
+        // Create intermediate state
+        GameState tempState = new GameState(
             state.getBoard(),
             newUnits,
             state.getCurrentPlayer(),
@@ -1028,6 +1190,24 @@ public class ActionExecutor {
             state.isPlayer1TurnEnded(),
             state.isPlayer2TurnEnded()
         );
+
+        // Unit-by-unit turn system: switch player after action if not game over and no death choice
+        if (!gameOver.isGameOver && deathChoice == null) {
+            // Check if acting unit still has actions (SPEED buff gives 2 actions)
+            Unit attackerAfterAction = findUnitById(newUnits, attacker.getId());
+            if (attackerAfterAction != null && !shouldSwitchTurnAfterAction(tempState, attackerAfterAction)) {
+                // SPEED unit still has actions - don't switch turn
+                return tempState;
+            }
+
+            if (allUnitsActed(tempState)) {
+                return processRoundEndAfterAction(tempState);
+            }
+            PlayerId nextPlayer = getNextActingPlayer(tempState, state.getCurrentPlayer());
+            return tempState.withCurrentPlayer(nextPlayer);
+        }
+
+        return tempState;
     }
 
     private GameState applyAttackObstacle(GameState state, Action action, Unit attacker,
@@ -1193,7 +1373,8 @@ public class ActionExecutor {
             ));
         }
 
-        return new GameState(
+        // Create intermediate state with death choice cleared
+        GameState tempState = new GameState(
             state.getBoard(),
             state.getUnits(),
             state.getCurrentPlayer(),
@@ -1203,8 +1384,16 @@ public class ActionExecutor {
             newBuffTiles,
             newObstacles,
             state.getCurrentRound(),
-            null
+            null  // Clear pending death choice
         );
+
+        // After death choice is resolved, determine next player
+        // (The original action that caused the death was already applied, attacker marked as acted)
+        if (allUnitsActed(tempState)) {
+            return processRoundEndAfterAction(tempState);
+        }
+        PlayerId nextPlayer = getNextActingPlayer(tempState, state.getCurrentPlayer());
+        return tempState.withCurrentPlayer(nextPlayer);
     }
 
     private GameState applyUseSkill(GameState state, Action action) {

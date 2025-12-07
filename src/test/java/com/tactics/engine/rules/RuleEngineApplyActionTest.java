@@ -82,8 +82,8 @@ class RuleEngineApplyActionTest {
             assertEquals(3, otherUnit.getPosition().getX());
             assertEquals(3, otherUnit.getPosition().getY());
 
-            // Verify currentPlayer unchanged (MOVE does not switch turn)
-            assertEquals("P1", newState.getCurrentPlayer().getValue());
+            // Unit-by-unit turn system: turn switches to opponent after MOVE
+            assertEquals("P2", newState.getCurrentPlayer().getValue());
 
             // Verify game state
             assertFalse(newState.isGameOver());
@@ -168,13 +168,13 @@ class RuleEngineApplyActionTest {
             assertEquals(7, target.getHp()); // 10 - 3 = 7
             assertTrue(target.isAlive());
 
-            // Verify attacker unchanged
+            // Verify attacker unchanged (except action used)
             Unit attacker = findUnit(newState.getUnits(), "u1_p1");
             assertEquals(10, attacker.getHp());
             assertEquals(3, attacker.getAttack());
 
-            // Verify currentPlayer unchanged (ATTACK does not switch turn)
-            assertEquals("P1", newState.getCurrentPlayer().getValue());
+            // Unit-by-unit turn system: turn switches to opponent after ATTACK
+            assertEquals("P2", newState.getCurrentPlayer().getValue());
 
             // Verify game not over
             assertFalse(newState.isGameOver());
@@ -198,8 +198,8 @@ class RuleEngineApplyActionTest {
             assertEquals(-1, target.getHp()); // 4 - 5 = -1
             assertFalse(target.isAlive());
 
-            // Verify currentPlayer unchanged
-            assertEquals("P1", newState.getCurrentPlayer().getValue());
+            // Unit-by-unit turn system: turn switches to opponent after ATTACK
+            assertEquals("P2", newState.getCurrentPlayer().getValue());
 
             // Game not over because P2 still has u2_p2 alive
             assertFalse(newState.isGameOver());

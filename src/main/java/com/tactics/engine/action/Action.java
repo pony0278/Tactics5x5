@@ -100,6 +100,55 @@ public class Action {
     // Factory methods for V3 actions
 
     /**
+     * Create a MOVE action with acting unit ID.
+     * Unit-by-unit turn system: actingUnitId specifies which unit performs the move.
+     */
+    public static Action move(String actingUnitId, Position targetPosition) {
+        // PlayerId is derived from actingUnitId prefix (p1_ or p2_)
+        PlayerId playerId = derivePlayerIdFromUnitId(actingUnitId);
+        return new Action(ActionType.MOVE, playerId, targetPosition, null,
+                         actingUnitId, null, null);
+    }
+
+    /**
+     * Create an ATTACK action with acting unit ID.
+     * Unit-by-unit turn system: actingUnitId specifies which unit performs the attack.
+     */
+    public static Action attack(String actingUnitId, Position targetPosition, String targetUnitId) {
+        PlayerId playerId = derivePlayerIdFromUnitId(actingUnitId);
+        return new Action(ActionType.ATTACK, playerId, targetPosition, targetUnitId,
+                         actingUnitId, null, null);
+    }
+
+    /**
+     * Create an END_TURN action for a specific unit.
+     * Unit-by-unit turn system: actingUnitId specifies which unit ends its turn.
+     * Only marks that ONE unit as acted, not all units.
+     */
+    public static Action endTurn(String actingUnitId) {
+        PlayerId playerId = derivePlayerIdFromUnitId(actingUnitId);
+        return new Action(ActionType.END_TURN, playerId, null, null,
+                         actingUnitId, null, null);
+    }
+
+    /**
+     * Derive PlayerId from unit ID prefix.
+     * Unit IDs follow the format: p1_hero, p1_minion_1, p2_hero, p2_minion_1, etc.
+     */
+    private static PlayerId derivePlayerIdFromUnitId(String unitId) {
+        if (unitId == null) {
+            return null;
+        }
+        if (unitId.startsWith("p1_")) {
+            return new PlayerId("P1");
+        } else if (unitId.startsWith("p2_")) {
+            return new PlayerId("P2");
+        }
+        // Fallback for legacy unit IDs
+        return null;
+    }
+
+    /**
      * Create a USE_SKILL action.
      */
     public static Action useSkill(PlayerId playerId, String actingUnitId, Position targetPosition, String skillTargetUnitId) {

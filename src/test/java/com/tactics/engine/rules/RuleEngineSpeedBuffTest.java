@@ -117,26 +117,37 @@ class RuleEngineSpeedBuffTest {
         }
 
         @Test
-        @DisplayName("BSP3: Without SPEED buff, second action is invalid")
+        @DisplayName("BSP3: Without SPEED buff, same unit cannot do second action in same round")
         void withoutSpeedBuffSecondActionInvalid() {
-            // Given: Unit WITHOUT SPEED buff
-            Unit unit = createUnit("p1_unit", p1, new Position(2, 2));
-            Unit target = createUnit("p2_unit", p2, new Position(2, 4), 10, 3);
+            // Given: Units WITHOUT SPEED buff - need multiple units so round doesn't end
+            Unit p1Unit1 = createUnit("p1_unit1", p1, new Position(2, 2));
+            Unit p1Unit2 = createUnit("p1_unit2", p1, new Position(0, 0));
+            Unit p2Unit1 = createUnit("p2_unit1", p2, new Position(2, 4), 10, 3);
+            Unit p2Unit2 = createUnit("p2_unit2", p2, new Position(4, 4), 10, 3);
 
-            GameState state = createStateWithoutBuffs(Arrays.asList(unit, target));
+            GameState state = createStateWithoutBuffs(Arrays.asList(p1Unit1, p1Unit2, p2Unit1, p2Unit2));
 
-            // When: First action (MOVE)
-            Action move = new Action(ActionType.MOVE, p1, new Position(2, 3), null);
+            // When: First action (MOVE) - turn switches to P2 in unit-by-unit system
+            Action move = Action.move("p1_unit1", new Position(2, 3));
             GameState afterMove = ruleEngine.applyAction(state, move);
 
-            // Then: Second action should be INVALID
-            Action attack = new Action(ActionType.ATTACK, p1, new Position(2, 4), "p2_unit");
-            ValidationResult attackResult = ruleEngine.validateAction(afterMove, attack);
-            assertFalse(attackResult.isValid(), "Second action should be invalid without SPEED buff");
-            assertTrue(attackResult.getErrorMessage().contains("no remaining actions")
-                    || attackResult.getErrorMessage().contains("already acted")
-                    || attackResult.getErrorMessage().contains("actions"),
-                "Error message should mention action limit");
+            // Unit-by-unit: After P1's action, turn is now P2's
+            assertEquals("P2", afterMove.getCurrentPlayer().getValue(), "Turn should switch to P2 after P1's action");
+
+            // P2's unit1 ends turn
+            Action p2End = Action.endTurn("p2_unit1");
+            GameState afterP2End = ruleEngine.applyAction(afterMove, p2End);
+
+            // Now it's P1's turn again (P1 still has p1_unit2 unacted)
+            assertEquals("P1", afterP2End.getCurrentPlayer().getValue(), "Turn should switch back to P1");
+
+            // Then: P1 trying to use same unit again should be INVALID (unit already acted)
+            Action attack = Action.attack("p1_unit1", new Position(2, 4), "p2_unit1");
+            ValidationResult attackResult = ruleEngine.validateAction(afterP2End, attack);
+            assertFalse(attackResult.isValid(), "Second action with same unit should be invalid without SPEED buff");
+            assertTrue(attackResult.getErrorMessage().contains("already acted")
+                    || attackResult.getErrorMessage().contains("no remaining actions"),
+                "Error message should mention unit already acted: " + attackResult.getErrorMessage());
         }
 
         @Test
@@ -170,20 +181,22 @@ class RuleEngineSpeedBuffTest {
 
             GameState state = createStateWithSpeedBuff(p1Unit, Arrays.asList(p1Unit, p2Unit));
 
-            // Use both actions
+            // Use both actions (SPEED allows consecutive actions)
             Action move = new Action(ActionType.MOVE, p1, new Position(2, 3), null);
             GameState afterMove = ruleEngine.applyAction(state, move);
+
+            // With SPEED buff, turn stays with P1 for second action
+            assertEquals("P1", afterMove.getCurrentPlayer().getValue(), "SPEED unit should keep turn for second action");
 
             Action attack = new Action(ActionType.ATTACK, p1, new Position(2, 4), "p2_unit");
             GameState afterAttack = ruleEngine.applyAction(afterMove, attack);
 
-            // P1 ends turn
-            Action endTurnP1 = new Action(ActionType.END_TURN, p1, null, null);
-            GameState afterP1End = ruleEngine.applyAction(afterAttack, endTurnP1);
+            // After both SPEED actions, turn switches to P2
+            assertEquals("P2", afterAttack.getCurrentPlayer().getValue(), "After SPEED unit uses both actions, turn switches");
 
-            // P2 ends turn (triggers round end)
-            Action endTurnP2 = new Action(ActionType.END_TURN, p2, null, null);
-            GameState afterRoundEnd = ruleEngine.applyAction(afterP1End, endTurnP2);
+            // P2 ends turn - this triggers round end since all units have acted
+            Action endTurnP2 = Action.endTurn("p2_unit");
+            GameState afterRoundEnd = ruleEngine.applyAction(afterAttack, endTurnP2);
 
             // Then: P1 unit should be able to act again (actions reset)
             // Find the unit in new state

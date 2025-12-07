@@ -244,6 +244,29 @@ public class ActionValidator {
         return unit.getActionsUsed() < maxActions;
     }
 
+    /**
+     * Validates that we're not trying to switch units while another unit is mid-SPEED.
+     * A unit is mid-SPEED if it has a SPEED buff and actionsUsed == 1 (still has second action).
+     */
+    private ValidationResult validateNoMidSpeedSwitch(GameState state, Unit actingUnit,
+                                                       com.tactics.engine.model.PlayerId playerId) {
+        // Find if there's a unit mid-SPEED for this player
+        for (Unit u : state.getUnits()) {
+            if (!u.isAlive()) continue;
+            if (!u.getOwner().getValue().equals(playerId.getValue())) continue;
+            if (u.getId().equals(actingUnit.getId())) continue;
+
+            // Check if this other unit is mid-SPEED
+            List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
+            if (hasSpeedBuff(buffs) && u.getActionsUsed() == 1) {
+                // Found a unit mid-SPEED that's not the acting unit
+                return new ValidationResult(false,
+                    "Must complete SPEED actions with " + u.getId() + " before switching units");
+            }
+        }
+        return new ValidationResult(true, null);
+    }
+
     // =========================================================================
     // V3 Action Validation Methods
     // =========================================================================
@@ -539,26 +562,61 @@ public class ActionValidator {
             return new ValidationResult(false, "Target tile is occupied");
         }
 
-        List<Unit> potentialMovers = new ArrayList<>();
-        for (Unit u : state.getUnits()) {
-            if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-                List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
-                int effectiveMoveRange = getEffectiveMoveRange(u, buffs);
-                if (canMoveToPositionWithBuffs(u, targetPos, effectiveMoveRange)) {
-                    potentialMovers.add(u);
+        // Unit-by-unit turn system: if actingUnitId is provided, use it to identify the mover
+        String actingUnitId = action.getActingUnitId();
+        Unit mover = null;
+
+        if (actingUnitId != null) {
+            // Find the specific unit by ID
+            mover = findUnitById(state.getUnits(), actingUnitId);
+            if (mover == null) {
+                return new ValidationResult(false, "Acting unit not found");
+            }
+            if (!mover.isAlive()) {
+                return new ValidationResult(false, "Acting unit is dead");
+            }
+            if (!mover.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+                return new ValidationResult(false, "Acting unit does not belong to current player");
+            }
+            // Check if this unit can still act (considering SPEED buff)
+            List<BuffInstance> moverBuffs = getBuffsForUnit(state, mover.getId());
+            if (!canUnitAct(mover, moverBuffs)) {
+                return new ValidationResult(false, "Unit has already acted this round");
+            }
+            // Check if another unit is mid-SPEED and this isn't that unit
+            ValidationResult speedCheck = validateNoMidSpeedSwitch(state, mover, action.getPlayerId());
+            if (!speedCheck.isValid()) {
+                return speedCheck;
+            }
+            // Verify the unit can actually move to the target position
+            int effectiveMoveRange = getEffectiveMoveRange(mover, moverBuffs);
+            if (!canMoveToPositionWithBuffs(mover, targetPos, effectiveMoveRange)) {
+                return new ValidationResult(false, "Unit cannot reach target position");
+            }
+        } else {
+            // Legacy behavior: find potential movers by position
+            List<Unit> potentialMovers = new ArrayList<>();
+            for (Unit u : state.getUnits()) {
+                if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+                    List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
+                    int effectiveMoveRange = getEffectiveMoveRange(u, buffs);
+                    if (canMoveToPositionWithBuffs(u, targetPos, effectiveMoveRange)) {
+                        potentialMovers.add(u);
+                    }
                 }
             }
+
+            if (potentialMovers.isEmpty()) {
+                return new ValidationResult(false, "No valid unit can move to target position");
+            }
+
+            if (potentialMovers.size() > 1) {
+                return new ValidationResult(false, "Ambiguous move");
+            }
+
+            mover = potentialMovers.get(0);
         }
 
-        if (potentialMovers.isEmpty()) {
-            return new ValidationResult(false, "No valid unit can move to target position");
-        }
-
-        if (potentialMovers.size() > 1) {
-            return new ValidationResult(false, "Ambiguous move");
-        }
-
-        Unit mover = potentialMovers.get(0);
         List<BuffInstance> moverBuffs = getBuffsForUnit(state, mover.getId());
 
         if (!canUnitAct(mover, moverBuffs)) {
@@ -621,26 +679,61 @@ public class ActionValidator {
             }
         }
 
-        List<Unit> potentialAttackers = new ArrayList<>();
-        for (Unit u : state.getUnits()) {
-            if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
-                List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
-                int effectiveAttackRange = getEffectiveAttackRange(u, buffs);
-                if (canAttackFromPositionWithBuffs(u.getPosition(), targetPos, effectiveAttackRange)) {
-                    potentialAttackers.add(u);
+        // Unit-by-unit turn system: if actingUnitId is provided, use it to identify the attacker
+        String actingUnitId = action.getActingUnitId();
+        Unit attacker = null;
+
+        if (actingUnitId != null) {
+            // Find the specific unit by ID
+            attacker = findUnitById(state.getUnits(), actingUnitId);
+            if (attacker == null) {
+                return new ValidationResult(false, "Acting unit not found");
+            }
+            if (!attacker.isAlive()) {
+                return new ValidationResult(false, "Acting unit is dead");
+            }
+            if (!attacker.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+                return new ValidationResult(false, "Acting unit does not belong to current player");
+            }
+            // Check if this unit can still act (considering SPEED buff)
+            List<BuffInstance> attackerBuffs = getBuffsForUnit(state, attacker.getId());
+            if (!canUnitAct(attacker, attackerBuffs)) {
+                return new ValidationResult(false, "Unit has already acted this round");
+            }
+            // Check if another unit is mid-SPEED and this isn't that unit
+            ValidationResult speedCheck = validateNoMidSpeedSwitch(state, attacker, action.getPlayerId());
+            if (!speedCheck.isValid()) {
+                return speedCheck;
+            }
+            // Verify the unit can actually attack the target position
+            int effectiveAttackRange = getEffectiveAttackRange(attacker, attackerBuffs);
+            if (!canAttackFromPositionWithBuffs(attacker.getPosition(), targetPos, effectiveAttackRange)) {
+                return new ValidationResult(false, "Unit cannot attack target position");
+            }
+        } else {
+            // Legacy behavior: find potential attackers by position
+            List<Unit> potentialAttackers = new ArrayList<>();
+            for (Unit u : state.getUnits()) {
+                if (u.isAlive() && u.getOwner().getValue().equals(action.getPlayerId().getValue())) {
+                    List<BuffInstance> buffs = getBuffsForUnit(state, u.getId());
+                    int effectiveAttackRange = getEffectiveAttackRange(u, buffs);
+                    if (canAttackFromPositionWithBuffs(u.getPosition(), targetPos, effectiveAttackRange)) {
+                        potentialAttackers.add(u);
+                    }
                 }
             }
+
+            if (potentialAttackers.isEmpty()) {
+                return new ValidationResult(false, "No attacker adjacent to target");
+            }
+
+            if (potentialAttackers.size() > 1) {
+                return new ValidationResult(false, "Ambiguous attacker");
+            }
+
+            attacker = potentialAttackers.get(0);
         }
 
-        if (potentialAttackers.isEmpty()) {
-            return new ValidationResult(false, "No attacker adjacent to target");
-        }
-
-        if (potentialAttackers.size() > 1) {
-            return new ValidationResult(false, "Ambiguous attacker");
-        }
-
-        Unit attacker = potentialAttackers.get(0);
         List<BuffInstance> attackerBuffs = getBuffsForUnit(state, attacker.getId());
 
         if (!canUnitAct(attacker, attackerBuffs)) {

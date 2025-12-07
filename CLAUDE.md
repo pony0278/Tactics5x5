@@ -77,7 +77,8 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Code Health | RuleEngine refactoring (SkillExecutor extraction) |
 | ✅ | Phase 5 | Game Flow Extension (Death Choice) |
 | ✅ | Phase 6 | Draft Phase |
-| 🔄 | **Phase 7** | Timer System (Server Layer) |
+| ✅ | **Phase 7** | Timer System (Server Layer) |
+| 🔄 | **Phase 8** | Unit-by-Unit Turn System |
 
 ### Phase 4 Sub-phases: Hero Skill System
 
@@ -88,7 +89,7 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 4C | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
 | ✅ | Phase 4D | Complex skills | Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge |
 
-**Current Task**: Phase 7 - Timer System (Server Layer)
+**Current Status**: Phase 7 Complete, Phase 8 In Progress
 
 **Reference Documents**:
 - `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
@@ -96,6 +97,8 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 - `/docs/DRAFT_PHASE_TESTPLAN.md` - 88 test cases for Draft Phase
 - `/docs/TIMER_TESTPLAN.md` - 80 test cases for Timer System
 - `/docs/TIMER_DESIGN_DECISIONS.md` - Timer design decisions
+- `/docs/UNIT_TURN_TESTPLAN.md` - Unit-by-unit turn system tests
+- `/docs/CODE_HEALTH_TODO.md` - Code health issues to address
 
 ---
 
@@ -126,7 +129,7 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 
 ---
 
-## 📋 Phase 7: Timer System (In Progress)
+## 📋 Phase 7: Timer System (Completed)
 
 **Layer**: Server (not Engine)
 
@@ -167,122 +170,82 @@ server/
     └── WebSocketHandler.java   # Timer message sending
 ```
 
-### WebSocket Message Format
+### Timer Tests: 71 tests (All Complete)
 
-```json
-{
-  "type": "YOUR_TURN",
-  "unitId": "p1_hero",
-  "actionStartTime": 1702345678901,
-  "timeoutMs": 10000,
-  "timerType": "ACTION"
-}
-```
+| Series | Category | Tests | Status |
+|--------|----------|-------|--------|
+| TA | Action Timer Basic | 11 | ✅ |
+| TD | Death Choice Timer | 9 | ✅ |
+| TN | Network & Sync | 13 | ✅ |
+| TB | Buff Interactions (SPEED/SLOW) | 6 | ✅ |
+| TE | Exhaustion Rule | 8 | ✅ |
+| TimerService | Core timer tests | 24 | ✅ |
 
-### Timer Tests: 80 tests
+---
 
-| Series | Category | Tests |
-|--------|----------|-------|
-| TA | Action Timer Basic | 12 |
-| TD | Death Choice Timer | 15 |
-| TF | Draft Timer | 10 |
-| TB | Buff Interactions (SPEED/SLOW) | 10 |
-| TE | Exhaustion Rule | 6 |
-| TN | Network & Sync | 8 |
-| TR | Round Processing | 6 |
-| TV | Victory & End Game | 5 |
-| TI | Integration | 8 |
+## 📋 Phase 8: Unit-by-Unit Turn System (In Progress)
 
-### Implementation Priority
+**Goal**: Implement alternating unit-by-unit turns per GAME_RULES_V3.md
 
-| Sub-phase | Tests | Description |
-|-----------|-------|-------------|
-| Phase 7.1 | TA-001~003, TD-001~003, TF-001~003 | Core Timer (9 tests) |
-| Phase 7.2 | TB-001~006, TE-001~002 | Buff & Exhaustion (8 tests) |
-| Phase 7.3 | TN-001~008 | Network & Sync (8 tests) |
-| Phase 7.4 | Remaining + TI-series | Edge Cases & Integration |
-
-### Phase 7 TODO List
-
-| Status | Sub-phase | Task | Tests |
-|--------|-----------|------|-------|
-| ✅ | 7.1 | TimerState enum (IDLE, RUNNING, PAUSED, COMPLETED, TIMEOUT) | - |
-| ✅ | 7.1 | TimerType enum (ACTION, DEATH_CHOICE, DRAFT) | - |
-| ✅ | 7.1 | TimerConfig constants (10s/5s/60s/500ms) | - |
-| ✅ | 7.1 | TimerService (start/stop/pause/resume/remaining) | 25 |
-| ✅ | 7.1 | TimerCallback interface | - |
-| ✅ | 7.1 | MatchService + TimerService integration | 15 |
-| ✅ | 7.1 | ActionResult class with timer info | - |
-| ✅ | 7.1 | TimerPayload, TimeoutPayload DTOs | - |
-| ✅ | 7.1 | StateUpdatePayload timer fields | - |
-| ✅ | 7.1 | MatchWebSocketHandler implements TimerCallback | 6 |
-| ✅ | 7.1 | JsonHelper timer serialization | - |
-| ✅ | 7.1 | YOUR_TURN with timer on game start | - |
-| ✅ | 7.1 | state_update with timer after action | - |
-| ✅ | 7.2 | Death Choice pauses Action Timer | TD-004~006 |
-| ✅ | 7.2 | SPEED buff: 10s per action × 2 | TB-001~003 |
-| ✅ | 7.2 | SLOW buff: timer on declaration only | TB-004~006 |
-| ✅ | 7.2 | Turn transition timer (team-based) | TE-001~003 |
-| ⬜ | 7.3 | Grace period acceptance (500ms) | TN-001~002 |
-| ⬜ | 7.3 | Timer sync on reconnection | TN-003~005 |
-| ⬜ | 7.3 | Concurrent action handling | TN-006~008 |
-| ⬜ | 7.4 | Round end timer pause | TR-001~006 |
-| ⬜ | 7.4 | Victory stops all timers | TV-001~005 |
-| ⬜ | 7.4 | Full integration tests | TI-001~008 |
-
-**Current Progress**: Phase 7.2 Complete (64 timer tests passing, 584 total)
-
-### ⚠️ Known Issue: Turn System Discrepancy
-
-**GAME_RULES_V3.md specifies** unit-by-unit alternating turns with Exhaustion Rule:
+### Turn Order
 ```
 P1 Unit1 → P2 Unit1 → P1 Unit2 → P2 Unit2 → P2 Unit3 (consecutive if P1 exhausted)
 ```
 
-**Current implementation** uses team-based turns:
-```
-P1's turn (all units) → END_TURN → P2's turn (all units) → END_TURN → Round end
-```
+### Phase 8 Completed Items
 
-**Impact on Timer Tests**: TE-series tests verify team-based turn timer behavior.
-When unit-by-unit turns are implemented, the Exhaustion Rule timer tests (consecutive actions with independent 10s timers) should be revisited.
+| Status | Task | Tests |
+|--------|------|-------|
+| ✅ | Unit turn tracking (actionsUsed field) | UT-series |
+| ✅ | getNextActingPlayer() logic | UT-series |
+| ✅ | Turn switch after each action | UT-series |
+| ✅ | Exhaustion Rule (consecutive turns) | UE-series (8) |
+| ✅ | SPEED buff (2 consecutive actions) | US-series (6) |
+| ✅ | Unit validation (ownership, alive, acted) | UV-series (8) |
+| ✅ | Integration tests | UI-series (6) |
+| ✅ | V3 Victory Condition (Hero death = win) | TD-014 |
+| ✅ | Death Choice turn order fix | TD-010 |
 
-**Files to modify for unit-by-unit**:
-- `ActionExecutor.applyEndTurn()` - Mark only acting unit as acted (not all)
-- `ActionExecutor.applyMove/Attack/etc.` - Call `getNextActingPlayer()` after each action
-- `ActionValidator` - Validate `actingUnitId` matches an unused unit
+### Key Implementation Changes
+
+1. **ActionExecutor.java**:
+   - `applyMove/Attack/etc.` now calls `getNextActingPlayer()` after each action
+   - `applyDeathChoice()` properly switches player after resolution
+   - `checkGameOver()` now checks Hero alive status (V3 rule)
+
+2. **ActionValidator.java**:
+   - Added `validateNoMidSpeedSwitch()` to prevent switching units during SPEED buff
+   - Changed `hasActed()` to `canUnitAct()` for SPEED buff support
 
 ---
 
-## 📋 Code Health Refactoring (Completed)
+## 📋 Code Health Refactoring
+
+**See `/docs/CODE_HEALTH_TODO.md` for detailed code health issues and refactoring plan.**
+
+### Completed Refactoring
 
 **Goal**: Improve code maintainability by splitting RuleEngine.java (~3,300 lines) into focused classes.
-
-### Full Refactoring Summary
 
 | Component | Lines | Responsibility |
 |-----------|-------|----------------|
 | RuleEngine.java | 98 | Facade - delegates to specialized components |
-| ActionValidator.java | 764 | All validation logic |
-| ActionExecutor.java | 1,164 | All apply/execution logic |
-| SkillExecutor.java | ~1,100 | All skill implementations |
+| ActionValidator.java | 865 | All validation logic |
+| ActionExecutor.java | 1,419 | All apply/execution logic |
+| SkillExecutor.java | 1,127 | All skill implementations |
 
 **Before**: RuleEngine.java ~3,300 lines (monolithic)
 **After**: RuleEngine.java 98 lines (clean facade) + 3 specialized classes
 
-### Extraction History
+### Pending Code Health Items
 
-1. **SkillExecutor Extraction** (Phase 4D completion)
-   - Extracted all 19 skill implementations
-   - RuleEngine reduced from ~3,300 to 2,316 lines
-
-2. **ActionValidator Extraction**
-   - Extracted all validation logic (validateAction, validateMove, validateAttack, etc.)
-   - RuleEngine reduced from 2,316 to 1,608 lines
-
-3. **ActionExecutor Extraction**
-   - Extracted all apply logic (applyAction, applyMove, applyAttack, etc.)
-   - RuleEngine reduced from 1,608 to 98 lines
+| Priority | Item | Status |
+|----------|------|--------|
+| Critical | ActionExecutor.java (1,419 lines) | Needs split |
+| Critical | SkillExecutor.java (1,127 lines) | Needs split |
+| Critical | JsonHelper.parseValue() (325 lines) | Needs refactor |
+| High | Duplicate helpers in ActionValidator/ActionExecutor | Extract to RuleEngineHelper |
+| High | Large methods (>50 lines) in ActionValidator | Needs split |
 
 **RuleEngine now acts as a clean facade**:
 ```java
@@ -300,7 +263,7 @@ public class RuleEngine {
 }
 ```
 
-**All 393 tests pass after refactoring.**
+**All 655 tests pass.**
 
 ---
 
@@ -921,16 +884,17 @@ See `/docs/PROGRESS.md` for details.
 - [x] Phase 6: Draft Phase (DraftState, DraftResult, DraftSetupService, Integration Tests)
 
 ### In Progress
-- [ ] Phase 7: Timer System (Server Layer) - Phase 7.2 Complete
+- [ ] Phase 8: Unit-by-Unit Turn System - Core implementation complete
+- [ ] Code Health: See `/docs/CODE_HEALTH_TODO.md` for refactoring items
 
 ### Test Status
-**Total: 584 tests passing** (520 Engine + 64 Timer)
+**Total: 655 tests passing**
 
 ---
 
 ## Test Coverage
 
-**Total: 584 tests passing**
+**Total: 655 tests passing**
 
 ### Existing Tests
 | Test Class | Coverage |
@@ -964,14 +928,25 @@ See `/docs/PROGRESS.md` for details.
 ### Timer Tests (Implemented)
 | Test Class | Coverage | Tests |
 |------------|----------|-------|
-| TimerServiceTest | Timer lifecycle, grace period | 25 |
-| MatchServiceTimerTest | TA/TD/TB/TE-series: timer integration | 33 |
+| TimerServiceTest | Timer lifecycle, grace period | 24 |
+| TimerServiceNetworkTest | TN-series: network/sync | 13 |
+| MatchServiceTimerTest | TA/TD/TB-series: timer integration | 33 |
+| MatchServiceActionTimerTest | TA-series: action timer | 11 |
+| MatchServiceDeathChoiceTimerTest | TD-series: death choice timer | 9 |
 | MatchWebSocketHandlerTimerTest | Timer message formats | 6 |
+
+### Unit Turn Tests (Implemented)
+| Test Class | Coverage | Tests |
+|------------|----------|-------|
+| RuleEngineUnitTurnTest | UT-series: basic turn mechanics | 10 |
+| RuleEngineExhaustionTest | UE-series: exhaustion rule | 8 |
+| RuleEngineSpeedTurnTest | US-series: SPEED turn handling | 6 |
+| RuleEngineUnitValidationTest | UV-series: unit validation | 8 |
+| RuleEngineUnitTurnIntegrationTest | UI-series: integration | 6 |
 
 ### Tests (To Be Implemented)
 | Test Plan | Test Count |
 |-----------|------------|
-| TIMER_TESTPLAN.md (remaining) | ~16 |
 | SKILL_SYSTEM_V3_TESTPLAN.md | ~150 remaining |
 | Remaining BUFF tests | ~100 |
 

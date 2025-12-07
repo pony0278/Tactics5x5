@@ -972,21 +972,21 @@ class MatchServiceTimerTest {
 
             service.startTurnTimer("match-1");
 
-            // P1 moves - unit marked as acted, but player can still do END_TURN
+            // P1 moves - unit marked as acted
             mockTime.addAndGet(2000);
             Action move = new Action(ActionType.MOVE, p1, new Position(1, 2), null);
             ActionResult result1 = service.applyActionWithTimer("match-1", p1, move);
 
-            // After MOVE, P1 is still current (need to END_TURN to switch)
-            // Note: In current implementation, MOVE marks unit but doesn't switch player
-            assertEquals(p1, result1.getNextPlayer());
+            // Unit-by-unit turn system: After MOVE, turn switches to P2 immediately
+            assertEquals(p2, result1.getNextPlayer(), "Unit-by-unit: turn switches after MOVE");
             assertEquals(TimerConfig.ACTION_TIMEOUT_MS, timerService.getRemainingTime("match-1", TimerType.ACTION));
 
-            // P1 ends turn - now P2's turn
-            Action endTurn = new Action(ActionType.END_TURN, p1, null, null);
-            ActionResult result2 = service.applyActionWithTimer("match-1", p1, endTurn);
+            // P2 ends turn (with unit-specific END_TURN) - this will trigger round end since all units acted
+            Action endTurn = Action.endTurn("p2_hero");
+            ActionResult result2 = service.applyActionWithTimer("match-1", p2, endTurn);
 
-            assertEquals(p2, result2.getNextPlayer());
+            // After round end, P1 gets next turn
+            assertEquals(p1, result2.getNextPlayer(), "After round end, P1 should be next");
             assertEquals(TimerConfig.ACTION_TIMEOUT_MS, timerService.getRemainingTime("match-1", TimerType.ACTION));
         }
     }
