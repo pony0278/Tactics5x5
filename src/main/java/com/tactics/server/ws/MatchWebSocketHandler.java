@@ -200,64 +200,104 @@ public class MatchWebSocketHandler implements TimerCallback {
     // ========== Message Handlers ==========
 
     private void handleJoinMatch(ClientConnection connection, Map<String, Object> payload) {
-        // Extract matchId from payload
         String matchId = getStringFromPayload(payload, "matchId");
-
         if (matchId == null) {
             sendValidationError(connection, "Missing matchId in join_match", null);
             return;
         }
 
-        // Get or create match
+        PlayerAssignment assignment = assignPlayerToMatch(connection, matchId);
+        if (assignment == null) {
+            return; // Error already sent
+        }
+
+        sendJoinConfirmation(connection, assignment);
+
+        if (assignment.isGameReady()) {
+            broadcastGameStart(assignment);
+        }
+    }
+
+    // ========== Join Match Helpers ==========
+
+    /**
+     * Result of player slot assignment.
+     */
+    private static class PlayerAssignment {
+        private final Match match;
+        private final String matchId;
+        private final String playerId;
+        private final boolean gameReady;
+
+        PlayerAssignment(Match match, String matchId, String playerId, boolean gameReady) {
+            this.match = match;
+            this.matchId = matchId;
+            this.playerId = playerId;
+            this.gameReady = gameReady;
+        }
+
+        Match getMatch() { return match; }
+        String getMatchId() { return matchId; }
+        String getPlayerId() { return playerId; }
+        boolean isGameReady() { return gameReady; }
+    }
+
+    /**
+     * Assigns a player to the first available slot in the match.
+     * Returns null if match is full (error sent to connection).
+     */
+    private PlayerAssignment assignPlayerToMatch(ClientConnection connection, String matchId) {
         Match match = matchService.getOrCreateMatch(matchId);
         Map<ClientSlot, ClientConnection> connections = match.getConnections();
 
-        // Assign player to first available slot
         String assignedPlayerId;
-        ClientSlot assignedSlot;
-
         if (!connections.containsKey(ClientSlot.P1)) {
-            assignedSlot = ClientSlot.P1;
             assignedPlayerId = "P1";
             connections.put(ClientSlot.P1, connection);
         } else if (!connections.containsKey(ClientSlot.P2)) {
-            assignedSlot = ClientSlot.P2;
             assignedPlayerId = "P2";
             connections.put(ClientSlot.P2, connection);
         } else {
             sendValidationError(connection, "Match is full", null);
-            return;
+            return null;
         }
 
-        // Store match/player info on the connection for cleanup on disconnect
         connection.setMatchId(matchId);
         connection.setPlayerId(assignedPlayerId);
 
-        GameState state = match.getState();
+        boolean gameReady = connections.size() == 2;
+        return new PlayerAssignment(match, matchId, assignedPlayerId, gameReady);
+    }
 
-        // Serialize the GameState
+    /**
+     * Sends match_joined confirmation to the connecting player.
+     */
+    private void sendJoinConfirmation(ClientConnection connection, PlayerAssignment assignment) {
+        GameState state = assignment.getMatch().getState();
         Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(state);
 
-        // Build MatchJoinedPayload with server-assigned playerId
-        MatchJoinedPayload responsePayload = new MatchJoinedPayload(matchId, assignedPlayerId, stateMap);
+        MatchJoinedPayload responsePayload = new MatchJoinedPayload(
+            assignment.getMatchId(), assignment.getPlayerId(), stateMap);
         OutgoingMessage response = new OutgoingMessage("match_joined", responsePayload);
 
-        // Send to this connection
         String jsonResponse = JsonHelper.toJson(response);
         connection.sendMessage(jsonResponse);
+    }
 
-        // Notify if both players are now connected and start the game
-        if (connections.size() == 2) {
-            // Send game_ready
-            OutgoingMessage gameReady = new OutgoingMessage("game_ready",
-                java.util.Map.of("message", "Both players connected. Game starting!"));
-            String readyJson = JsonHelper.toJson(gameReady);
-            broadcastToMatch(matchId, readyJson);
+    /**
+     * Broadcasts game_ready and starts the timer when both players have joined.
+     */
+    private void broadcastGameStart(PlayerAssignment assignment) {
+        String matchId = assignment.getMatchId();
 
-            // Start timer and send your_turn to first player (TA-006, TA-018)
-            if (useTimers) {
-                sendYourTurnWithTimer(matchId, state);
-            }
+        OutgoingMessage gameReady = new OutgoingMessage("game_ready",
+            java.util.Map.of("message", "Both players connected. Game starting!"));
+        String readyJson = JsonHelper.toJson(gameReady);
+        broadcastToMatch(matchId, readyJson);
+
+        if (useTimers) {
+            GameState state = assignment.getMatch().getState();
+            sendYourTurnWithTimer(matchId, state);
         }
     }
 

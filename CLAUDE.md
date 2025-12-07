@@ -74,11 +74,11 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 2 | V3 BUFF System |
 | ✅ | Phase 3 | Guardian Passive |
 | ✅ | Phase 4 | Hero Skill System (4 sub-phases) |
-| ✅ | Code Health | RuleEngine refactoring (SkillExecutor extraction) |
 | ✅ | Phase 5 | Game Flow Extension (Death Choice) |
 | ✅ | Phase 6 | Draft Phase |
-| ✅ | **Phase 7** | Timer System (Server Layer) |
-| 🔄 | **Phase 8** | Unit-by-Unit Turn System |
+| ✅ | Phase 7 | Timer System (Server Layer) |
+| ✅ | Phase 8 | Unit-by-Unit Turn System |
+| ✅ | **Code Health** | All refactoring complete (see below) |
 
 ### Phase 4 Sub-phases: Hero Skill System
 
@@ -89,7 +89,7 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 4C | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
 | ✅ | Phase 4D | Complex skills | Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge |
 
-**Current Status**: Phase 7 Complete, Phase 8 In Progress
+**Current Status**: All Phases Complete, All Code Health Tasks Complete
 
 **Reference Documents**:
 - `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
@@ -187,7 +187,7 @@ server/
 
 ---
 
-## 📋 Phase 8: Unit-by-Unit Turn System (In Progress)
+## 📋 Phase 8: Unit-by-Unit Turn System (Completed)
 
 **Goal**: Implement alternating unit-by-unit turns per GAME_RULES_V3.md
 
@@ -212,12 +212,17 @@ P1 Unit1 → P2 Unit1 → P1 Unit2 → P2 Unit2 → P2 Unit3 (consecutive if P1 
 
 ### Key Implementation Changes
 
-1. **ActionExecutor.java**:
-   - `applyMove/Attack/etc.` now calls `getNextActingPlayer()` after each action
+1. **ActionExecutor.java** (now dispatcher):
+   - Delegates to `MoveExecutor`, `AttackExecutor`, `TurnManager`
    - `applyDeathChoice()` properly switches player after resolution
+
+2. **MoveExecutor.java / AttackExecutor.java**:
+   - `applyMove/Attack/etc.` now calls `getNextActingPlayer()` after each action
+
+3. **GameOverChecker.java**:
    - `checkGameOver()` now checks Hero alive status (V3 rule)
 
-2. **ActionValidator.java**:
+4. **ActionValidator.java**:
    - Added `validateNoMidSpeedSwitch()` to prevent switching units during SPEED buff
    - Changed `hasActed()` to `canUnitAct()` for SPEED buff support
 
@@ -237,10 +242,24 @@ P1 Unit1 → P2 Unit1 → P1 Unit2 → P2 Unit2 → P2 Unit3 (consecutive if P1 
 |-----------|-------|----------------|
 | RuleEngine.java | 98 | Facade - delegates to specialized components |
 | ActionValidator.java | 865 | All validation logic |
-| ActionExecutor.java | 1,419 | All apply/execution logic |
+| ActionExecutor.java | 264 | Dispatcher - delegates to action executors |
 
 **Before**: RuleEngine.java ~3,300 lines (monolithic)
 **After**: RuleEngine.java 98 lines (clean facade) + 2 specialized classes
+
+#### Phase 3: ActionExecutor Split (Complete)
+
+| Component | Lines | Responsibility |
+|-----------|-------|----------------|
+| ActionExecutor.java | 264 | Dispatcher - routes to specialized executors |
+| ActionExecutorBase.java | 306 | Shared helpers (position, unit, buff) |
+| GameOverChecker.java | 166 | Victory condition logic |
+| TurnManager.java | 485 | Turn/round processing |
+| MoveExecutor.java | 214 | MOVE action + buff tile trigger |
+| AttackExecutor.java | 314 | ATTACK, MOVE_AND_ATTACK actions |
+
+**Before**: ActionExecutor.java ~1,419 lines (monolithic)
+**After**: ActionExecutor.java 264 lines (dispatcher) + 5 specialized classes
 
 #### Phase 2: Quick Wins + SkillExecutor Split (Complete)
 
@@ -267,13 +286,16 @@ P1 Unit1 → P2 Unit1 → P1 Unit2 → P2 Unit2 → P2 Unit3 (consecutive if P1 
 **Before**: SkillExecutor.java 1,127 lines (monolithic)
 **After**: SkillExecutor.java 123 lines (dispatcher) + 7 focused classes (~1,217 total)
 
-### Pending Code Health Items
+#### Phase 4: ActionValidator + MatchWebSocketHandler (Complete)
 
-| Priority | Item | Status |
-|----------|------|--------|
-| Critical | ActionExecutor.java (1,419 lines) | Needs split |
-| High | Large methods (>50 lines) in ActionValidator | Needs split |
-| Medium | MatchWebSocketHandler.handleJoinMatch() | Needs split |
+| Task | Status | Description |
+|------|--------|-------------|
+| ActionValidator.validateMove() | ✅ | Split from 89 → 24 lines |
+| ActionValidator.validateAttack() | ✅ | Split from 122 → 38 lines |
+| ActionValidator.validateMoveAndAttack() | ✅ | Split from 104 → 51 lines |
+| MatchWebSocketHandler.handleJoinMatch() | ✅ | Split from 61 → 17 lines + 3 helpers |
+
+### All Code Health Items Complete
 
 **RuleEngine now acts as a clean facade**:
 ```java
@@ -914,9 +936,11 @@ See `/docs/PROGRESS.md` for details.
 - [x] Phase 8: Unit-by-Unit Turn System (actionsUsed tracking, SPEED buff support)
 - [x] Code Health: Quick Wins (RuleEngineHelper, JsonHelper refactor, SkillRegistry refactor)
 - [x] Code Health: SkillExecutor split (1,127 → 123 lines dispatcher + 6 hero executors + base class)
+- [x] Code Health: ActionExecutor split (1,419 → 264 lines dispatcher + 5 specialized classes)
+- [x] Code Health: ActionValidator methods split (large methods into focused helpers)
 
 ### In Progress
-- [ ] Code Health: ActionExecutor split (1,419 lines) - See `/docs/CODE_HEALTH_TODO.md`
+- [ ] Code Health: MatchWebSocketHandler.handleJoinMatch() (optional) - See `/docs/CODE_HEALTH_TODO.md`
 
 ### Test Status
 **Total: 692 tests passing**
