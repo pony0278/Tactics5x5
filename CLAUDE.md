@@ -18,7 +18,8 @@ A 5x5 tactical board game featuring a game engine, WebSocket server, and web cli
 │   │   ├── model/           # GameState, Unit, Board, Position
 │   │   ├── action/          # Action, ActionType
 │   │   ├── buff/            # BuffInstance, BuffModifier, BuffFlags
-│   │   ├── rules/           # RuleEngine, ValidationResult
+│   │   ├── rules/           # RuleEngine, ActionValidator, ActionExecutor
+│   │   ├── skill/           # SkillExecutor, SkillDefinition, SkillRegistry
 │   │   └── util/            # GameStateFactory, Serializer, RngProvider
 │   └── server/              # WebSocket server
 │       ├── core/            # Match, MatchService, MatchRegistry
@@ -72,7 +73,8 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 1 | Model Layer Extension |
 | ✅ | Phase 2 | V3 BUFF System |
 | ✅ | Phase 3 | Guardian Passive |
-| ✅ | **Phase 4** | Hero Skill System (4 sub-phases) |
+| ✅ | Phase 4 | Hero Skill System (4 sub-phases) |
+| ✅ | **Code Health** | RuleEngine refactoring (SkillExecutor extraction) |
 | 🔄 | **Phase 5** | Game Flow Extension |
 | ⬜ | Phase 6 | Draft Phase |
 
@@ -91,6 +93,56 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 - `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
 - `/docs/HERO_SKILLS_REFERENCE.md` - Quick skill reference (中英對照)
 - `/docs/SKILL_SYSTEM_V3_TESTPLAN.md` - 201 test cases
+
+---
+
+## 📋 Code Health Refactoring (Completed)
+
+**Goal**: Improve code maintainability by splitting RuleEngine.java (~3,300 lines) into focused classes.
+
+### Full Refactoring Summary
+
+| Component | Lines | Responsibility |
+|-----------|-------|----------------|
+| RuleEngine.java | 98 | Facade - delegates to specialized components |
+| ActionValidator.java | 764 | All validation logic |
+| ActionExecutor.java | 1,164 | All apply/execution logic |
+| SkillExecutor.java | ~1,100 | All skill implementations |
+
+**Before**: RuleEngine.java ~3,300 lines (monolithic)
+**After**: RuleEngine.java 98 lines (clean facade) + 3 specialized classes
+
+### Extraction History
+
+1. **SkillExecutor Extraction** (Phase 4D completion)
+   - Extracted all 19 skill implementations
+   - RuleEngine reduced from ~3,300 to 2,316 lines
+
+2. **ActionValidator Extraction**
+   - Extracted all validation logic (validateAction, validateMove, validateAttack, etc.)
+   - RuleEngine reduced from 2,316 to 1,608 lines
+
+3. **ActionExecutor Extraction**
+   - Extracted all apply logic (applyAction, applyMove, applyAttack, etc.)
+   - RuleEngine reduced from 1,608 to 98 lines
+
+**RuleEngine now acts as a clean facade**:
+```java
+public class RuleEngine {
+    private final ActionValidator actionValidator;
+    private final ActionExecutor actionExecutor;
+
+    public ValidationResult validateAction(GameState state, Action action) {
+        return actionValidator.validateAction(state, action);
+    }
+
+    public GameState applyAction(GameState state, Action action) {
+        return actionExecutor.applyAction(state, action);
+    }
+}
+```
+
+**All 393 tests pass after refactoring.**
 
 ---
 
@@ -228,6 +280,419 @@ These rules have been implemented:
 
 ---
 
+## 🔧 Development Guidelines for Claude CLI
+
+### 1. Architecture Principles (最高優先)
+
+#### 1.1 High Cohesion, Low Coupling (高內聚、低耦合)
+
+**High Cohesion (高內聚)**:
+- Each class should have ONE clear responsibility
+- Related functionality should be grouped together
+- If a class does multiple unrelated things, split it
+
+```java
+// ❌ BAD: Low cohesion - one class doing everything
+class GameManager {
+    void validateMove() { }
+    void applyDamage() { }
+    void sendWebSocket() { }
+    void renderUI() { }
+}
+
+// ✅ GOOD: High cohesion - each class has one job
+class RuleEngine { void validateAction(); void applyAction(); }
+class DamageCalculator { int calculate(Unit attacker, Unit target); }
+class WebSocketHandler { void sendMessage(); }
+```
+
+**Low Coupling (低耦合)**:
+- Classes should depend on abstractions, not concrete implementations
+- Minimize direct dependencies between modules
+- Use dependency injection when possible
+
+```java
+// ❌ BAD: High coupling - direct instantiation
+class MatchService {
+    private RuleEngine engine = new RuleEngine();  // Tight coupling
+}
+
+// ✅ GOOD: Low coupling - dependency injection
+class MatchService {
+    private final RuleEngine engine;
+    public MatchService(RuleEngine engine) {  // Injected
+        this.engine = engine;
+    }
+}
+```
+
+#### 1.2 Layer Separation (分層架構)
+
+```
+┌─────────────────────────────────────────────────┐
+│  CLIENT (client/)                               │  ← UI only, no game logic
+├─────────────────────────────────────────────────┤
+│  SERVER (server/)                               │  ← Orchestration, WebSocket
+│  ├── ws/        → WebSocket handlers            │
+│  ├── core/      → Match management              │
+│  └── dto/       → Data transfer objects         │
+├─────────────────────────────────────────────────┤
+│  ENGINE (engine/)                               │  ← Pure game logic
+│  ├── rules/     → RuleEngine, validation        │
+│  ├── model/     → GameState, Unit, Position     │
+│  ├── action/    → Action, ActionType            │
+│  ├── buff/      → BuffInstance, BuffModifier    │
+│  ├── skill/     → SkillExecutor, SkillRegistry  │
+│  └── util/      → Factory, Serializer, Rng      │
+└─────────────────────────────────────────────────┘
+```
+
+**Layer Rules**:
+| From | Can Access | Cannot Access |
+|------|------------|---------------|
+| CLIENT | WebSocket only | SERVER, ENGINE |
+| SERVER | ENGINE | CLIENT internals |
+| ENGINE | Nothing external | SERVER, CLIENT |
+
+#### 1.3 Modularization (模組化)
+
+**Single Responsibility per File**:
+```java
+// ❌ BAD: Multiple responsibilities in one file
+// BuffSystem.java containing BuffInstance, BuffModifier, BuffFactory, BuffValidator
+
+// ✅ GOOD: One responsibility per file
+buff/
+├── BuffInstance.java      → Data model
+├── BuffModifier.java      → Modifier calculations
+├── BuffFactory.java       → Creation logic
+├── BuffFlags.java         → Boolean flags
+└── BuffValidator.java     → Validation rules
+```
+
+**Package by Feature**:
+```java
+// ❌ BAD: Package by layer only
+model/
+├── Unit.java
+├── Buff.java
+├── Skill.java
+
+// ✅ GOOD: Package by feature (for complex features)
+buff/
+├── BuffInstance.java
+├── BuffModifier.java
+└── BuffFactory.java
+skill/
+├── SkillDefinition.java
+├── SkillExecutor.java
+└── SkillRegistry.java
+```
+
+#### 1.4 Dependency Direction
+
+```
+High-level (stable) ← Low-level (volatile)
+
+RuleEngine ← SkillExecutor ← SkillRegistry
+     ↑
+GameState ← Unit ← Position
+```
+
+- High-level modules should NOT depend on low-level details
+- Both should depend on abstractions
+- Changes in low-level modules should NOT break high-level modules
+
+#### 1.5 When to Extract New Classes
+
+Extract a new class when:
+- A class exceeds **500 lines** → Consider splitting
+- A class exceeds **1000 lines** → Must split (like SkillExecutor extraction)
+- A method exceeds **50 lines** → Extract helper methods or new class
+- Multiple methods share common logic → Extract to helper class
+
+**Example**: SkillExecutor was extracted from RuleEngine
+- Before: RuleEngine ~3,300 lines
+- After: RuleEngine ~2,300 lines + SkillExecutor ~1,100 lines
+
+---
+
+### 2. Code Style (程式碼風格)
+
+#### 2.1 Naming Conventions
+
+| Type | Convention | Example |
+|------|------------|---------|
+| Class | PascalCase, noun | `GameState`, `RuleEngine`, `SkillExecutor` |
+| Interface | PascalCase, adjective/noun | `Validatable`, `ActionHandler` |
+| Method | camelCase, verb | `validateAction()`, `applyDamage()` |
+| Variable | camelCase, descriptive | `targetUnit`, `buffDuration` |
+| Constant | UPPER_SNAKE | `MAX_HP`, `BUFF_DURATION` |
+| Package | lowercase | `com.tactics.engine.buff` |
+| Test | ClassNameTest | `RuleEngineTest`, `SkillExecutorTest` |
+| Enum | PascalCase (type), UPPER_SNAKE (values) | `BuffType.POWER`, `ActionType.ATTACK` |
+
+#### 2.2 Method Design
+
+**Keep Methods Small** (< 30 lines ideal, < 50 max):
+```java
+// ❌ BAD: 100+ line method doing everything
+void processAction(Action action) {
+    // validation logic...
+    // damage calculation...
+    // state update...
+    // death processing...
+    // victory check...
+}
+
+// ✅ GOOD: Small, focused methods
+void processAction(Action action) {
+    ValidationResult result = validateAction(action);
+    if (!result.isValid()) return;
+    
+    applyAction(action);
+    processDeaths();
+    checkVictory();
+}
+```
+
+**Method Parameter Limit**: Max 3-4 parameters
+```java
+// ❌ BAD: Too many parameters
+void createUnit(String id, int hp, int atk, int move, int range, PlayerId owner, Position pos)
+
+// ✅ GOOD: Use builder or parameter object
+Unit unit = Unit.builder()
+    .id(id)
+    .hp(hp)
+    .attack(atk)
+    .position(pos)
+    .build();
+```
+
+#### 2.3 Immutability
+
+**Prefer Immutable Objects**:
+```java
+// ❌ BAD: Mutable state
+class Unit {
+    private int hp;
+    public void setHp(int hp) { this.hp = hp; }
+}
+
+// ✅ GOOD: Immutable with copy-on-write
+class Unit {
+    private final int hp;
+    public Unit withHp(int newHp) {
+        return new Unit(this.id, newHp, this.attack, ...);
+    }
+}
+```
+
+#### 2.4 Error Handling
+
+```java
+// ❌ BAD: Silent failure
+void applyBuff(Unit unit, BuffType type) {
+    if (unit == null) return;  // Silent failure
+}
+
+// ✅ GOOD: Explicit validation result
+ValidationResult applyBuff(Unit unit, BuffType type) {
+    if (unit == null) {
+        return ValidationResult.invalid("Unit cannot be null");
+    }
+    // ...
+}
+```
+
+#### 2.5 Comments
+
+```java
+// ❌ BAD: Obvious comments
+int hp = 5;  // Set hp to 5
+
+// ✅ GOOD: Explain WHY, not WHAT
+// Guardian cannot protect itself - damage goes directly to TANK
+if (target.equals(guardian)) {
+    return applyDirectDamage(target, damage);
+}
+
+// ✅ GOOD: Document complex business rules
+/**
+ * Wild Magic deals 1 damage to ALL enemies and has 33% chance
+ * to apply a random debuff (BLEED, SLOW, or WEAKNESS) to each.
+ * Uses RngProvider for deterministic randomness.
+ */
+GameState applyWildMagic(GameState state, Unit caster) { }
+```
+
+---
+
+### 3. Testing Guidelines (測試規範)
+
+#### 3.1 Test-Driven Development (TDD)
+
+**Development Flow**:
+```
+1. Read test plan (e.g., GUARDIAN_TESTPLAN.md)
+2. Write failing test first
+3. Write minimal code to pass test
+4. Refactor if needed
+5. Repeat
+```
+
+**Before implementing any feature**:
+1. Check if test plan exists in `docs/`
+2. If yes → Follow the test plan
+3. If no → Ask user or create test cases first
+
+#### 3.2 Test Structure
+
+**One Test Class per Production Class**:
+```
+src/main/java/com/tactics/engine/
+├── rules/RuleEngine.java
+├── skill/SkillExecutor.java
+
+src/test/java/com/tactics/engine/
+├── rules/RuleEngineTest.java
+├── rules/RuleEngineGuardianTest.java  (feature-specific)
+├── skill/SkillExecutorTest.java
+```
+
+**Test Naming Convention**:
+```java
+@Test
+void testMethodName_scenario_expectedResult() { }
+
+// Examples:
+void testValidateAction_moveToOccupiedTile_returnsInvalid() { }
+void testApplyDamage_guardianAdjacent_damageRedirected() { }
+void testGetBuff_expiredDuration_returnsNull() { }
+```
+
+#### 3.3 Test Organization (AAA Pattern)
+
+```java
+@Test
+void testGuardianInterceptsAttack() {
+    // Arrange - Setup test state
+    GameState state = createTestState();
+    Unit tank = placeUnit(MinionType.TANK, pos(2, 2), PLAYER_1);
+    Unit target = placeUnit(MinionType.ARCHER, pos(2, 3), PLAYER_1);
+    Unit attacker = placeUnit(MinionType.ASSASSIN, pos(2, 4), PLAYER_2);
+    
+    // Act - Execute the action
+    GameState result = ruleEngine.applyAction(
+        Action.attack(attacker.getId(), target.getPosition(), target.getId()),
+        state
+    );
+    
+    // Assert - Verify results
+    assertThat(getUnit(result, tank.getId()).getHp()).isEqualTo(originalTankHp - 1);
+    assertThat(getUnit(result, target.getId()).getHp()).isEqualTo(originalTargetHp);
+}
+```
+
+#### 3.4 Test Coverage Requirements
+
+| Category | Minimum Coverage | Priority |
+|----------|------------------|----------|
+| RuleEngine | 90%+ | Critical |
+| SkillExecutor | 90%+ | Critical |
+| Model classes | 80%+ | High |
+| Utility classes | 70%+ | Medium |
+| Server/WebSocket | 60%+ | Lower |
+
+**Must Test**:
+- All validation rules (valid AND invalid cases)
+- All state transitions
+- Edge cases documented in test plans
+- Error conditions
+- Guardian interception scenarios
+- Buff interactions
+
+**Run Tests After Every Change**:
+```bash
+mvn test                           # All tests
+mvn test -Dtest=ClassName          # Specific class
+mvn test -Dtest=ClassName#method   # Specific method
+```
+
+#### 3.5 Test Independence
+
+```java
+// ❌ BAD: Tests depend on each other
+@Test void test1_createUnit() { sharedUnit = new Unit(); }
+@Test void test2_moveUnit() { sharedUnit.move(); }  // Depends on test1
+
+// ✅ GOOD: Each test is independent
+@Test void testCreateUnit() { Unit unit = new Unit(); ... }
+@Test void testMoveUnit() { Unit unit = new Unit(); unit.move(); ... }
+```
+
+---
+
+### 4. Code Review Checklist (For Claude CLI)
+
+Before completing any task, verify:
+
+#### Architecture
+- [ ] No circular dependencies introduced
+- [ ] Layer boundaries respected (ENGINE → SERVER → CLIENT)
+- [ ] New code follows single responsibility principle
+- [ ] High cohesion within classes
+- [ ] Low coupling between classes
+- [ ] Classes under 500 lines (or justified exception)
+
+#### Code Quality
+- [ ] Methods are small and focused (< 30 lines ideal)
+- [ ] Naming is clear and consistent
+- [ ] No magic numbers (use constants)
+- [ ] Immutability preserved where required
+- [ ] Error handling is explicit (ValidationResult)
+
+#### Testing
+- [ ] All new code has corresponding tests
+- [ ] Tests follow AAA pattern
+- [ ] Edge cases covered
+- [ ] All existing tests still pass (`mvn test`)
+- [ ] Test names are descriptive
+
+#### Documentation
+- [ ] Complex logic has comments explaining WHY
+- [ ] Public methods have Javadoc for non-obvious behavior
+- [ ] Changes align with spec documents in `docs/`
+
+---
+
+### 5. Refactoring Guidelines
+
+#### When to Refactor
+- Before adding new features to complex code
+- When tests are passing but code is hard to read
+- When a class exceeds size limits (500+ lines)
+- When duplicate code appears 3+ times
+
+#### Refactoring Checklist
+1. Ensure all tests pass BEFORE refactoring
+2. Make small, incremental changes
+3. Run tests after EACH change
+4. Do NOT change behavior during refactoring
+5. Commit after each successful refactor step
+
+#### Safe Refactoring Steps
+```
+1. Extract Method     → Break large methods into smaller ones
+2. Extract Class      → Split large class into focused classes
+3. Move Method        → Move method to more appropriate class
+4. Rename             → Improve naming for clarity
+5. Remove Duplication → Extract shared code to helper
+```
+
+---
+
 ## V3 Key Concepts
 
 ### Victory Condition
@@ -291,6 +756,7 @@ See `/docs/PROGRESS.md` for details.
 - [x] Phase 4B: Damage/heal skills (Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many)
 - [x] Phase 4C: Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades)
 - [x] Phase 4D: Complex skills (Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge)
+- [x] Code Health: Full RuleEngine refactoring (reduced from ~3,300 to 98 lines via ActionValidator, ActionExecutor, SkillExecutor extraction)
 
 ### In Progress
 - [ ] Phase 5: Game Flow Extension
@@ -343,3 +809,6 @@ Key principles:
 - Do not violate layering architecture
 - Must run tests to verify after modifications
 - For V3 features, always reference V3 documents (not V1/V2)
+- **Follow Development Guidelines above (高內聚、低耦合)**
+- **Use TDD: Write tests first, then implement**
+- **Keep classes under 500 lines, methods under 30 lines**

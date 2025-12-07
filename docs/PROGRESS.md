@@ -4,9 +4,9 @@ This document tracks completed work and outlines the roadmap for future developm
 
 ---
 
-## Current Status: V3 Phase 4C Complete (Movement Skills)
+## Current Status: V3 Phase 4D Complete + Code Health Refactoring
 
-The game engine now supports all V3 BUFF types, game rules, and Phase 4C movement skills:
+The game engine now supports all V3 BUFF types, game rules, and all Phase 4 skills (A-D):
 
 ### BUFF System (6 types)
 - **POWER**: +3 ATK, +1 HP instant, blocks MOVE_AND_ATTACK, instant obstacle destroy
@@ -27,7 +27,7 @@ The game engine now supports all V3 BUFF types, game rules, and Phase 4C movemen
 - **Guardian Passive**: TANK protects adjacent allied units (damage redirected to TANK)
 - **Removed DESTROY_OBSTACLE**: Use ATTACK on obstacles instead
 
-### Hero Skills Implemented (Phase 4A-C)
+### Hero Skills Implemented (Phase 4A-D)
 - **Endure** (Warrior): Gain 3 shield, remove BLEED
 - **Spirit Hawk** (Huntress): 2 damage at range 4
 - **Elemental Blast** (Mage): 3 damage, 50% random debuff
@@ -39,19 +39,31 @@ The game engine now supports all V3 BUFF types, game rules, and Phase 4C movemen
 - **Smoke Bomb** (Rogue): Teleport, invisible 1 round, blind adjacent enemies
 - **Warp Beacon** (Mage): Place beacon or teleport to existing beacon
 - **Spectral Blades** (Huntress): 1 damage to all enemies in a line (pierces)
+- **Wild Magic** (Mage): 1 damage to ALL enemies + 33% random debuff each
+- **Elemental Strike** (Duelist): 3 damage + player-chosen debuff (BLEED/SLOW/WEAKNESS)
+- **Death Mark** (Rogue): Mark target 2 rounds, +2 damage taken, heal on kill
+- **Ascended Form** (Cleric): Invulnerable 1 round, 2x healing, cannot attack
+- **Shadow Clone** (Rogue): Spawn 1HP/1ATK clone for 2 rounds
+- **Feint** (Duelist): Dodge next attack, counter 2 damage
+- **Challenge** (Duelist): Mark enemy, 50% damage to others, counter on attack
 
-### Code Refactoring
-- Added `GameState.with*()` helper methods (11 methods)
-- Added `Unit.with*()` helper methods (withHpBonus, withDamage, etc.)
-- Added `updateUnitInList()`/`updateUnitsInList()` helpers
-- RuleEngine reduced from 2141 to 1906 lines
+### Code Health Refactoring
+RuleEngine refactored from ~3,300 lines (monolithic) to clean facade pattern:
 
-**Test Coverage**: 379 tests passing
+| Component | Lines | Responsibility |
+|-----------|-------|----------------|
+| RuleEngine.java | 98 | Facade - delegates to specialized components |
+| ActionValidator.java | 764 | All validation logic |
+| ActionExecutor.java | 1,164 | All apply/execution logic |
+| SkillExecutor.java | ~1,100 | All skill implementations |
+
+**Test Coverage**: 393 tests passing
 - RuleEngineGuardianTest: 16 tests (GRD-series)
 - RuleEngineAttritionTest: 11 tests (ATR-series)
 - RuleEngineSkillTest: 24 tests (skill framework)
 - RuleEngineSkillPhase4BTest: 31 tests (damage/heal skills, bonus damage consumption)
 - RuleEngineSkillPhase4CTest: 26 tests (movement skills, BLIND, invisible)
+- RuleEngineSkillPhase4DTest: 14 tests (complex skills, buff types)
 
 ---
 
@@ -203,7 +215,28 @@ The game engine now supports all V3 BUFF types, game rules, and Phase 4C movemen
 | Done | updateUnitsInList() | Batch unit updates with Map<String, UnitTransformer> |
 | Done | PlayerId constants | PLAYER_1, PLAYER_2, isPlayer1(), isPlayer2() |
 | Done | Obstacle.ID_PREFIX | Constant for obstacle ID generation |
-| Done | RuleEngine cleanup | Reduced from 2141 to 1906 lines |
+| Done | RuleEngine cleanup | Initial reduction from 2141 to 1906 lines |
+
+### Phase 11: Code Health Refactoring
+
+| Status | Component | Description |
+|--------|-----------|-------------|
+| Done | SkillExecutor extraction | All 19 skill implementations moved to SkillExecutor.java (~1,100 lines) |
+| Done | ActionValidator extraction | All validation logic moved to ActionValidator.java (764 lines) |
+| Done | ActionExecutor extraction | All apply logic moved to ActionExecutor.java (1,164 lines) |
+| Done | RuleEngine facade | RuleEngine reduced to 98 lines (clean facade pattern) |
+
+**Final Architecture**:
+```
+rules/
+├── RuleEngine.java        → 98 lines (facade)
+├── ActionValidator.java   → 764 lines (validation)
+├── ActionExecutor.java    → 1,164 lines (execution)
+└── ValidationResult.java  → 23 lines (result type)
+
+skill/
+└── SkillExecutor.java     → ~1,100 lines (skill implementations)
+```
 
 ---
 
@@ -229,8 +262,9 @@ The game engine now supports all V3 BUFF types, game rules, and Phase 4C movemen
 | RuleEngineSkillTest | Skill framework, Endure, Spirit Hawk | Done |
 | RuleEngineSkillPhase4BTest | Phase 4B damage/heal skills, bonus damage | Done |
 | RuleEngineSkillPhase4CTest | Phase 4C movement skills, BLIND, invisible | Done |
+| RuleEngineSkillPhase4DTest | Phase 4D complex skills, buff types | Done |
 
-**Total: 379 tests passing**
+**Total: 393 tests passing**
 
 ---
 
@@ -243,14 +277,23 @@ The game engine now supports all V3 BUFF types, game rules, and Phase 4C movemen
 | High | TANK Guardian | TANK protects adjacent allied units from attacks | ✅ Done |
 | High | Attack Redirection | Attacks on protected units redirect to TANK | ✅ Done |
 
-### Phase 4: Hero Skill System (In Progress)
+### Phase 4: Hero Skill System ✅ COMPLETE
 
 | Sub-phase | Status | Description |
 |-----------|--------|-------------|
 | Phase 4A | ✅ Done | Skill framework, validation, cooldown, Endure, Spirit Hawk |
 | Phase 4B | ✅ Done | Damage/heal skills (Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many) |
 | Phase 4C | ✅ Done | Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades) |
-| Phase 4D | 🔄 Next | Complex skills (Shadow Clone, Death Mark, Feint, Challenge, Wild Magic) |
+| Phase 4D | ✅ Done | Complex skills (Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge) |
+
+### Code Health Refactoring ✅ COMPLETE
+
+| Priority | Feature | Description | Status |
+|----------|---------|-------------|--------|
+| High | SkillExecutor | Extract 19 skill implementations to SkillExecutor.java | ✅ Done |
+| High | ActionValidator | Extract all validation logic to ActionValidator.java | ✅ Done |
+| High | ActionExecutor | Extract all apply logic to ActionExecutor.java | ✅ Done |
+| High | RuleEngine Facade | RuleEngine reduced to 98-line clean facade | ✅ Done |
 
 ### Phase 5: Game Flow Extension ✅ COMPLETE
 
@@ -350,6 +393,8 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| V3.0-CodeHealth | 2025-12-07 | Full RuleEngine refactoring (98 lines facade + ActionValidator/ActionExecutor/SkillExecutor), 393 tests |
+| V3.0-Phase4D | 2025-12-07 | Complex skills (Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge), 393 tests |
 | V3.0-Phase4C | 2025-12-07 | Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades), BLIND buff, invisible mechanic, 374 tests |
 | V3.0-Phase4B | 2025-12-06 | Damage/heal skills (Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many), 348 tests |
 | V3.0-Phase4A | 2025-12-06 | Skill framework, validation, cooldown, Endure, Spirit Hawk, 322 tests |
