@@ -5,25 +5,33 @@ import com.tactics.engine.action.ActionType;
 import com.tactics.engine.model.GameState;
 import com.tactics.engine.model.PlayerId;
 import com.tactics.engine.model.Position;
+import com.tactics.server.core.ActionResult;
 import com.tactics.server.core.ClientSlot;
 import com.tactics.server.core.Match;
 import com.tactics.server.core.MatchService;
 import com.tactics.server.dto.*;
+import com.tactics.server.timer.TimerCallback;
+import com.tactics.server.timer.TimerConfig;
+import com.tactics.server.timer.TimerType;
 
 import java.util.Map;
 
 /**
  * Main entry point for WebSocket events; routes messages to MatchService.
+ * Implements TimerCallback to handle timeout notifications.
  */
-public class MatchWebSocketHandler {
+public class MatchWebSocketHandler implements TimerCallback {
 
     private final MatchService matchService;
     private final ConnectionRegistry connectionRegistry;
+    private boolean useTimers = true;
 
     public MatchWebSocketHandler(MatchService matchService,
                                  ConnectionRegistry connectionRegistry) {
         this.matchService = matchService;
         this.connectionRegistry = connectionRegistry;
+        // Register this handler as the timer callback
+        matchService.setTimerCallback(this);
     }
 
     public MatchService getMatchService() {
@@ -32,6 +40,13 @@ public class MatchWebSocketHandler {
 
     public ConnectionRegistry getConnectionRegistry() {
         return connectionRegistry;
+    }
+
+    /**
+     * Enable or disable timer integration (for testing).
+     */
+    public void setUseTimers(boolean useTimers) {
+        this.useTimers = useTimers;
     }
 
     public void onOpen(ClientConnection connection) {
@@ -50,7 +65,7 @@ public class MatchWebSocketHandler {
                 ClientSlot slot = "P1".equals(playerId) ? ClientSlot.P1 : ClientSlot.P2;
                 match.getConnections().remove(slot);
 
-                // Notify remaining player
+                // Notify remaining player (timer continues per TN-004)
                 OutgoingMessage disconnectMsg = new OutgoingMessage("player_disconnected",
                     java.util.Map.of("playerId", playerId));
                 String json = JsonHelper.toJson(disconnectMsg);
@@ -95,6 +110,94 @@ public class MatchWebSocketHandler {
                 break;
         }
     }
+
+    // ========== TimerCallback Implementation ==========
+
+    @Override
+    public void onActionTimeout(String matchId, PlayerId playerId, GameState newState) {
+        // Serialize state
+        Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(newState);
+
+        // Build timeout payload
+        TimeoutPayload.PenaltyInfo penalty = new TimeoutPayload.PenaltyInfo("HERO_HP_LOSS", 1);
+
+        TimerPayload nextTimer = null;
+        String nextPlayerId = null;
+
+        if (!newState.isGameOver()) {
+            nextPlayerId = newState.getCurrentPlayer().getValue();
+            long startTime = matchService.getTimerService().getStartTime(matchId, TimerType.ACTION);
+            if (startTime > 0) {
+                nextTimer = new TimerPayload(startTime, TimerConfig.ACTION_TIMEOUT_MS, "ACTION");
+            }
+        }
+
+        TimeoutPayload timeoutPayload = new TimeoutPayload(
+                "ACTION",
+                playerId.getValue(),
+                penalty,
+                "END_TURN",
+                stateMap,
+                nextTimer,
+                nextPlayerId
+        );
+
+        OutgoingMessage response = new OutgoingMessage("timeout", timeoutPayload);
+        String jsonResponse = JsonHelper.toJson(response);
+        broadcastToMatch(matchId, jsonResponse);
+
+        // If game over, send game_over message too
+        if (newState.isGameOver()) {
+            String winner = newState.getWinner() != null ? newState.getWinner().getValue() : null;
+            GameOverPayload gameOverPayload = new GameOverPayload(winner, stateMap);
+            OutgoingMessage gameOverResponse = new OutgoingMessage("game_over", gameOverPayload);
+            String gameOverJson = JsonHelper.toJson(gameOverResponse);
+            broadcastToMatch(matchId, gameOverJson);
+        }
+    }
+
+    @Override
+    public void onDeathChoiceTimeout(String matchId, PlayerId playerId, GameState newState) {
+        // Death Choice timeout - no HP penalty, default to obstacle
+        Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(newState);
+
+        TimerPayload nextTimer = null;
+        String nextPlayerId = null;
+
+        if (!newState.isGameOver()) {
+            nextPlayerId = newState.getCurrentPlayer().getValue();
+            long startTime = matchService.getTimerService().getStartTime(matchId, TimerType.ACTION);
+            if (startTime > 0) {
+                nextTimer = new TimerPayload(startTime, TimerConfig.ACTION_TIMEOUT_MS, "ACTION");
+            }
+        }
+
+        TimeoutPayload timeoutPayload = new TimeoutPayload(
+                "DEATH_CHOICE",
+                playerId.getValue(),
+                null,  // No penalty for Death Choice timeout
+                "SPAWN_OBSTACLE",
+                stateMap,
+                nextTimer,
+                nextPlayerId
+        );
+
+        OutgoingMessage response = new OutgoingMessage("timeout", timeoutPayload);
+        String jsonResponse = JsonHelper.toJson(response);
+        broadcastToMatch(matchId, jsonResponse);
+    }
+
+    @Override
+    public void onDraftTimeout(String matchId) {
+        // Draft timeout - random selection handled by MatchService
+        // Just notify clients
+        OutgoingMessage response = new OutgoingMessage("draft_timeout",
+                java.util.Map.of("message", "Draft time expired. Random selections applied."));
+        String jsonResponse = JsonHelper.toJson(response);
+        broadcastToMatch(matchId, jsonResponse);
+    }
+
+    // ========== Message Handlers ==========
 
     private void handleJoinMatch(ClientConnection connection, Map<String, Object> payload) {
         // Extract matchId from payload
@@ -143,12 +246,18 @@ public class MatchWebSocketHandler {
         String jsonResponse = JsonHelper.toJson(response);
         connection.sendMessage(jsonResponse);
 
-        // Notify if both players are now connected
+        // Notify if both players are now connected and start the game
         if (connections.size() == 2) {
+            // Send game_ready
             OutgoingMessage gameReady = new OutgoingMessage("game_ready",
                 java.util.Map.of("message", "Both players connected. Game starting!"));
             String readyJson = JsonHelper.toJson(gameReady);
             broadcastToMatch(matchId, readyJson);
+
+            // Start timer and send your_turn to first player (TA-006, TA-018)
+            if (useTimers) {
+                sendYourTurnWithTimer(matchId, state);
+            }
         }
     }
 
@@ -184,32 +293,128 @@ public class MatchWebSocketHandler {
         }
 
         try {
-            // Apply action via MatchService
-            GameState newState = matchService.applyAction(matchId, new PlayerId(playerId), action);
-
-            // Serialize new state
-            Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(newState);
-
-            // Build appropriate response based on game over state
-            OutgoingMessage response;
-            if (newState.isGameOver()) {
-                String winner = newState.getWinner() != null ? newState.getWinner().getValue() : null;
-                GameOverPayload gameOverPayload = new GameOverPayload(winner, stateMap);
-                response = new OutgoingMessage("game_over", gameOverPayload);
+            if (useTimers) {
+                // Apply action with timer management
+                ActionResult result = matchService.applyActionWithTimer(matchId, new PlayerId(playerId), action);
+                handleActionResult(matchId, result);
             } else {
-                StateUpdatePayload updatePayload = new StateUpdatePayload(stateMap);
-                response = new OutgoingMessage("state_update", updatePayload);
+                // Legacy: Apply action without timer
+                GameState newState = matchService.applyAction(matchId, new PlayerId(playerId), action);
+                handleLegacyActionResult(matchId, newState);
             }
-
-            // Broadcast to all clients in the match
-            String jsonResponse = JsonHelper.toJson(response);
-            broadcastToMatch(matchId, jsonResponse);
 
         } catch (IllegalArgumentException e) {
             // Validation failed - send error only to sender
             sendValidationError(connection, e.getMessage(), actionPayload);
         }
     }
+
+    /**
+     * Handles action result with timer info.
+     */
+    private void handleActionResult(String matchId, ActionResult result) {
+        GameState newState = result.getNewState();
+        Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(newState);
+
+        OutgoingMessage response;
+        if (result.isGameOver()) {
+            String winner = newState.getWinner() != null ? newState.getWinner().getValue() : null;
+            GameOverPayload gameOverPayload = new GameOverPayload(winner, stateMap);
+            response = new OutgoingMessage("game_over", gameOverPayload);
+        } else {
+            // Include timer info in state update
+            TimerPayload timerPayload = null;
+            String currentPlayerId = null;
+
+            if (result.hasTimer()) {
+                timerPayload = new TimerPayload(
+                        result.getActionStartTime(),
+                        result.getTimeoutMs(),
+                        result.getTimerType().name()
+                );
+                currentPlayerId = result.getNextPlayer().getValue();
+            }
+
+            StateUpdatePayload updatePayload = new StateUpdatePayload(stateMap, timerPayload, currentPlayerId);
+            response = new OutgoingMessage("state_update", updatePayload);
+        }
+
+        String jsonResponse = JsonHelper.toJson(response);
+        broadcastToMatch(matchId, jsonResponse);
+    }
+
+    /**
+     * Handles legacy action result (no timer).
+     */
+    private void handleLegacyActionResult(String matchId, GameState newState) {
+        Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(newState);
+
+        OutgoingMessage response;
+        if (newState.isGameOver()) {
+            String winner = newState.getWinner() != null ? newState.getWinner().getValue() : null;
+            GameOverPayload gameOverPayload = new GameOverPayload(winner, stateMap);
+            response = new OutgoingMessage("game_over", gameOverPayload);
+        } else {
+            StateUpdatePayload updatePayload = new StateUpdatePayload(stateMap);
+            response = new OutgoingMessage("state_update", updatePayload);
+        }
+
+        String jsonResponse = JsonHelper.toJson(response);
+        broadcastToMatch(matchId, jsonResponse);
+    }
+
+    /**
+     * Sends YOUR_TURN message with timer info to the current player.
+     */
+    private void sendYourTurnWithTimer(String matchId, GameState state) {
+        // Start timer
+        long startTime = matchService.startTurnTimer(matchId);
+        if (startTime < 0) {
+            return; // Failed to start timer
+        }
+
+        String currentPlayerId = state.getCurrentPlayer().getValue();
+
+        // Build YOUR_TURN payload
+        Map<String, Object> yourTurnPayload = java.util.Map.of(
+                "unitId", getCurrentUnitId(state),
+                "actionStartTime", startTime,
+                "timeoutMs", TimerConfig.ACTION_TIMEOUT_MS,
+                "timerType", "ACTION"
+        );
+
+        OutgoingMessage yourTurn = new OutgoingMessage("your_turn", yourTurnPayload);
+        String json = JsonHelper.toJson(yourTurn);
+
+        // Send to the current player
+        Match match = matchService.findMatch(matchId);
+        if (match != null) {
+            ClientSlot slot = "P1".equals(currentPlayerId) ? ClientSlot.P1 : ClientSlot.P2;
+            ClientConnection conn = match.getConnections().get(slot);
+            if (conn != null) {
+                conn.sendMessage(json);
+            }
+        }
+
+        // Also broadcast state update with timer to all players
+        Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(state);
+        TimerPayload timerPayload = new TimerPayload(startTime, TimerConfig.ACTION_TIMEOUT_MS, "ACTION");
+        StateUpdatePayload updatePayload = new StateUpdatePayload(stateMap, timerPayload, currentPlayerId);
+        OutgoingMessage stateUpdate = new OutgoingMessage("state_update", updatePayload);
+        broadcastToMatch(matchId, JsonHelper.toJson(stateUpdate));
+    }
+
+    /**
+     * Gets the current unit ID for YOUR_TURN message.
+     */
+    private String getCurrentUnitId(GameState state) {
+        // In V3, this would be the specific unit acting
+        // For now, return a generic identifier based on current player
+        String playerId = state.getCurrentPlayer().getValue();
+        return playerId.toLowerCase() + "_hero"; // e.g., "p1_hero"
+    }
+
+    // ========== Helper Methods ==========
 
     private ActionPayload parseActionPayload(Map<String, Object> actionMap) {
         String type = getStringFromPayload(actionMap, "type");

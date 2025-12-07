@@ -301,6 +301,12 @@ public class JsonHelper {
             return serializeGameOverPayload((GameOverPayload) value);
         } else if (value instanceof ActionPayload) {
             return serializeActionPayload((ActionPayload) value);
+        } else if (value instanceof TimeoutPayload) {
+            return serializeTimeoutPayload((TimeoutPayload) value);
+        } else if (value instanceof TimeoutPayload.PenaltyInfo) {
+            return serializePenaltyInfo((TimeoutPayload.PenaltyInfo) value);
+        } else if (value instanceof TimerPayload) {
+            return serializeTimerPayload((TimerPayload) value);
         }
         return "null";
     }
@@ -341,6 +347,21 @@ public class JsonHelper {
     private static String serializeStateUpdatePayload(StateUpdatePayload payload) {
         StringBuilder sb = new StringBuilder("{");
         sb.append("\"state\":").append(serializeValue(payload.getState()));
+        if (payload.getTimer() != null) {
+            sb.append(",\"timer\":").append(serializeTimerPayload(payload.getTimer()));
+        }
+        if (payload.getCurrentPlayerId() != null) {
+            sb.append(",\"currentPlayerId\":").append(quote(payload.getCurrentPlayerId()));
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static String serializeTimerPayload(com.tactics.server.dto.TimerPayload timer) {
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("\"actionStartTime\":").append(timer.getActionStartTime());
+        sb.append(",\"timeoutMs\":").append(timer.getTimeoutMs());
+        sb.append(",\"timerType\":").append(quote(timer.getTimerType()));
         sb.append("}");
         return sb.toString();
     }
@@ -373,6 +394,35 @@ public class JsonHelper {
         if (payload.getTargetUnitId() != null) {
             sb.append(",\"targetUnitId\":").append(quote(payload.getTargetUnitId()));
         }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static String serializeTimeoutPayload(TimeoutPayload payload) {
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("\"timerType\":").append(quote(payload.getTimerType()));
+        sb.append(",\"playerId\":").append(quote(payload.getPlayerId()));
+        if (payload.getPenalty() != null) {
+            sb.append(",\"penalty\":").append(serializePenaltyInfo(payload.getPenalty()));
+        }
+        if (payload.getAutoAction() != null) {
+            sb.append(",\"autoAction\":").append(quote(payload.getAutoAction()));
+        }
+        sb.append(",\"state\":").append(serializeValue(payload.getState()));
+        if (payload.getNextTimer() != null) {
+            sb.append(",\"nextTimer\":").append(serializeTimerPayload(payload.getNextTimer()));
+        }
+        if (payload.getNextPlayerId() != null) {
+            sb.append(",\"nextPlayerId\":").append(quote(payload.getNextPlayerId()));
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static String serializePenaltyInfo(TimeoutPayload.PenaltyInfo penalty) {
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("\"type\":").append(quote(penalty.getType()));
+        sb.append(",\"amount\":").append(penalty.getAmount());
         sb.append("}");
         return sb.toString();
     }

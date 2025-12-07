@@ -278,6 +278,7 @@ class MatchWebSocketHandlerTest {
             fakeMatchService = new FakeMatchService();
             connectionRegistry = new ConnectionRegistry(new HashMap<>());
             handler = new MatchWebSocketHandler(fakeMatchService, connectionRegistry);
+            handler.setUseTimers(false); // Disable timers for legacy tests
         }
 
         @Test
@@ -320,6 +321,7 @@ class MatchWebSocketHandlerTest {
             fakeMatchService = new FakeMatchService();
             connectionRegistry = new ConnectionRegistry(new HashMap<>());
             handler = new MatchWebSocketHandler(fakeMatchService, connectionRegistry);
+            handler.setUseTimers(false); // Disable timers for legacy tests
             conn = new FakeClientConnection("c1");
         }
 
@@ -427,6 +429,7 @@ class MatchWebSocketHandlerTest {
             fakeMatchService = new FakeMatchService();
             connectionRegistry = new ConnectionRegistry(new HashMap<>());
             handler = new MatchWebSocketHandler(fakeMatchService, connectionRegistry);
+            handler.setUseTimers(false); // Disable timers for legacy tests
             connP1 = new FakeClientConnection("p1");
             connP2 = new FakeClientConnection("p2");
         }
@@ -570,6 +573,7 @@ class MatchWebSocketHandlerTest {
             fakeMatchService = new FakeMatchService();
             connectionRegistry = new ConnectionRegistry(new HashMap<>());
             handler = new MatchWebSocketHandler(fakeMatchService, connectionRegistry);
+            handler.setUseTimers(false); // Disable timers for legacy tests
             conn = new FakeClientConnection("c1");
         }
 
@@ -634,6 +638,7 @@ class MatchWebSocketHandlerTest {
             fakeMatchService = new FakeMatchService();
             connectionRegistry = new ConnectionRegistry(new HashMap<>());
             handler = new MatchWebSocketHandler(fakeMatchService, connectionRegistry);
+            handler.setUseTimers(false); // Disable timers for legacy tests
             connP1 = new FakeClientConnection("p1");
             connP2 = new FakeClientConnection("p2");
         }
@@ -742,6 +747,7 @@ class MatchWebSocketHandlerTest {
             fakeMatchService = new FakeMatchService();
             connectionRegistry = new ConnectionRegistry(new HashMap<>());
             handler = new MatchWebSocketHandler(fakeMatchService, connectionRegistry);
+            handler.setUseTimers(false); // Disable timers for legacy tests
             connP1 = new FakeClientConnection("p1");
         }
 
@@ -816,6 +822,7 @@ class MatchWebSocketHandlerTest {
             fakeMatchService = new FakeMatchService();
             connectionRegistry = new ConnectionRegistry(new HashMap<>());
             handler = new MatchWebSocketHandler(fakeMatchService, connectionRegistry);
+            handler.setUseTimers(false); // Disable timers for legacy tests
             conn = new FakeClientConnection("c1");
         }
 

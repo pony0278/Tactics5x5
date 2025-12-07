@@ -76,7 +76,8 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 4 | Hero Skill System (4 sub-phases) |
 | ✅ | Code Health | RuleEngine refactoring (SkillExecutor extraction) |
 | ✅ | Phase 5 | Game Flow Extension (Death Choice) |
-| ✅ | **Phase 6** | Draft Phase |
+| ✅ | Phase 6 | Draft Phase |
+| 🔄 | **Phase 7** | Timer System (Server Layer) |
 
 ### Phase 4 Sub-phases: Hero Skill System
 
@@ -87,12 +88,14 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | ✅ | Phase 4C | Movement skills | Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades |
 | ✅ | Phase 4D | Complex skills | Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge |
 
-**Current Status**: All core phases complete. 520 tests passing.
+**Current Task**: Phase 7 - Timer System (Server Layer)
 
 **Reference Documents**:
 - `/docs/SKILL_SYSTEM_V3.md` - Full skill system specification
 - `/docs/HERO_SKILLS_REFERENCE.md` - Quick skill reference (中英對照)
 - `/docs/DRAFT_PHASE_TESTPLAN.md` - 88 test cases for Draft Phase
+- `/docs/TIMER_TESTPLAN.md` - 80 test cases for Timer System
+- `/docs/TIMER_DESIGN_DECISIONS.md` - Timer design decisions
 
 ---
 
@@ -120,6 +123,134 @@ V1/V2 files are legacy reference. For new features, always refer to V3 documents
 | DraftResultTest | DR-series: combined results | 12 |
 | DraftSetupServiceTest | SP/PO/ID-series: GameState creation | 38 |
 | DraftIntegrationTest | DI-series: end-to-end flow | 16 |
+
+---
+
+## 📋 Phase 7: Timer System (In Progress)
+
+**Layer**: Server (not Engine)
+
+### Timer Types
+
+| Timer | Duration | Timeout Result | Grace Period |
+|-------|----------|----------------|--------------|
+| Action Timer | 10,000 ms | Hero -1 HP + auto END_TURN | 500ms |
+| Death Choice Timer | 5,000 ms | Default Obstacle (no HP penalty) | 500ms |
+| Draft Timer | 60,000 ms | Random selection | 500ms |
+
+### Key Design Decisions
+
+| Decision | Details |
+|----------|---------|
+| Timer Start | When Server sends YOUR_TURN message |
+| Invalid Action | Does NOT reset Timer |
+| Death Choice | Pauses Action Timer, resets to 10s after |
+| SPEED Buff | Each of 2 actions gets 10s |
+| SLOW Buff | Timer only during declaration |
+| Exhaustion | Each consecutive action gets 10s |
+| Round End | Timer paused during processing |
+| Disconnection | Timer continues (no pause) |
+| Victory | Stop all Timers immediately |
+
+### Implementation Architecture
+
+```
+server/
+├── timer/
+│   ├── TimerService.java       # Timer lifecycle management
+│   ├── TimerState.java         # IDLE, RUNNING, PAUSED, EXPIRED
+│   ├── TimerConfig.java        # Duration constants
+│   └── TimerCallback.java      # Timeout handlers
+├── core/
+│   └── MatchService.java       # Integrates with TimerService
+└── ws/
+    └── WebSocketHandler.java   # Timer message sending
+```
+
+### WebSocket Message Format
+
+```json
+{
+  "type": "YOUR_TURN",
+  "unitId": "p1_hero",
+  "actionStartTime": 1702345678901,
+  "timeoutMs": 10000,
+  "timerType": "ACTION"
+}
+```
+
+### Timer Tests: 80 tests
+
+| Series | Category | Tests |
+|--------|----------|-------|
+| TA | Action Timer Basic | 12 |
+| TD | Death Choice Timer | 15 |
+| TF | Draft Timer | 10 |
+| TB | Buff Interactions (SPEED/SLOW) | 10 |
+| TE | Exhaustion Rule | 6 |
+| TN | Network & Sync | 8 |
+| TR | Round Processing | 6 |
+| TV | Victory & End Game | 5 |
+| TI | Integration | 8 |
+
+### Implementation Priority
+
+| Sub-phase | Tests | Description |
+|-----------|-------|-------------|
+| Phase 7.1 | TA-001~003, TD-001~003, TF-001~003 | Core Timer (9 tests) |
+| Phase 7.2 | TB-001~006, TE-001~002 | Buff & Exhaustion (8 tests) |
+| Phase 7.3 | TN-001~008 | Network & Sync (8 tests) |
+| Phase 7.4 | Remaining + TI-series | Edge Cases & Integration |
+
+### Phase 7 TODO List
+
+| Status | Sub-phase | Task | Tests |
+|--------|-----------|------|-------|
+| ✅ | 7.1 | TimerState enum (IDLE, RUNNING, PAUSED, COMPLETED, TIMEOUT) | - |
+| ✅ | 7.1 | TimerType enum (ACTION, DEATH_CHOICE, DRAFT) | - |
+| ✅ | 7.1 | TimerConfig constants (10s/5s/60s/500ms) | - |
+| ✅ | 7.1 | TimerService (start/stop/pause/resume/remaining) | 25 |
+| ✅ | 7.1 | TimerCallback interface | - |
+| ✅ | 7.1 | MatchService + TimerService integration | 15 |
+| ✅ | 7.1 | ActionResult class with timer info | - |
+| ✅ | 7.1 | TimerPayload, TimeoutPayload DTOs | - |
+| ✅ | 7.1 | StateUpdatePayload timer fields | - |
+| ✅ | 7.1 | MatchWebSocketHandler implements TimerCallback | 6 |
+| ✅ | 7.1 | JsonHelper timer serialization | - |
+| ✅ | 7.1 | YOUR_TURN with timer on game start | - |
+| ✅ | 7.1 | state_update with timer after action | - |
+| ✅ | 7.2 | Death Choice pauses Action Timer | TD-004~006 |
+| ✅ | 7.2 | SPEED buff: 10s per action × 2 | TB-001~003 |
+| ✅ | 7.2 | SLOW buff: timer on declaration only | TB-004~006 |
+| ✅ | 7.2 | Turn transition timer (team-based) | TE-001~003 |
+| ⬜ | 7.3 | Grace period acceptance (500ms) | TN-001~002 |
+| ⬜ | 7.3 | Timer sync on reconnection | TN-003~005 |
+| ⬜ | 7.3 | Concurrent action handling | TN-006~008 |
+| ⬜ | 7.4 | Round end timer pause | TR-001~006 |
+| ⬜ | 7.4 | Victory stops all timers | TV-001~005 |
+| ⬜ | 7.4 | Full integration tests | TI-001~008 |
+
+**Current Progress**: Phase 7.2 Complete (64 timer tests passing, 584 total)
+
+### ⚠️ Known Issue: Turn System Discrepancy
+
+**GAME_RULES_V3.md specifies** unit-by-unit alternating turns with Exhaustion Rule:
+```
+P1 Unit1 → P2 Unit1 → P1 Unit2 → P2 Unit2 → P2 Unit3 (consecutive if P1 exhausted)
+```
+
+**Current implementation** uses team-based turns:
+```
+P1's turn (all units) → END_TURN → P2's turn (all units) → END_TURN → Round end
+```
+
+**Impact on Timer Tests**: TE-series tests verify team-based turn timer behavior.
+When unit-by-unit turns are implemented, the Exhaustion Rule timer tests (consecutive actions with independent 10s timers) should be revisited.
+
+**Files to modify for unit-by-unit**:
+- `ActionExecutor.applyEndTurn()` - Mark only acting unit as acted (not all)
+- `ActionExecutor.applyMove/Attack/etc.` - Call `getNextActingPlayer()` after each action
+- `ActionValidator` - Validate `actingUnitId` matches an unused unit
 
 ---
 
@@ -263,6 +394,8 @@ These rules have been implemented:
 - `/docs/BUFF_SYSTEM_V3_TESTPLAN.md` - 141 test cases for BUFF system
 - `/docs/GUARDIAN_TESTPLAN.md` - 81 test cases for Guardian passive
 - `/docs/SKILL_SYSTEM_V3_TESTPLAN.md` - 201 test cases for Skill system
+- `/docs/TIMER_TESTPLAN.md` - 80 test cases for Timer system
+- `/docs/TIMER_DESIGN_DECISIONS.md` - Timer design decisions (22 items)
 
 ### Development Roadmap
 - `/docs/V3_IMPLEMENTATION_ROADMAP.md` - Phase-by-phase development checklist
@@ -787,14 +920,17 @@ See `/docs/PROGRESS.md` for details.
 - [x] Phase 5: Game Flow Extension (Death Choice)
 - [x] Phase 6: Draft Phase (DraftState, DraftResult, DraftSetupService, Integration Tests)
 
-### All Core Phases Complete
-**Total: 520 tests passing**
+### In Progress
+- [ ] Phase 7: Timer System (Server Layer) - Phase 7.2 Complete
+
+### Test Status
+**Total: 584 tests passing** (520 Engine + 64 Timer)
 
 ---
 
 ## Test Coverage
 
-**Total: 520 tests passing**
+**Total: 584 tests passing**
 
 ### Existing Tests
 | Test Class | Coverage |
@@ -825,9 +961,17 @@ See `/docs/PROGRESS.md` for details.
 | DraftSetupServiceTest | SP/PO/ID-series: GameState creation | 38 |
 | DraftIntegrationTest | DI-series: end-to-end flow | 16 |
 
-### V3 Tests (To Be Implemented)
+### Timer Tests (Implemented)
+| Test Class | Coverage | Tests |
+|------------|----------|-------|
+| TimerServiceTest | Timer lifecycle, grace period | 25 |
+| MatchServiceTimerTest | TA/TD/TB/TE-series: timer integration | 33 |
+| MatchWebSocketHandlerTimerTest | Timer message formats | 6 |
+
+### Tests (To Be Implemented)
 | Test Plan | Test Count |
 |-----------|------------|
+| TIMER_TESTPLAN.md (remaining) | ~16 |
 | SKILL_SYSTEM_V3_TESTPLAN.md | ~150 remaining |
 | Remaining BUFF tests | ~100 |
 
