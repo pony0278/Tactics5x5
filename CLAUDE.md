@@ -229,27 +229,51 @@ P1 Unit1 → P2 Unit1 → P1 Unit2 → P2 Unit2 → P2 Unit3 (consecutive if P1 
 
 ### Completed Refactoring
 
-**Goal**: Improve code maintainability by splitting RuleEngine.java (~3,300 lines) into focused classes.
+**Goal**: Improve code maintainability by splitting large files into focused classes.
+
+#### Phase 1: RuleEngine Split (Complete)
 
 | Component | Lines | Responsibility |
 |-----------|-------|----------------|
 | RuleEngine.java | 98 | Facade - delegates to specialized components |
 | ActionValidator.java | 865 | All validation logic |
 | ActionExecutor.java | 1,419 | All apply/execution logic |
-| SkillExecutor.java | 1,127 | All skill implementations |
 
 **Before**: RuleEngine.java ~3,300 lines (monolithic)
-**After**: RuleEngine.java 98 lines (clean facade) + 3 specialized classes
+**After**: RuleEngine.java 98 lines (clean facade) + 2 specialized classes
+
+#### Phase 2: Quick Wins + SkillExecutor Split (Complete)
+
+| Task | Status | Description |
+|------|--------|-------------|
+| RuleEngineHelper.java | ✅ | Extracted 4 duplicate methods (findUnitById, getBuffsForUnit, hasBuff helpers) |
+| JsonHelper refactor | ✅ | Split parseValue() into 8 type-specific methods |
+| SkillRegistry refactor | ✅ | Split initializeSkills() into 6 hero-specific methods |
+| SkillExecutor split | ✅ | Split into 6 hero executors + base class |
+
+#### SkillExecutor Architecture (After Split)
+
+| Component | Lines | Responsibility |
+|-----------|-------|----------------|
+| SkillExecutor.java | 123 | Dispatcher - routes to hero executors |
+| SkillExecutorBase.java | 322 | Shared helpers (findUnitById, checkGameOver, etc.) |
+| WarriorSkillExecutor.java | 159 | Endure, Shockwave, Heroic Leap |
+| MageSkillExecutor.java | 185 | Elemental Blast, Warp Beacon, Wild Magic |
+| RogueSkillExecutor.java | 147 | Smoke Bomb, Death Mark, Shadow Clone |
+| HuntressSkillExecutor.java | 137 | Spirit Hawk, Spectral Blades, Nature's Power |
+| DuelistSkillExecutor.java | 125 | Challenge, Elemental Strike, Feint |
+| ClericSkillExecutor.java | 142 | Trinity, Power of Many, Ascended Form |
+
+**Before**: SkillExecutor.java 1,127 lines (monolithic)
+**After**: SkillExecutor.java 123 lines (dispatcher) + 7 focused classes (~1,217 total)
 
 ### Pending Code Health Items
 
 | Priority | Item | Status |
 |----------|------|--------|
 | Critical | ActionExecutor.java (1,419 lines) | Needs split |
-| Critical | SkillExecutor.java (1,127 lines) | Needs split |
-| Critical | JsonHelper.parseValue() (325 lines) | Needs refactor |
-| High | Duplicate helpers in ActionValidator/ActionExecutor | Extract to RuleEngineHelper |
 | High | Large methods (>50 lines) in ActionValidator | Needs split |
+| Medium | MatchWebSocketHandler.handleJoinMatch() | Needs split |
 
 **RuleEngine now acts as a clean facade**:
 ```java
@@ -267,7 +291,7 @@ public class RuleEngine {
 }
 ```
 
-**All 655 tests pass.**
+**All 692 tests pass.**
 
 ---
 
@@ -883,14 +907,16 @@ See `/docs/PROGRESS.md` for details.
 - [x] Phase 4B: Damage/heal skills (Elemental Blast, Trinity, Shockwave, Nature's Power, Power of Many)
 - [x] Phase 4C: Movement skills (Heroic Leap, Smoke Bomb, Warp Beacon, Spectral Blades)
 - [x] Phase 4D: Complex skills (Wild Magic, Elemental Strike, Death Mark, Ascended Form, Shadow Clone, Feint, Challenge)
-- [x] Code Health: Full RuleEngine refactoring (reduced from ~3,300 to 98 lines via ActionValidator, ActionExecutor, SkillExecutor extraction)
+- [x] Code Health: Full RuleEngine refactoring (reduced from ~3,300 to 98 lines via ActionValidator, ActionExecutor extraction)
 - [x] Phase 5: Game Flow Extension (Death Choice)
 - [x] Phase 6: Draft Phase (DraftState, DraftResult, DraftSetupService, Integration Tests)
 - [x] Phase 7: Timer System (Action Timer, Death Choice Timer, Draft Timer - 108 tests)
+- [x] Phase 8: Unit-by-Unit Turn System (actionsUsed tracking, SPEED buff support)
+- [x] Code Health: Quick Wins (RuleEngineHelper, JsonHelper refactor, SkillRegistry refactor)
+- [x] Code Health: SkillExecutor split (1,127 → 123 lines dispatcher + 6 hero executors + base class)
 
 ### In Progress
-- [ ] Phase 8: Unit-by-Unit Turn System - Core implementation complete
-- [ ] Code Health: See `/docs/CODE_HEALTH_TODO.md` for refactoring items
+- [ ] Code Health: ActionExecutor split (1,419 lines) - See `/docs/CODE_HEALTH_TODO.md`
 
 ### Test Status
 **Total: 692 tests passing**
