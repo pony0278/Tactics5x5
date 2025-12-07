@@ -68,14 +68,13 @@ These items provide high impact with low effort. Do these first!
 
 ---
 
-### 1.2 SkillExecutor.java - 1,127 lines
+### 1.2 SkillExecutor.java - REFACTORED
 
-**Status**: ⚠️ Needs Split  
-**Location**: `src/main/java/com/tactics/engine/skill/SkillExecutor.java`  
-**Estimated Time**: 2 hours  
-**Dependencies**: None
+**Status**: ✅ RESOLVED
+**Completed**: 2025-12-07
+**Solution**: Split into 6 hero-specific executors + base class
 
-**Problem**: File exceeds 1,000 line limit. All 19 skill implementations in one file.
+**Original Problem**: File exceeded 1,000 line limit with all 19 skill implementations.
 
 **Suggested Split by Hero Class**:
 
@@ -468,8 +467,8 @@ Large test files are acceptable when well-organized:
 | RuleEngineHelper.java | Quick Win | 30 min | ✅ Done | 2025-12-07 | Extracted 4 duplicate methods |
 | JsonHelper refactor | P1 | 30 min | ✅ Done | 2025-12-07 | Extracted 8 type-specific methods |
 | SkillRegistry refactor | Quick Win | 20 min | ✅ Done | 2025-12-07 | Split into 6 hero-specific methods |
+| SkillExecutor split | P1 | 2 hours | ✅ Done | 2025-12-07 | Split into 6 hero executors + base |
 | ActionExecutor split | P1 | 2-3 hours | ⬜ Not Started | - | - |
-| SkillExecutor split | P1 | 2 hours | ⬜ Not Started | - | - |
 | ActionValidator methods | P2 | 1.5 hours | ⬜ Not Started | - | - |
 | MatchWebSocketHandler | P2 | 30 min | ⬜ Not Started | - | - |
 
@@ -480,7 +479,7 @@ Large test files are acceptable when well-organized:
 ### Current State
 | Metric | Value | Target |
 |--------|-------|--------|
-| Files > 1000 lines | 2 | 0 |
+| Files > 1000 lines | 1 | 0 |
 | Methods > 100 lines | 4 | 0 |
 | Methods > 50 lines | 14 | 0 |
 | Duplicate methods | 0 | 0 |
