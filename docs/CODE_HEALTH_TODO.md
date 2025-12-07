@@ -15,7 +15,7 @@ These items provide high impact with low effort. Do these first!
 | Task | Impact | Time | Dependencies | Status |
 |------|--------|------|--------------|--------|
 | Create RuleEngineHelper.java | Removes 4 duplicate methods | 30 min | None | ✅ Done |
-| Split SkillRegistry by hero | Better organization | 20 min | None | ⬜ Not Started |
+| Split SkillRegistry by hero | Better organization | 20 min | None | ✅ Done |
 | Extract JsonHelper type parsers | Cleaner code | 30 min | None | ✅ Done |
 
 ---
@@ -166,14 +166,13 @@ public class JsonHelper {
 
 ---
 
-### 1.4 SkillRegistry.initializeSkills() - 246 lines
+### 1.4 SkillRegistry.initializeSkills() - REFACTORED
 
-**Status**: ⚠️ Critical  
-**Location**: `src/main/java/com/tactics/engine/skill/SkillRegistry.java:45`  
-**Estimated Time**: 1 hour  
-**Dependencies**: None
+**Status**: ✅ RESOLVED
+**Completed**: 2025-12-07
+**Solution**: Split into 6 hero-specific registration methods
 
-**Problem**: Single method registering all 19 skills with inline definitions.
+**Original Problem**: Single method registering all 19 skills with inline definitions.
 
 **Suggested Split**:
 
@@ -468,7 +467,7 @@ Large test files are acceptable when well-organized:
 |------|----------|-----------|--------|------|-------|
 | RuleEngineHelper.java | Quick Win | 30 min | ✅ Done | 2025-12-07 | Extracted 4 duplicate methods |
 | JsonHelper refactor | P1 | 30 min | ✅ Done | 2025-12-07 | Extracted 8 type-specific methods |
-| SkillRegistry refactor | P1 | 1 hour | ⬜ Not Started | - | - |
+| SkillRegistry refactor | Quick Win | 20 min | ✅ Done | 2025-12-07 | Split into 6 hero-specific methods |
 | ActionExecutor split | P1 | 2-3 hours | ⬜ Not Started | - | - |
 | SkillExecutor split | P1 | 2 hours | ⬜ Not Started | - | - |
 | ActionValidator methods | P2 | 1.5 hours | ⬜ Not Started | - | - |

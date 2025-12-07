@@ -48,10 +48,20 @@ public class SkillRegistry {
             SKILLS_BY_CLASS.put(hc, new ArrayList<>());
         }
 
-        // =====================================================================
-        // WARRIOR Skills
-        // =====================================================================
+        // Register skills by hero class
+        registerWarriorSkills();
+        registerMageSkills();
+        registerRogueSkills();
+        registerHuntressSkills();
+        registerDuelistSkills();
+        registerClericSkills();
+    }
 
+    // =========================================================================
+    // WARRIOR Skills
+    // =========================================================================
+
+    private static void registerWarriorSkills() {
         registerSkill(new SkillDefinition(
             WARRIOR_HEROIC_LEAP,
             "Heroic Leap",
@@ -87,11 +97,13 @@ public class SkillRegistry {
             Arrays.asList(SkillEffect.APPLY_SHIELD, SkillEffect.REMOVE_BUFF),
             0, 0, 3, 2  // shield=3, duration=2
         ));
+    }
 
-        // =====================================================================
-        // MAGE Skills
-        // =====================================================================
+    // =========================================================================
+    // MAGE Skills
+    // =========================================================================
 
+    private static void registerMageSkills() {
         registerSkill(new SkillDefinition(
             MAGE_ELEMENTAL_BLAST,
             "Elemental Blast",
@@ -127,11 +139,13 @@ public class SkillRegistry {
             Arrays.asList(SkillEffect.DAMAGE, SkillEffect.APPLY_BUFF),
             1, 0, 0, 0  // damage=1
         ));
+    }
 
-        // =====================================================================
-        // ROGUE Skills
-        // =====================================================================
+    // =========================================================================
+    // ROGUE Skills
+    // =========================================================================
 
+    private static void registerRogueSkills() {
         registerSkill(new SkillDefinition(
             ROGUE_SMOKE_BOMB,
             "Smoke Bomb",
@@ -167,11 +181,13 @@ public class SkillRegistry {
             Arrays.asList(SkillEffect.SPAWN_UNIT),
             0, 0, 0, 2  // duration=2
         ));
+    }
 
-        // =====================================================================
-        // HUNTRESS Skills
-        // =====================================================================
+    // =========================================================================
+    // HUNTRESS Skills
+    // =========================================================================
 
+    private static void registerHuntressSkills() {
         registerSkill(new SkillDefinition(
             HUNTRESS_SPIRIT_HAWK,
             "Spirit Hawk",
@@ -207,11 +223,13 @@ public class SkillRegistry {
             Arrays.asList(SkillEffect.EMPOWER_ATTACKS, SkillEffect.APPLY_BUFF),
             2, 0, 0, 2  // damage bonus=2, effect count=2
         ));
+    }
 
-        // =====================================================================
-        // DUELIST Skills
-        // =====================================================================
+    // =========================================================================
+    // DUELIST Skills
+    // =========================================================================
 
+    private static void registerDuelistSkills() {
         registerSkill(new SkillDefinition(
             DUELIST_CHALLENGE,
             "Challenge",
@@ -247,11 +265,13 @@ public class SkillRegistry {
             Arrays.asList(SkillEffect.MARK),  // Uses mark system for tracking
             2, 0, 0, 2  // counter damage=2, duration=2
         ));
+    }
 
-        // =====================================================================
-        // CLERIC Skills
-        // =====================================================================
+    // =========================================================================
+    // CLERIC Skills
+    // =========================================================================
 
+    private static void registerClericSkills() {
         registerSkill(new SkillDefinition(
             CLERIC_TRINITY,
             "Trinity",
