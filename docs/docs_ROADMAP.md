@@ -2,9 +2,9 @@
 
 This document tracks the upcoming development phases for the 5x5 Tactics Engine.
 
-**Last Updated**: 2025-12-08  
-**Current Tests**: 692 passing  
-**Current Phase**: Phase C - Complete Remaining Tests
+**Last Updated**: 2025-12-09
+**Current Tests**: 827 passing
+**Current Phase**: Phase C - Complete Remaining Tests (In Progress)
 
 ---
 
@@ -12,7 +12,7 @@ This document tracks the upcoming development phases for the 5x5 Tactics Engine.
 
 | Phase | Description | Est. Time | Status |
 |-------|-------------|-----------|--------|
-| C | Complete Remaining Tests | 6-10 hours | 🔄 Next |
+| C | Complete Remaining Tests | 6-10 hours | 🔄 In Progress (827/~950 tests) |
 | D | End-to-End Testing | 4-6 hours | ⬜ Pending |
 | E | LibGDX Client | 20-30 hours | ⬜ Pending |
 | F | Supabase Integration | 8-12 hours | ⬜ Pending |
@@ -32,8 +32,22 @@ This document tracks the upcoming development phases for the 5x5 Tactics Engine.
 | Task | Description | Est. Time | Status |
 |------|-------------|-----------|--------|
 | C-1 | MatchWebSocketHandler.handleJoinMatch() refactor | 30 min | ⬜ |
-| C-2 | Remaining SKILL_SYSTEM tests (~150 tests) | 4-6 hours | ⬜ |
+| C-2 | Remaining SKILL_SYSTEM tests (~150 tests) | 4-6 hours | 🔄 In Progress (~135 added) |
 | C-3 | Remaining BUFF tests (~100 tests) | 3-4 hours | ⬜ |
+
+### C-2 Progress (Skill Tests)
+
+| Series | Description | Tests Added | Status |
+|--------|-------------|-------------|--------|
+| SCL | Cleric Skills | 12 | ✅ Complete |
+| SC | Cooldown System | 12 | ✅ Complete |
+| SV | Skill Validation | 18 | ✅ Complete |
+| SMG | Mage Wild Magic + Edge Cases | 7 | ✅ Complete |
+| SH | Huntress Spirit Hawk + Spectral Blades | 9 | ✅ Complete |
+| SW | Warrior Endure + Edge Cases | 7 | ✅ Complete |
+| **Total Added** | | **65** | |
+
+**Bug Fixed**: Shield absorption in `Unit.withDamage()` - shield now correctly absorbs damage before HP.
 
 ### C-1: handleJoinMatch Refactor
 
@@ -510,10 +524,10 @@ SUPABASE_ANON_KEY=your-anon-key
 
 ### Milestone 2: Test Coverage Complete
 - [ ] Phase C-1: handleJoinMatch refactored
-- [ ] Phase C-2: SKILL_SYSTEM tests complete
+- [x] Phase C-2: SKILL_SYSTEM tests (827 tests, 65 new skill tests added)
 - [ ] Phase C-3: BUFF tests complete
 - [ ] Phase D: E2E tests passing
-- [ ] Target: 800+ total tests
+- [x] Target: 800+ total tests ✅ (827 achieved)
 
 ### Milestone 3: LibGDX Playable
 - [ ] Phase E-1 ~ E-3: Basic framework
@@ -535,7 +549,11 @@ SUPABASE_ANON_KEY=your-anon-key
 | Date | Phase | Task | Notes |
 |------|-------|------|-------|
 | 2025-12-08 | - | Roadmap created | Initial planning |
-| | | | |
+| 2025-12-08 | C-2 | SCL-Series Cleric tests | 12 tests (774 total) |
+| 2025-12-08 | C-2 | SC-Series Cooldown tests | 12 tests (786 total) |
+| 2025-12-08 | C-2 | SV-Series Validation tests | 18 tests (804 total) |
+| 2025-12-09 | C-2 | SMG/SH/SW Hero skill tests | 23 tests (827 total) |
+| 2025-12-09 | C-2 | Shield absorption bug fix | Unit.withDamage() now uses shield |
 
 ---
 

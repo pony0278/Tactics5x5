@@ -326,6 +326,14 @@ public class RuleEngineSkillBuffInteractionTest {
                 unitBuffs
             );
 
+            // Use fixed RNG to prevent random debuff from skill (RNG >= 50 means no debuff)
+            ruleEngine.setRngProvider(new RngProvider() {
+                @Override
+                public int nextInt(int bound) {
+                    return 99;  // Always >= 50, no debuff
+                }
+            });
+
             // When: Use Elemental Blast (deals 3 fixed damage)
             Action action = Action.useSkill(PlayerId.PLAYER_1, P1_HERO, null, P2_ENEMY);
             GameState result = ruleEngine.applyAction(state, action);

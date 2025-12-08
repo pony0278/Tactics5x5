@@ -25,7 +25,7 @@ A 5x5 tactical board game featuring a game engine, WebSocket server, and web cli
 │       ├── core/            # Match, MatchService, MatchRegistry
 │       ├── dto/             # Message objects
 │       └── ws/              # WebSocket handlers
-├── src/test/java/           # Tests (692 passing)
+├── src/test/java/           # Tests (827 passing)
 └── client/                  # Web frontend (HTML/CSS/JS)
 ```
 
@@ -43,11 +43,11 @@ mvn exec:java                  # Start server
 
 ## 🗓️ Development Roadmap
 
-**Current Phase**: Phase C - Complete Remaining Tests
+**Current Phase**: Phase C - Complete Remaining Tests (827 tests passing)
 
 | Phase | Description | Est. Time | Status |
 |-------|-------------|-----------|--------|
-| **C** | Complete Remaining Tests | 6-10 hours | 🔄 Next |
+| **C** | Complete Remaining Tests | 6-10 hours | 🔄 In Progress |
 | D | End-to-End Testing | 4-6 hours | ⬜ Pending |
 | E | LibGDX Client | 20-30 hours | ⬜ Pending |
 | F | Supabase Integration | 8-12 hours | ⬜ Pending |
@@ -57,10 +57,10 @@ mvn exec:java                  # Start server
 | Task | Description | Est. Time | Status |
 |------|-------------|-----------|--------|
 | C-1 | handleJoinMatch() refactor | 30 min | ⬜ |
-| C-2 | SKILL_SYSTEM tests (~150) | 4-6 hours | ⬜ |
+| C-2 | SKILL_SYSTEM tests (~150) | 4-6 hours | ✅ 65 tests added |
 | C-3 | BUFF tests (~100) | 3-4 hours | ⬜ |
 
-**📄 Full roadmap details**: `/docs/ROADMAP.md`
+**📄 Full roadmap details**: `/docs/docs_ROADMAP.md`
 
 ---
 
@@ -76,7 +76,7 @@ mvn exec:java                  # Start server
 | ✅ | Phase 8 | Unit-by-Unit Turn System |
 | ✅ | Code Health | All refactoring complete |
 
-**Test Status**: 692 tests passing
+**Test Status**: 827 tests passing
 
 ---
 
@@ -213,14 +213,14 @@ mvn exec:java                  # Start server
 
 ## 📊 Test Coverage Summary
 
-**Total: 692 tests passing**
+**Total: 827 tests passing**
 
 ### By Feature
 | Feature | Tests |
 |---------|-------|
 | Core Engine (validation, actions) | ~120 |
 | BUFF System | ~50 |
-| Skill System (18 skills) | ~95 |
+| Skill System (18 skills) | ~160 |
 | Guardian Passive | 16 |
 | Draft Phase | 110 |
 | Timer System | 108 |
@@ -228,10 +228,20 @@ mvn exec:java                  # Start server
 | Serialization | ~40 |
 | WebSocket/Server | ~50 |
 
+### Recently Added Tests (Phase C-2)
+| Series | Description | Tests |
+|--------|-------------|-------|
+| SCL | Cleric Skills | 12 |
+| SC | Cooldown System | 12 |
+| SV | Skill Validation | 18 |
+| SMG | Mage Wild Magic | 7 |
+| SH | Huntress Skills | 9 |
+| SW | Warrior Endure | 7 |
+
 ### Remaining Tests
 | Test Plan | Remaining |
 |-----------|-----------|
-| SKILL_SYSTEM_V3_TESTPLAN.md | ~150 |
+| SKILL_SYSTEM_V3_TESTPLAN.md | ~85 |
 | BUFF_SYSTEM_V3_TESTPLAN.md | ~100 |
 
 ---

@@ -302,9 +302,20 @@ public class Unit {
     }
 
     /**
-     * Create a copy with damage applied (reduces HP).
+     * Create a copy with damage applied.
+     * Shield absorbs damage first, then excess damage reduces HP.
      */
     public Unit withDamage(int damage) {
+        if (shield > 0) {
+            int shieldAbsorbed = Math.min(shield, damage);
+            int remainingDamage = damage - shieldAbsorbed;
+            int newShield = shield - shieldAbsorbed;
+            if (remainingDamage > 0) {
+                return withShield(newShield).withHp(hp - remainingDamage);
+            } else {
+                return withShield(newShield);
+            }
+        }
         return withHp(hp - damage);
     }
 
