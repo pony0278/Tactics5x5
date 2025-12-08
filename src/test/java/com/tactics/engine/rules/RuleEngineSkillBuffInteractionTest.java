@@ -7,6 +7,7 @@ import com.tactics.engine.buff.BuffInstance;
 import com.tactics.engine.buff.BuffType;
 import com.tactics.engine.model.*;
 import com.tactics.engine.skill.SkillRegistry;
+import com.tactics.engine.util.RngProvider;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -351,6 +352,14 @@ public class RuleEngineSkillBuffInteractionTest {
                 PlayerId.PLAYER_1,
                 unitBuffs
             );
+
+            // Use fixed RNG to prevent random debuff from skill (RNG >= 50 means no debuff)
+            ruleEngine.setRngProvider(new RngProvider() {
+                @Override
+                public int nextInt(int bound) {
+                    return 99; // Always return high value to prevent debuff
+                }
+            });
 
             // When: Use Elemental Blast (deals 3 fixed damage)
             Action action = Action.useSkill(PlayerId.PLAYER_1, P1_HERO, null, P2_ENEMY);

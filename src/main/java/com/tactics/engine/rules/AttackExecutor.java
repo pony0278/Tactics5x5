@@ -69,13 +69,39 @@ public class AttackExecutor extends ActionExecutorBase {
 
         Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
 
+        // Check if target has FEINT buff - attack misses
+        List<BuffInstance> targetBuffsForFeint = getBuffsForUnit(state, targetUnitId);
+        boolean targetHasFeint = hasFeintBuff(targetBuffsForFeint);
+        if (targetHasFeint) {
+            return applyFeintDodge(state, action, attacker, targetUnit);
+        }
+
         Unit guardian = findGuardian(state, targetUnit);
         Unit actualDamageReceiver = (guardian != null) ? guardian : targetUnit;
         String damageReceiverId = actualDamageReceiver.getId();
 
+        // Get buffs on target for DEATH_MARK bonus and INVULNERABLE check
+        List<BuffInstance> targetBuffs = getBuffsForUnit(state, damageReceiverId);
+
+        // Check if target is invulnerable - prevent all damage
+        if (hasInvulnerableBuff(targetBuffs)) {
+            return applyInvulnerableMiss(state, action, attacker);
+        }
+
+        int deathMarkBonus = hasDeathMarkBuff(targetBuffs) ? 2 : 0;
+        String deathMarkSource = getDeathMarkSource(targetBuffs);
+
+        // Check if attacker has CHALLENGE buff - deals 50% damage to non-Duelist targets
+        String challengeSource = getChallengeSource(attackerBuffs);
+        boolean challengedAttackingNonDuelist = challengeSource != null && !damageReceiverId.equals(challengeSource);
+        boolean challengedAttackingDuelist = challengeSource != null && damageReceiverId.equals(challengeSource);
+
         int bonusAttack = getBonusAttack(attackerBuffs);
         int naturesPowerBonus = attacker.getBonusAttackCharges() > 0 ? attacker.getBonusAttackDamage() : 0;
-        int totalDamage = attacker.getAttack() + bonusAttack + naturesPowerBonus;
+        int baseDamage = attacker.getAttack() + bonusAttack + naturesPowerBonus + deathMarkBonus;
+
+        // Apply 50% damage reduction if challenged and attacking non-Duelist
+        int totalDamage = challengedAttackingNonDuelist ? baseDamage / 2 : baseDamage;
 
         final boolean hasBonusCharges = attacker.getBonusAttackCharges() > 0;
         Map<String, UnitTransformer> transformers = new HashMap<>();
@@ -98,6 +124,26 @@ public class AttackExecutor extends ActionExecutorBase {
             }
         }
         List<Unit> newUnits = updateUnitsInList(state.getUnits(), transformers);
+
+        // DEATH_MARK heal on kill: if target died and had death mark, heal the source 2 HP
+        if (deathMarkSource != null) {
+            Unit targetAfterDamage = findUnitById(newUnits, damageReceiverId);
+            if (targetAfterDamage != null && !targetAfterDamage.isAlive()) {
+                // Target died, heal the death mark source 2 HP
+                newUnits = updateUnitInList(newUnits, deathMarkSource, u -> u.withHpBonus(2));
+            }
+        }
+
+        // CHALLENGE counter-attack: Duelist counter-attacks for 2 damage when attacked by challenged enemy
+        if (challengedAttackingDuelist) {
+            // Find guardian that might intercept counter-attack
+            Unit counterTarget = findGuardian(state, attacker);
+            if (counterTarget == null) {
+                counterTarget = attacker;
+            }
+            String counterTargetId = counterTarget.getId();
+            newUnits = updateUnitInList(newUnits, counterTargetId, u -> u.withDamage(2));
+        }
 
         GameOverChecker.GameOverResult gameOver = gameOverChecker.checkGameOver(newUnits, action.getPlayerId());
 
@@ -310,5 +356,134 @@ public class AttackExecutor extends ActionExecutorBase {
             u -> u.withPreparingAndActionUsed(preparingAction));
 
         return state.withUnits(newUnits);
+    }
+
+    // =========================================================================
+    // FEINT Dodge and Counter
+    // =========================================================================
+
+    /**
+     * Apply FEINT dodge: attack misses, counter-attack for 2 damage, consume FEINT buff.
+     */
+    private GameState applyFeintDodge(GameState state, Action action, Unit attacker, Unit target) {
+        // Attack misses - no damage to target
+        // Counter-attack: target deals 2 damage to attacker (or guardian)
+        Unit counterTarget = findGuardian(state, attacker);
+        if (counterTarget == null) {
+            counterTarget = attacker;
+        }
+        String counterTargetId = counterTarget.getId();
+
+        // Apply counter damage and mark attacker as used action
+        Map<String, UnitTransformer> transformers = new HashMap<>();
+        transformers.put(counterTargetId, u -> u.withDamage(2));
+        if (!attacker.getId().equals(counterTargetId)) {
+            transformers.put(attacker.getId(), Unit::withActionUsed);
+        } else {
+            transformers.put(counterTargetId, u -> u.withDamage(2).withActionUsed());
+        }
+        List<Unit> newUnits = updateUnitsInList(state.getUnits(), transformers);
+
+        // Remove FEINT buff from target (consumed after dodge)
+        Map<String, List<BuffInstance>> newUnitBuffs = removeBuffFromUnit(
+            state.getUnitBuffs(), target.getId(), buff -> buff.getFlags() != null && buff.getFlags().isFeintBuff());
+
+        GameOverChecker.GameOverResult gameOver = gameOverChecker.checkGameOver(newUnits, action.getPlayerId());
+
+        DeathChoice deathChoice = null;
+        if (!gameOver.isGameOver()) {
+            deathChoice = gameOverChecker.checkMinionDeath(newUnits, state.getUnits());
+        }
+
+        GameState tempState = new GameState(
+            state.getBoard(),
+            newUnits,
+            state.getCurrentPlayer(),
+            gameOver.isGameOver(),
+            gameOver.getWinner(),
+            newUnitBuffs,
+            state.getBuffTiles(),
+            state.getObstacles(),
+            state.getCurrentRound(),
+            deathChoice != null ? deathChoice : state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
+        );
+
+        // Unit-by-unit turn system: switch player after action if not game over and no death choice
+        if (!gameOver.isGameOver() && deathChoice == null) {
+            Unit attackerAfterAction = findUnitById(newUnits, attacker.getId());
+            if (attackerAfterAction != null && !shouldSwitchTurnAfterAction(tempState, attackerAfterAction)) {
+                return tempState;
+            }
+
+            if (allUnitsActed(tempState)) {
+                return turnManager.processRoundEndAfterAction(tempState);
+            }
+            PlayerId nextPlayer = getNextActingPlayer(tempState, state.getCurrentPlayer());
+            return tempState.withCurrentPlayer(nextPlayer);
+        }
+
+        return tempState;
+    }
+
+    /**
+     * Apply INVULNERABLE miss: attack deals no damage, attacker uses action.
+     */
+    private GameState applyInvulnerableMiss(GameState state, Action action, Unit attacker) {
+        // Attack misses - no damage to target, only mark attacker as used action
+        List<Unit> newUnits = updateUnitInList(state.getUnits(), attacker.getId(), Unit::withActionUsed);
+
+        GameState tempState = new GameState(
+            state.getBoard(),
+            newUnits,
+            state.getCurrentPlayer(),
+            state.isGameOver(),
+            state.getWinner(),
+            state.getUnitBuffs(),
+            state.getBuffTiles(),
+            state.getObstacles(),
+            state.getCurrentRound(),
+            state.getPendingDeathChoice(),
+            state.isPlayer1TurnEnded(),
+            state.isPlayer2TurnEnded()
+        );
+
+        // Unit-by-unit turn system: switch player after action
+        Unit attackerAfterAction = findUnitById(newUnits, attacker.getId());
+        if (attackerAfterAction != null && !shouldSwitchTurnAfterAction(tempState, attackerAfterAction)) {
+            return tempState;
+        }
+
+        if (allUnitsActed(tempState)) {
+            return turnManager.processRoundEndAfterAction(tempState);
+        }
+        PlayerId nextPlayer = getNextActingPlayer(tempState, state.getCurrentPlayer());
+        return tempState.withCurrentPlayer(nextPlayer);
+    }
+
+    /**
+     * Remove a buff from a unit's buff list based on a predicate.
+     */
+    private Map<String, List<BuffInstance>> removeBuffFromUnit(
+            Map<String, List<BuffInstance>> unitBuffs, String unitId,
+            java.util.function.Predicate<BuffInstance> buffMatcher) {
+        if (unitBuffs == null) return new HashMap<>();
+        Map<String, List<BuffInstance>> newBuffs = new HashMap<>(unitBuffs);
+        List<BuffInstance> buffs = newBuffs.get(unitId);
+        if (buffs != null && !buffs.isEmpty()) {
+            List<BuffInstance> filtered = new ArrayList<>();
+            for (BuffInstance buff : buffs) {
+                if (!buffMatcher.test(buff)) {
+                    filtered.add(buff);
+                }
+            }
+            if (filtered.isEmpty()) {
+                newBuffs.remove(unitId);
+            } else {
+                newBuffs.put(unitId, filtered);
+            }
+        }
+        return newBuffs;
     }
 }

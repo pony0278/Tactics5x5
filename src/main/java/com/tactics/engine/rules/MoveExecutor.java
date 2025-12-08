@@ -183,7 +183,21 @@ public class MoveExecutor extends ActionExecutorBase {
         List<BuffInstance> currentBuffs = new ArrayList<>(
             unitBuffs.getOrDefault(movedUnit.getId(), Collections.emptyList())
         );
-        currentBuffs.add(newBuff);
+
+        // BST1: Same buff type refreshes duration (no stacking)
+        // Check if unit already has this buff type and refresh instead of adding
+        boolean found = false;
+        for (int i = 0; i < currentBuffs.size(); i++) {
+            if (currentBuffs.get(i).getType() == buffType) {
+                // Refresh duration - replace with new buff (which has full duration)
+                currentBuffs.set(i, newBuff);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            currentBuffs.add(newBuff);
+        }
         newUnitBuffs.put(movedUnit.getId(), currentBuffs);
 
         List<Unit> newUnits = units;

@@ -91,15 +91,24 @@ public class TurnManager extends ActionExecutorBase {
     // =========================================================================
 
     /**
-     * Process turn end: apply poison/bleed damage, decrease buff durations.
+     * Process turn end.
+     * Note: V3 changed poison/bleed damage and buff duration decrement to occur at round end, not turn end.
      */
     public TurnEndResult processTurnEnd(List<Unit> units, Map<String, List<BuffInstance>> unitBuffs) {
+        // V3: Poison/bleed damage and buff duration decrement all happen at round end, not per-turn
+        return new TurnEndResult(units, unitBuffs);
+    }
+
+    /**
+     * Apply poison and bleed damage to all units with those buffs.
+     * Called at round end (not per-turn).
+     */
+    public List<Unit> applyPoisonAndBleedDamage(List<Unit> units, Map<String, List<BuffInstance>> unitBuffs) {
         if (unitBuffs == null || unitBuffs.isEmpty()) {
-            return new TurnEndResult(units, unitBuffs);
+            return units;
         }
 
         List<Unit> newUnits = new ArrayList<>(units);
-        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>();
 
         List<String> unitIdsWithBuffs = new ArrayList<>(unitBuffs.keySet());
         Collections.sort(unitIdsWithBuffs);
@@ -130,25 +139,33 @@ public class TurnManager extends ActionExecutorBase {
             }
         }
 
-        // Decrease duration and remove expired buffs
-        for (String unitId : unitIdsWithBuffs) {
-            List<BuffInstance> buffs = unitBuffs.get(unitId);
+        return newUnits;
+    }
+
+    /**
+     * Decrease buff durations and remove expired buffs.
+     * Called only at round end (not per-turn).
+     */
+    public Map<String, List<BuffInstance>> decrementBuffDurations(Map<String, List<BuffInstance>> unitBuffs) {
+        if (unitBuffs == null || unitBuffs.isEmpty()) {
+            return unitBuffs;
+        }
+
+        Map<String, List<BuffInstance>> newUnitBuffs = new HashMap<>();
+
+        for (Map.Entry<String, List<BuffInstance>> entry : unitBuffs.entrySet()) {
+            String unitId = entry.getKey();
+            List<BuffInstance> buffs = entry.getValue();
             if (buffs == null || buffs.isEmpty()) {
                 continue;
             }
 
             List<BuffInstance> remainingBuffs = new ArrayList<>();
             for (BuffInstance buff : buffs) {
-                int newDuration = buff.getDuration() - 1;
-                if (newDuration > 0) {
-                    remainingBuffs.add(new BuffInstance(
-                        buff.getBuffId(),
-                        buff.getSourceUnitId(),
-                        newDuration,
-                        buff.isStackable(),
-                        buff.getModifiers(),
-                        buff.getFlags()
-                    ));
+                // Use withDecreasedDuration() to preserve all fields including BuffType
+                BuffInstance decremented = buff.withDecreasedDuration();
+                if (!decremented.isExpired()) {
+                    remainingBuffs.add(decremented);
                 }
             }
 
@@ -157,7 +174,7 @@ public class TurnManager extends ActionExecutorBase {
             }
         }
 
-        return new TurnEndResult(newUnits, newUnitBuffs);
+        return newUnitBuffs;
     }
 
     private List<Unit> applyDamageToUnit(List<Unit> units, String unitId, int damage) {
@@ -386,6 +403,32 @@ public class TurnManager extends ActionExecutorBase {
         return newUnits;
     }
 
+    /**
+     * Decrement temporary unit durations and remove expired or dead temporary units at round end.
+     * Shadow Clone and similar temporary units have a duration that decreases each round.
+     * Dead temporary units are also removed (they don't persist like regular minions).
+     */
+    public List<Unit> decrementTemporaryDurations(List<Unit> units) {
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : units) {
+            if (u.isTemporary()) {
+                // Remove dead temporary units
+                if (!u.isAlive()) {
+                    continue;
+                }
+                int newDuration = u.getTemporaryDuration() - 1;
+                if (newDuration <= 0) {
+                    // Temporary unit expired - remove it (don't add to list)
+                    continue;
+                }
+                newUnits.add(u.withTemporaryDuration(newDuration));
+            } else {
+                newUnits.add(u);
+            }
+        }
+        return newUnits;
+    }
+
     // =========================================================================
     // Full Round End Processing
     // =========================================================================
@@ -403,7 +446,19 @@ public class TurnManager extends ActionExecutorBase {
             gameOver = gameOverAfterPrep;
         }
 
-        List<Unit> unitsAfterDecay = applyMinionDecay(prepResult.getUnits());
+        // Apply poison/bleed damage at round end (V3: moved from turn end to round end)
+        List<Unit> unitsAfterPoison = applyPoisonAndBleedDamage(prepResult.getUnits(), turnEndResult.getUnitBuffs());
+
+        GameOverChecker.GameOverResult gameOverAfterPoison = gameOverChecker.checkGameOver(unitsAfterPoison);
+        if (gameOverAfterPoison.isGameOver()) {
+            gameOver = gameOverAfterPoison;
+        }
+
+        // Decrement temporary unit durations and remove expired ones BEFORE minion decay
+        // This ensures clones get their duration decremented even if they would die from decay
+        List<Unit> unitsAfterTempDecrement = decrementTemporaryDurations(unitsAfterPoison);
+
+        List<Unit> unitsAfterDecay = applyMinionDecay(unitsAfterTempDecrement);
 
         GameOverChecker.GameOverResult gameOverAfterDecay = gameOverChecker.checkGameOver(unitsAfterDecay);
         if (gameOverAfterDecay.isGameOver()) {
@@ -422,13 +477,16 @@ public class TurnManager extends ActionExecutorBase {
 
         List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(unitsAfterPressure);
 
+        // Decrement buff durations at round end (not per-turn)
+        Map<String, List<BuffInstance>> buffsAfterDecrement = decrementBuffDurations(prepResult.getUnitBuffs());
+
         return new GameState(
             state.getBoard(),
             unitsWithResetActions,
             getNextPlayer(state.getCurrentPlayer()),
             gameOver.isGameOver(),
             gameOver.getWinner(),
-            prepResult.getUnitBuffs(),
+            buffsAfterDecrement,
             prepResult.getBuffTiles(),
             prepResult.getObstacles(),
             state.getCurrentRound() + 1,
@@ -448,7 +506,18 @@ public class TurnManager extends ActionExecutorBase {
 
         GameOverChecker.GameOverResult gameOver = gameOverChecker.checkGameOver(prepResult.getUnits());
 
-        List<Unit> unitsAfterDecay = applyMinionDecay(prepResult.getUnits());
+        // Apply poison/bleed damage at round end (V3: moved from turn end to round end)
+        List<Unit> unitsAfterPoison = applyPoisonAndBleedDamage(prepResult.getUnits(), state.getUnitBuffs());
+
+        GameOverChecker.GameOverResult gameOverAfterPoison = gameOverChecker.checkGameOver(unitsAfterPoison);
+        if (gameOverAfterPoison.isGameOver()) {
+            gameOver = gameOverAfterPoison;
+        }
+
+        // Decrement temporary unit durations and remove expired ones BEFORE minion decay
+        List<Unit> unitsAfterTempDecrement = decrementTemporaryDurations(unitsAfterPoison);
+
+        List<Unit> unitsAfterDecay = applyMinionDecay(unitsAfterTempDecrement);
 
         GameOverChecker.GameOverResult gameOverAfterDecay = gameOverChecker.checkGameOver(unitsAfterDecay);
         if (gameOverAfterDecay.isGameOver()) {
@@ -467,13 +536,16 @@ public class TurnManager extends ActionExecutorBase {
 
         List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(unitsAfterPressure);
 
+        // Decrement buff durations at round end (not per-turn)
+        Map<String, List<BuffInstance>> buffsAfterDecrement = decrementBuffDurations(prepResult.getUnitBuffs());
+
         return new GameState(
             state.getBoard(),
             unitsWithResetActions,
             getNextPlayer(state.getCurrentPlayer()),
             gameOver.isGameOver(),
             gameOver.getWinner(),
-            prepResult.getUnitBuffs(),
+            buffsAfterDecrement,
             prepResult.getBuffTiles(),
             prepResult.getObstacles(),
             state.getCurrentRound() + 1,

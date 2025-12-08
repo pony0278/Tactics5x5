@@ -26,14 +26,19 @@ public class ClericSkillExecutor extends SkillExecutorBase {
     /**
      * Apply Cleric Trinity skill.
      * Effect: Heal target for 3 HP, remove one debuff, apply LIFE buff (+3 HP instant).
+     * Note: If target is invulnerable, healing is doubled.
      */
     public GameState applyTrinity(GameState state, Action action, Unit actingUnit, SkillDefinition skill) {
         String targetUnitId = action.getSkillTargetUnitId() != null
             ? action.getSkillTargetUnitId()
             : action.getTargetUnitId();
         Unit targetUnit = findUnitById(state.getUnits(), targetUnitId);
-        int healAmount = skill.getHealAmount();  // 3
+        int baseHealAmount = skill.getHealAmount();  // 3
         int cooldown = skill.getCooldown();  // 2
+
+        // Check if target is invulnerable - doubled healing
+        boolean isTargetInvulnerable = isUnitInvulnerable(state, targetUnitId);
+        int healAmount = isTargetInvulnerable ? baseHealAmount * 2 : baseHealAmount;
 
         // Update units: caster uses skill, target heals
         List<Unit> newUnits = new ArrayList<>();
@@ -63,14 +68,31 @@ public class ClericSkillExecutor extends SkillExecutorBase {
         targetBuffs.add(lifeBuff);
         newUnitBuffs.put(targetUnitId, targetBuffs);
 
-        // Apply instant HP bonus from LIFE buff
-        if (lifeBuff.getInstantHpBonus() != 0) {
+        // Apply instant HP bonus from LIFE buff (doubled if invulnerable)
+        int lifeBuffHp = lifeBuff.getInstantHpBonus();
+        if (lifeBuffHp != 0) {
+            int actualLifeHp = isTargetInvulnerable ? lifeBuffHp * 2 : lifeBuffHp;
             newUnits = updateUnitInList(newUnits, targetUnitId,
-                u -> u.withHpBonus(lifeBuff.getInstantHpBonus()));
+                u -> u.withHpBonus(actualLifeHp));
         }
 
         GameOverResult gameOver = checkGameOver(newUnits);
         return state.withUpdates(newUnits, newUnitBuffs, gameOver.isGameOver, gameOver.winner);
+    }
+
+    /**
+     * Check if a unit has the INVULNERABLE buff.
+     */
+    private boolean isUnitInvulnerable(GameState state, String unitId) {
+        List<BuffInstance> buffs = state.getUnitBuffs() != null
+            ? state.getUnitBuffs().getOrDefault(unitId, Collections.emptyList())
+            : Collections.emptyList();
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isInvulnerableBuff()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

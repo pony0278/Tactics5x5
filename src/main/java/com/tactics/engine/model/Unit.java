@@ -499,6 +499,19 @@ public class Unit {
     }
 
     /**
+     * Create a copy with updated temporary duration.
+     * Used for temporary units like Shadow Clone.
+     */
+    public Unit withTemporaryDuration(int newTemporaryDuration) {
+        return new Unit(id, owner, hp, attack, moveRange, attackRange, position, alive,
+                        category, minionType, heroClass, maxHp,
+                        selectedSkillId, skillCooldown,
+                        shield, invisible, invulnerable, isTemporary, newTemporaryDuration, skillState,
+                        actionsUsed, preparing, preparingAction,
+                        bonusAttackDamage, bonusAttackCharges);
+    }
+
+    /**
      * Create a copy with position updated, skill used (cooldown set, actionsUsed incremented).
      * Used for movement skills like Heroic Leap, Smoke Bomb, Warp Beacon teleport.
      */

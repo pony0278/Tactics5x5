@@ -127,24 +127,26 @@ public class GameOverChecker {
      * Check if any minion died in the units list (HP <= 0 but was created alive).
      * Returns a DeathChoice for the first dead minion found (by ID order for determinism).
      * Only checks minions, not heroes (hero death ends the game, no death choice).
+     * Excludes temporary units (like Shadow Clone) - they don't trigger death choice.
      *
      * @param units The current units list
      * @param originalUnits The units list before the action (to compare alive status)
      * @return DeathChoice if a minion died, null otherwise
      */
     public DeathChoice checkMinionDeath(List<Unit> units, List<Unit> originalUnits) {
-        // Build map of original alive minions
+        // Build map of original alive minions (excluding temporary units)
         Map<String, Unit> originalMinionMap = new HashMap<>();
         for (Unit u : originalUnits) {
-            if (u.isAlive() && u.getCategory() == UnitCategory.MINION) {
+            if (u.isAlive() && u.getCategory() == UnitCategory.MINION && !u.isTemporary()) {
                 originalMinionMap.put(u.getId(), u);
             }
         }
 
-        // Find first minion that died (sort by ID for determinism)
+        // Find first minion that died (sort by ID for determinism), excluding temporary units
         List<Unit> deadMinions = new ArrayList<>();
         for (Unit u : units) {
-            if (!u.isAlive() && u.getCategory() == UnitCategory.MINION && originalMinionMap.containsKey(u.getId())) {
+            if (!u.isAlive() && u.getCategory() == UnitCategory.MINION
+                && !u.isTemporary() && originalMinionMap.containsKey(u.getId())) {
                 deadMinions.add(u);
             }
         }

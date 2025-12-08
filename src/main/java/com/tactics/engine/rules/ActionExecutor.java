@@ -15,6 +15,7 @@ import com.tactics.engine.skill.SkillRegistry;
 import com.tactics.engine.util.RngProvider;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -241,6 +242,12 @@ public class ActionExecutor {
         String skillId = actingUnit.getSelectedSkillId();
         SkillDefinition skill = SkillRegistry.getSkill(skillId);
 
+        // Check if acting unit has SLOW buff - skill execution is delayed by 1 round
+        List<BuffInstance> actingUnitBuffs = getBuffsForUnit(state, actingUnitId);
+        if (hasSlowBuff(actingUnitBuffs)) {
+            return applySlowBuffPreparingSkill(state, action, actingUnit);
+        }
+
         GameState result = skillExecutor.executeSkill(state, action, actingUnit, skill);
 
         if (actingUnit.isInvisible() && !skillId.equals(SkillRegistry.ROGUE_SMOKE_BOMB)) {
@@ -248,6 +255,34 @@ public class ActionExecutor {
         }
 
         return result;
+    }
+
+    private GameState applySlowBuffPreparingSkill(GameState state, Action action, Unit actingUnit) {
+        Map<String, Object> preparingAction = new HashMap<>();
+        preparingAction.put("type", "USE_SKILL");
+        if (action.getTargetUnitId() != null) {
+            preparingAction.put("targetUnitId", action.getTargetUnitId());
+        }
+        if (action.getSkillTargetUnitId() != null) {
+            preparingAction.put("skillTargetUnitId", action.getSkillTargetUnitId());
+        }
+        if (action.getTargetPosition() != null) {
+            Map<String, Object> posMap = new HashMap<>();
+            posMap.put("x", action.getTargetPosition().getX());
+            posMap.put("y", action.getTargetPosition().getY());
+            preparingAction.put("targetPosition", posMap);
+        }
+
+        List<Unit> newUnits = new ArrayList<>();
+        for (Unit u : state.getUnits()) {
+            if (u.getId().equals(actingUnit.getId())) {
+                newUnits.add(u.withPreparingAndActionUsed(preparingAction));
+            } else {
+                newUnits.add(u);
+            }
+        }
+
+        return state.withUnits(newUnits);
     }
 
     private GameState clearInvisibleOnUnit(GameState state, String unitId) {

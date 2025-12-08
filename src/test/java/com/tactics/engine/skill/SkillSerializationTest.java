@@ -48,8 +48,8 @@ public class SkillSerializationTest {
         return new Unit(id, owner, hp, 3, 2, 1, pos, true,
             UnitCategory.HERO, null, heroClass, hp,
             skillId, cooldown,
-            0, false, false, false, 0, null,
-            0, false, skillState, 0, 0);
+            0, false, false, false, 0, skillState,  // skillState is after temporaryDuration
+            0, false, null, 0, 0);  // preparingAction is null
     }
 
     private Unit createMinion(String id, PlayerId owner, int hp, Position pos, MinionType type) {
@@ -314,12 +314,14 @@ public class SkillSerializationTest {
         @DisplayName("SS6: Shadow Clone unit serializes as temporary")
         void shadowCloneSerializesAsTemporary() {
             // Given: A Shadow Clone (temporary unit)
+            // Constructor: shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+            //              actionsUsed, preparing, preparingAction, bonusAttackDamage, bonusAttackCharges
             Unit clone = new Unit("p1_rogue_clone_123", PlayerId.PLAYER_1, 1, 1, 2, 1,
                 new Position(2, 3), true,
                 UnitCategory.MINION, MinionType.ASSASSIN, null, 1,
                 null, 0,
-                0, false, false, false, 0, null,
-                0, true, null, 2, 0);  // temporary=true, temporaryDuration=2
+                0, false, false, true, 2, null,  // isTemporary=true, temporaryDuration=2
+                0, false, null, 0, 0);
 
             Unit enemy = createMinion("p2_minion", PlayerId.PLAYER_2, 10, new Position(4, 4),
                 MinionType.ARCHER);
@@ -338,7 +340,7 @@ public class SkillSerializationTest {
                 .orElse(null);
 
             assertNotNull(cloneJson, "Clone should be serialized");
-            assertEquals(true, cloneJson.get("temporary"), "Clone should be marked as temporary");
+            assertEquals(true, cloneJson.get("isTemporary"), "Clone should be marked as temporary");
             assertEquals(2, cloneJson.get("temporaryDuration"), "Clone duration should be 2");
         }
 
@@ -346,12 +348,14 @@ public class SkillSerializationTest {
         @DisplayName("SS6b: Temporary unit roundtrip preserves temporary flag")
         void temporaryUnitRoundtripPreservesFlag() {
             // Given: Shadow Clone
+            // Constructor: shield, invisible, invulnerable, isTemporary, temporaryDuration, skillState,
+            //              actionsUsed, preparing, preparingAction, bonusAttackDamage, bonusAttackCharges
             Unit clone = new Unit("p1_rogue_clone_123", PlayerId.PLAYER_1, 1, 1, 2, 1,
                 new Position(2, 3), true,
                 UnitCategory.MINION, MinionType.ASSASSIN, null, 1,
                 null, 0,
-                0, false, false, false, 0, null,
-                0, true, null, 2, 0);
+                0, false, false, true, 2, null,  // isTemporary=true, temporaryDuration=2
+                0, false, null, 0, 0);
 
             Unit enemy = createMinion("p2_minion", PlayerId.PLAYER_2, 10, new Position(4, 4),
                 MinionType.ARCHER);

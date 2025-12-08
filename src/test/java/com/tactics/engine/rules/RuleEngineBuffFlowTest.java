@@ -528,6 +528,7 @@ class RuleEngineBuffFlowTest {
         @Test
         @DisplayName("BA5 - OnTurnEnd poison deals damage")
         void ba5_poisonDealsDamageOnTurnEnd() {
+            // V3: Poison damage is applied at round end, not turn end
             Unit u1_p1 = createUnit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
             Unit u1_p2 = createUnit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
 
@@ -535,20 +536,24 @@ class RuleEngineBuffFlowTest {
             buffs = addBuff(buffs, "u1_p1", createPoisonBuff("u1_p2", 3));
 
             GameState state = withBuffs(board, Arrays.asList(u1_p1, u1_p2), p1, false, null, buffs);
-            Action action = new Action(ActionType.END_TURN, p1, null, null);
 
-            GameState newState = ruleEngine.applyAction(state, action);
+            // V3: Both players must END_TURN to complete a round
+            Action p1EndTurn = new Action(ActionType.END_TURN, p1, null, null);
+            GameState afterP1 = ruleEngine.applyAction(state, p1EndTurn);
+            Action p2EndTurn = new Action(ActionType.END_TURN, p2, null, null);
+            GameState newState = ruleEngine.applyAction(afterP1, p2EndTurn);
 
             Unit poisonedUnit = newState.getUnits().stream()
                 .filter(u -> u.getId().equals("u1_p1"))
                 .findFirst().orElseThrow();
 
-            assertEquals(9, poisonedUnit.getHp(), "Poisoned unit should lose 1 HP at end of turn");
+            assertEquals(9, poisonedUnit.getHp(), "Poisoned unit should lose 1 HP at end of round");
         }
 
         @Test
         @DisplayName("BA6 - Poison damage can kill the unit")
         void ba6_poisonCanKillUnit() {
+            // V3: Poison damage is applied at round end, not turn end
             Unit u1_p1 = createUnit("u1_p1", p1, 1, 3, 1, 1, new Position(1, 1), true); // 1 HP
             Unit u1_p2 = createUnit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
 
@@ -556,9 +561,12 @@ class RuleEngineBuffFlowTest {
             buffs = addBuff(buffs, "u1_p1", createPoisonBuff("u1_p2", 3));
 
             GameState state = withBuffs(board, Arrays.asList(u1_p1, u1_p2), p1, false, null, buffs);
-            Action action = new Action(ActionType.END_TURN, p1, null, null);
 
-            GameState newState = ruleEngine.applyAction(state, action);
+            // V3: Both players must END_TURN to complete a round
+            Action p1EndTurn = new Action(ActionType.END_TURN, p1, null, null);
+            GameState afterP1 = ruleEngine.applyAction(state, p1EndTurn);
+            Action p2EndTurn = new Action(ActionType.END_TURN, p2, null, null);
+            GameState newState = ruleEngine.applyAction(afterP1, p2EndTurn);
 
             Unit poisonedUnit = newState.getUnits().stream()
                 .filter(u -> u.getId().equals("u1_p1"))
@@ -569,9 +577,10 @@ class RuleEngineBuffFlowTest {
         }
 
         @Test
-        @DisplayName("BA7 - Buff expiration happens AFTER poison damage in same turn")
+        @DisplayName("BA7 - Buff expiration happens AFTER poison damage at round end")
         void ba7_buffExpirationAfterPoison() {
-            // Poison with duration=1 should deal damage then expire
+            // Poison with duration=1 should deal damage then expire at round end
+            // V3: Buff duration decrements at round end, not turn end
             Unit u1_p1 = createUnit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
             Unit u1_p2 = createUnit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
 
@@ -579,19 +588,23 @@ class RuleEngineBuffFlowTest {
             buffs = addBuff(buffs, "u1_p1", createPoisonBuff("u1_p2", 1)); // Duration 1
 
             GameState state = withBuffs(board, Arrays.asList(u1_p1, u1_p2), p1, false, null, buffs);
-            Action action = new Action(ActionType.END_TURN, p1, null, null);
 
-            GameState newState = ruleEngine.applyAction(state, action);
+            // V3: Both players must END_TURN to complete a round
+            Action p1EndTurn = new Action(ActionType.END_TURN, p1, null, null);
+            GameState afterP1 = ruleEngine.applyAction(state, p1EndTurn);
 
-            // Should take poison damage
+            Action p2EndTurn = new Action(ActionType.END_TURN, p2, null, null);
+            GameState newState = ruleEngine.applyAction(afterP1, p2EndTurn);
+
+            // Should take poison damage (applied at turn end of poisoned unit's owner)
             Unit poisonedUnit = newState.getUnits().stream()
                 .filter(u -> u.getId().equals("u1_p1"))
                 .findFirst().orElseThrow();
             assertEquals(9, poisonedUnit.getHp(), "Poison should deal damage before expiring");
 
-            // Buff should be expired (empty list or no entry)
+            // Buff should be expired at round end (empty list or no entry)
             List<BuffInstance> remainingBuffs = newState.getUnitBuffs().getOrDefault("u1_p1", Collections.emptyList());
-            assertTrue(remainingBuffs.isEmpty(), "Poison buff with duration 1 should expire after turn end");
+            assertTrue(remainingBuffs.isEmpty(), "Poison buff with duration 1 should expire after round end");
         }
 
         @Test
@@ -622,6 +635,7 @@ class RuleEngineBuffFlowTest {
         @Test
         @DisplayName("BP1 - Single poison tick deals exactly 1 damage")
         void bp1_singlePoisonTickDeals1Damage() {
+            // V3: Poison damage is applied at round end, not turn end
             Unit u1_p1 = createUnit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
             Unit u1_p2 = createUnit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
 
@@ -629,20 +643,24 @@ class RuleEngineBuffFlowTest {
             buffs = addBuff(buffs, "u1_p1", createPoisonBuff("u1_p2", 3));
 
             GameState state = withBuffs(board, Arrays.asList(u1_p1, u1_p2), p1, false, null, buffs);
-            Action action = new Action(ActionType.END_TURN, p1, null, null);
 
-            GameState newState = ruleEngine.applyAction(state, action);
+            // V3: Both players must END_TURN to complete a round
+            Action p1EndTurn = new Action(ActionType.END_TURN, p1, null, null);
+            GameState afterP1 = ruleEngine.applyAction(state, p1EndTurn);
+            Action p2EndTurn = new Action(ActionType.END_TURN, p2, null, null);
+            GameState newState = ruleEngine.applyAction(afterP1, p2EndTurn);
 
             Unit poisonedUnit = newState.getUnits().stream()
                 .filter(u -> u.getId().equals("u1_p1"))
                 .findFirst().orElseThrow();
 
-            assertEquals(9, poisonedUnit.getHp(), "Single poison should deal exactly 1 damage");
+            assertEquals(9, poisonedUnit.getHp(), "Single poison should deal exactly 1 damage at round end");
         }
 
         @Test
         @DisplayName("BP2 - Multiple poison buffs stack damage")
         void bp2_multiplePoisonBuffsStackDamage() {
+            // V3: Poison damage is applied at round end, not turn end
             Unit u1_p1 = createUnit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
             Unit u1_p2 = createUnit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
 
@@ -651,20 +669,24 @@ class RuleEngineBuffFlowTest {
             buffs = addBuff(buffs, "u1_p1", createPoisonBuff("u1_p2", 2)); // stackable=true
 
             GameState state = withBuffs(board, Arrays.asList(u1_p1, u1_p2), p1, false, null, buffs);
-            Action action = new Action(ActionType.END_TURN, p1, null, null);
 
-            GameState newState = ruleEngine.applyAction(state, action);
+            // V3: Both players must END_TURN to complete a round
+            Action p1EndTurn = new Action(ActionType.END_TURN, p1, null, null);
+            GameState afterP1 = ruleEngine.applyAction(state, p1EndTurn);
+            Action p2EndTurn = new Action(ActionType.END_TURN, p2, null, null);
+            GameState newState = ruleEngine.applyAction(afterP1, p2EndTurn);
 
             Unit poisonedUnit = newState.getUnits().stream()
                 .filter(u -> u.getId().equals("u1_p1"))
                 .findFirst().orElseThrow();
 
-            assertEquals(8, poisonedUnit.getHp(), "Two poison buffs should deal 2 damage total");
+            assertEquals(8, poisonedUnit.getHp(), "Two poison buffs should deal 2 damage total at round end");
         }
 
         @Test
-        @DisplayName("BP3 - Poison kills the unit at turn end")
+        @DisplayName("BP3 - Poison kills the unit at round end")
         void bp3_poisonKillsAtTurnEnd() {
+            // V3: Poison damage is applied at round end, not turn end
             Unit u1_p1 = createUnit("u1_p1", p1, 1, 3, 1, 1, new Position(1, 1), true);
             Unit u1_p2 = createUnit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
 
@@ -672,9 +694,12 @@ class RuleEngineBuffFlowTest {
             buffs = addBuff(buffs, "u1_p1", createPoisonBuff("u1_p2", 3));
 
             GameState state = withBuffs(board, Arrays.asList(u1_p1, u1_p2), p1, false, null, buffs);
-            Action action = new Action(ActionType.END_TURN, p1, null, null);
 
-            GameState newState = ruleEngine.applyAction(state, action);
+            // V3: Both players must END_TURN to complete a round
+            Action p1EndTurn = new Action(ActionType.END_TURN, p1, null, null);
+            GameState afterP1 = ruleEngine.applyAction(state, p1EndTurn);
+            Action p2EndTurn = new Action(ActionType.END_TURN, p2, null, null);
+            GameState newState = ruleEngine.applyAction(afterP1, p2EndTurn);
 
             Unit poisonedUnit = newState.getUnits().stream()
                 .filter(u -> u.getId().equals("u1_p1"))
@@ -709,8 +734,9 @@ class RuleEngineBuffFlowTest {
         }
 
         @Test
-        @DisplayName("BP5 - Poison duration reduces exactly like other buffs")
+        @DisplayName("BP5 - Poison duration reduces at round end")
         void bp5_poisonDurationReduces() {
+            // V3: Buff duration decrements at round end, not turn end
             Unit u1_p1 = createUnit("u1_p1", p1, 10, 3, 1, 1, new Position(1, 1), true);
             Unit u1_p2 = createUnit("u1_p2", p2, 10, 3, 1, 1, new Position(3, 3), true);
 
@@ -718,9 +744,13 @@ class RuleEngineBuffFlowTest {
             buffs = addBuff(buffs, "u1_p1", createPoisonBuff("u1_p2", 3)); // Duration 3
 
             GameState state = withBuffs(board, Arrays.asList(u1_p1, u1_p2), p1, false, null, buffs);
-            Action action = new Action(ActionType.END_TURN, p1, null, null);
 
-            GameState newState = ruleEngine.applyAction(state, action);
+            // V3: Both players must END_TURN to complete a round
+            Action p1EndTurn = new Action(ActionType.END_TURN, p1, null, null);
+            GameState afterP1 = ruleEngine.applyAction(state, p1EndTurn);
+
+            Action p2EndTurn = new Action(ActionType.END_TURN, p2, null, null);
+            GameState newState = ruleEngine.applyAction(afterP1, p2EndTurn);
 
             List<BuffInstance> unitBuffs = newState.getUnitBuffs().getOrDefault("u1_p1", Collections.emptyList());
             assertFalse(unitBuffs.isEmpty(), "Poison buff should still exist");
@@ -729,7 +759,7 @@ class RuleEngineBuffFlowTest {
                 .filter(b -> b.getBuffId().equals("POISON"))
                 .findFirst().orElseThrow();
 
-            assertEquals(2, poisonBuff.getDuration(), "Poison duration should decrease by 1");
+            assertEquals(2, poisonBuff.getDuration(), "Poison duration should decrease by 1 at round end");
         }
     }
 

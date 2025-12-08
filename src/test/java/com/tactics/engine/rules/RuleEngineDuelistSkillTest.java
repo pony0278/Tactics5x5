@@ -234,8 +234,9 @@ public class RuleEngineDuelistSkillTest {
         @DisplayName("SD4: Duelist counter-attacks when attacked by Challenged enemy")
         void duelistCounterAttacksWhenAttackedByChallengedEnemy() {
             // Given: Enemy with CHALLENGE buff attacks Duelist
-            Unit duelist = createDuelistWithActionsUsed(P1_DUELIST, PlayerId.PLAYER_1, 10, 3,
-                new Position(2, 3), SkillRegistry.DUELIST_CHALLENGE, 1);
+            // Duelist has actionsUsed=0 so round end won't trigger after this attack
+            Unit duelist = createDuelist(P1_DUELIST, PlayerId.PLAYER_1, 10, 3,
+                new Position(2, 3), SkillRegistry.DUELIST_CHALLENGE);
             Unit challengedEnemy = createMinion(P2_ENEMY, PlayerId.PLAYER_2, 10, 4, new Position(2, 4), MinionType.ARCHER);
 
             Map<String, List<BuffInstance>> unitBuffs = new HashMap<>();
@@ -453,8 +454,9 @@ public class RuleEngineDuelistSkillTest {
         @DisplayName("SD12: Feint triggers counter-attack on dodge")
         void feintTriggersCounterOnDodge() {
             // Given: Duelist with FEINT buff, enemy attacks
-            Unit duelist = createDuelistWithActionsUsed(P1_DUELIST, PlayerId.PLAYER_1, 10, 3,
-                new Position(2, 3), SkillRegistry.DUELIST_FEINT, 1);
+            // Duelist has actionsUsed=0 so round end won't trigger after this attack
+            Unit duelist = createDuelist(P1_DUELIST, PlayerId.PLAYER_1, 10, 3,
+                new Position(2, 3), SkillRegistry.DUELIST_FEINT);
             Unit enemy = createMinion(P2_ENEMY, PlayerId.PLAYER_2, 10, 4, new Position(2, 4), MinionType.ARCHER);
 
             Map<String, List<BuffInstance>> unitBuffs = new HashMap<>();

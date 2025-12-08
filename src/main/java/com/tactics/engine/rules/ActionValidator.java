@@ -697,7 +697,19 @@ public class ActionValidator {
         if (isUnitBlinded(buffs)) {
             return new ValidationResult(false, "Unit is blinded and cannot attack");
         }
+        if (isUnitInvulnerable(buffs)) {
+            return new ValidationResult(false, "Invulnerable units cannot attack");
+        }
         return new ValidationResult(true, null);
+    }
+
+    private boolean isUnitInvulnerable(List<BuffInstance> buffs) {
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isInvulnerableBuff()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ValidationResult validateMoveAndAttackBuffState(Unit unit, List<BuffInstance> buffs) {

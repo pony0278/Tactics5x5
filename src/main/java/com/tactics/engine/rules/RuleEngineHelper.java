@@ -131,6 +131,96 @@ public class RuleEngineHelper {
         return false;
     }
 
+    /**
+     * Check if the unit has a DEATH_MARK buff.
+     * @param buffs List of buffs to check
+     * @return true if DEATH_MARK buff is present
+     */
+    public static boolean hasDeathMarkBuff(List<BuffInstance> buffs) {
+        if (buffs == null) return false;
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isDeathMarkBuff()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get the DEATH_MARK buff source ID (the unit that applied it).
+     * @param buffs List of buffs to check
+     * @return Source unit ID if DEATH_MARK buff is present, null otherwise
+     */
+    public static String getDeathMarkSource(List<BuffInstance> buffs) {
+        if (buffs == null) return null;
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isDeathMarkBuff()) {
+                return buff.getSourceUnitId();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if the unit has a CHALLENGE buff.
+     * @param buffs List of buffs to check
+     * @return true if CHALLENGE buff is present
+     */
+    public static boolean hasChallengeBuff(List<BuffInstance> buffs) {
+        if (buffs == null) return false;
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isChallengeBuff()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get the CHALLENGE buff source ID (the Duelist who challenged).
+     * @param buffs List of buffs to check
+     * @return Source unit ID if CHALLENGE buff is present, null otherwise
+     */
+    public static String getChallengeSource(List<BuffInstance> buffs) {
+        if (buffs == null) return null;
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isChallengeBuff()) {
+                return buff.getSourceUnitId();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if the unit has a FEINT buff.
+     * @param buffs List of buffs to check
+     * @return true if FEINT buff is present
+     */
+    public static boolean hasFeintBuff(List<BuffInstance> buffs) {
+        if (buffs == null) return false;
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isFeintBuff()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if the unit has an INVULNERABLE buff.
+     * @param buffs List of buffs to check
+     * @return true if INVULNERABLE buff is present
+     */
+    public static boolean hasInvulnerableBuff(List<BuffInstance> buffs) {
+        if (buffs == null) return false;
+        for (BuffInstance buff : buffs) {
+            if (buff.getFlags() != null && buff.getFlags().isInvulnerableBuff()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // =========================================================================
     // Action Calculation Methods
     // =========================================================================
