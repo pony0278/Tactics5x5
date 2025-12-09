@@ -200,10 +200,9 @@ public class MatchWebSocketHandler implements TimerCallback {
     // ========== Message Handlers ==========
 
     private void handleJoinMatch(ClientConnection connection, Map<String, Object> payload) {
-        String matchId = getStringFromPayload(payload, "matchId");
+        String matchId = validateJoinRequest(connection, payload);
         if (matchId == null) {
-            sendValidationError(connection, "Missing matchId in join_match", null);
-            return;
+            return; // Validation error already sent
         }
 
         PlayerAssignment assignment = assignPlayerToMatch(connection, matchId);
@@ -219,6 +218,19 @@ public class MatchWebSocketHandler implements TimerCallback {
     }
 
     // ========== Join Match Helpers ==========
+
+    /**
+     * Validates incoming join_match request data.
+     * Returns matchId if valid, null otherwise (error sent to connection).
+     */
+    private String validateJoinRequest(ClientConnection connection, Map<String, Object> payload) {
+        String matchId = getStringFromPayload(payload, "matchId");
+        if (matchId == null || matchId.trim().isEmpty()) {
+            sendValidationError(connection, "Missing matchId in join_match", null);
+            return null;
+        }
+        return matchId;
+    }
 
     /**
      * Result of player slot assignment.
