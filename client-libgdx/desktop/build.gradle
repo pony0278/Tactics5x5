@@ -1,0 +1,28 @@
+apply plugin: "java-library"
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+sourceSets.main.resources.srcDirs += [rootProject.file('assets').path]
+
+dependencies {
+    implementation project(":core")
+    api "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"
+    api "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+    implementation "org.java-websocket:Java-WebSocket:$javaWebSocketVersion"
+}
+
+task run(type: JavaExec) {
+    dependsOn classes
+    mainClass = "com.tactics.client.desktop.DesktopLauncher"
+    classpath = sourceSets.main.runtimeClasspath
+    workingDir = rootProject.file('assets')
+    standardInput = System.in
+    ignoreExitValue = true
+
+    if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+        jvmArgs += "-XstartOnFirstThread"
+    }
+}

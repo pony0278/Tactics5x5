@@ -1,0 +1,39 @@
+apply plugin: "java-library"
+apply plugin: "org.teavm"
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+dependencies {
+    implementation project(":core")
+    implementation "com.badlogicgames.gdx:gdx:$gdxVersion"
+    implementation "org.teavm:teavm-classlib:$teavmVersion"
+    implementation "org.teavm:teavm-jso:$teavmVersion"
+    implementation "org.teavm:teavm-jso-apis:$teavmVersion"
+}
+
+teavm {
+    js {
+        mainClass = "com.tactics.client.teavm.TeaVMLauncher"
+        targetFileName = "tactics.js"
+        // Optimization settings
+        obfuscated = false
+        strict = false
+    }
+}
+
+task copyAssets(type: Copy) {
+    from rootProject.file('assets')
+    into "${buildDir}/generated/teavm/js/assets"
+}
+
+task copyHtml(type: Copy) {
+    from 'src/main/webapp'
+    into "${buildDir}/generated/teavm/js"
+}
+
+tasks.named('generateJavaScript').configure {
+    dependsOn copyAssets, copyHtml
+}

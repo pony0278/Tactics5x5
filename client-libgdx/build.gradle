@@ -1,0 +1,88 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        google()
+        gradlePluginPortal()
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven { url "https://teavm.org/maven/repository/" }
+        maven { url "https://jitpack.io" }
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:8.1.4"
+        classpath "org.teavm:teavm-gradle-plugin:0.11.0"
+    }
+}
+
+allprojects {
+    apply plugin: "eclipse"
+    apply plugin: "idea"
+
+    version = '1.0'
+
+    ext {
+        gdxVersion = '1.12.1'
+        teavmVersion = '0.11.0'
+        gdxTeaVMVersion = '1.0.5'
+        javaWebSocketVersion = '1.5.4'
+    }
+
+    configurations.all {
+        resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+    }
+
+    repositories {
+        mavenCentral()
+        google()
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven { url "https://oss.sonatype.org/content/repositories/releases/" }
+        maven { url "https://teavm.org/maven/repository/" }
+        maven { url "https://jitpack.io" }
+    }
+}
+
+project(":desktop") {
+    apply plugin: "java-library"
+
+    dependencies {
+        implementation project(":core")
+        api "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"
+        api "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+    }
+}
+
+project(":android") {
+    apply plugin: "com.android.application"
+
+    configurations { natives }
+
+    dependencies {
+        implementation project(":core")
+        api "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
+        natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi-v7a"
+        natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-arm64-v8a"
+        natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86"
+        natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86_64"
+    }
+}
+
+project(":teavm") {
+    apply plugin: "java-library"
+    apply plugin: "org.teavm"
+
+    dependencies {
+        implementation project(":core")
+        implementation "com.badlogicgames.gdx:gdx:$gdxVersion"
+        implementation "com.github.xpenatan.gdx-teavm:backend-teavm:$gdxTeaVMVersion"
+        implementation "org.teavm:teavm-classlib:$teavmVersion"
+        implementation "org.teavm:teavm-jso:$teavmVersion"
+        implementation "org.teavm:teavm-jso-apis:$teavmVersion"
+    }
+}
+
+project(":core") {
+    apply plugin: "java-library"
+
+    dependencies {
+        api "com.badlogicgames.gdx:gdx:$gdxVersion"
+    }
+}
