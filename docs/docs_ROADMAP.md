@@ -3,8 +3,8 @@
 This document tracks the upcoming development phases for the 5x5 Tactics Engine.
 
 **Last Updated**: 2025-12-09
-**Current Tests**: 827 passing
-**Current Phase**: Phase C - Complete Remaining Tests (In Progress)
+**Current Tests**: 922 passing
+**Current Phase**: Phase D - End-to-End Testing
 
 ---
 
@@ -12,8 +12,8 @@ This document tracks the upcoming development phases for the 5x5 Tactics Engine.
 
 | Phase | Description | Est. Time | Status |
 |-------|-------------|-----------|--------|
-| C | Complete Remaining Tests | 6-10 hours | 🔄 In Progress (827/~950 tests) |
-| D | End-to-End Testing | 4-6 hours | ⬜ Pending |
+| ~~C~~ | ~~Complete Remaining Tests~~ | ~~6-10 hours~~ | ✅ Complete (922 tests) |
+| **D** | **End-to-End Testing** | 4-6 hours | 🔄 Current |
 | E | LibGDX Client | 20-30 hours | ⬜ Pending |
 | F | Supabase Integration | 8-12 hours | ⬜ Pending |
 
@@ -21,94 +21,45 @@ This document tracks the upcoming development phases for the 5x5 Tactics Engine.
 
 ---
 
-## Phase C: Complete Remaining Tests
+## Phase C: Complete Remaining Tests ✅ COMPLETE
 
 **Goal**: Achieve comprehensive test coverage before client development.
 
-**Estimated Time**: 6-10 hours
+**Status**: ✅ Complete - 922 tests passing (+160 tests added)
 
-### Tasks
+### Final Summary
 
-| Task | Description | Est. Time | Status |
-|------|-------------|-----------|--------|
-| C-1 | MatchWebSocketHandler.handleJoinMatch() refactor | 30 min | ⬜ |
-| C-2 | Remaining SKILL_SYSTEM tests (~150 tests) | 4-6 hours | 🔄 In Progress (~135 added) |
-| C-3 | Remaining BUFF tests (~100 tests) | 3-4 hours | ⬜ |
+| Task | Description | Tests Added | Status |
+|------|-------------|-------------|--------|
+| C-1 | handleJoinMatch() refactor | - | ✅ Complete |
+| C-2 | SKILL_SYSTEM tests | +107 | ✅ Complete |
+| C-3 | BUFF tests | +53 | ✅ Complete |
 
-### C-2 Progress (Skill Tests)
+### C-2 Skill Tests Added
 
-| Series | Description | Tests Added | Status |
-|--------|-------------|-------------|--------|
-| SCL | Cleric Skills | 12 | ✅ Complete |
-| SC | Cooldown System | 12 | ✅ Complete |
-| SV | Skill Validation | 18 | ✅ Complete |
-| SMG | Mage Wild Magic + Edge Cases | 7 | ✅ Complete |
-| SH | Huntress Spirit Hawk + Spectral Blades | 9 | ✅ Complete |
-| SW | Warrior Endure + Edge Cases | 7 | ✅ Complete |
-| **Total Added** | | **65** | |
+| Series | Description | Tests |
+|--------|-------------|-------|
+| SCL | Cleric Skills | 12 |
+| SC | Cooldown System | 12 |
+| SV | Skill Validation | 18 |
+| SMG | Mage Wild Magic + Edge Cases | 7 |
+| SH | Huntress Spirit Hawk + Spectral Blades | 9 |
+| SW | Warrior Endure + Edge Cases | 7 |
+| SSP | Special Skill States (Warp, Clone, Feint, Challenge, Invuln) | 9 |
+| SG | Skill + Guardian Interaction | 9 |
+| SA | Skill Apply (General Effects) | 11 |
+| SDT | Deterministic Ordering | 4 |
+| SBC | Backward Compatibility | 9 |
+| **Total** | | **107** |
 
-**Bug Fixed**: Shield absorption in `Unit.withDamage()` - shield now correctly absorbs damage before HP.
+### C-3 BUFF Tests Added
 
-### C-1: handleJoinMatch Refactor
+| Series | Description | Tests |
+|--------|-------------|-------|
+| Various | BUFF System comprehensive tests | 53 |
 
-**Current**: 61 lines with multiple responsibilities  
-**Target**: < 20 lines with extracted helpers
-
-```
-Refactor MatchWebSocketHandler.handleJoinMatch() method.
-
-Split into:
-- validateJoinRequest() - validate incoming data
-- assignPlayerToMatch() - assign player to match
-- sendJoinConfirmation() - send confirmation message
-- broadcastGameStart() - broadcast when both players ready
-
-Follow CODE_HEALTH_TODO.md section 2.3.
-Ensure all existing tests pass after refactoring.
-```
-
-### C-2: SKILL_SYSTEM Tests
-
-**Reference**: `docs/SKILL_SYSTEM_V3_TESTPLAN.md`
-
-```
-Analyze test coverage gaps between docs/SKILL_SYSTEM_V3_TESTPLAN.md and existing skill tests.
-
-Steps:
-1. Review existing skill tests in src/test/java/
-2. Compare against SKILL_SYSTEM_V3_TESTPLAN.md
-3. List missing test cases by series
-4. Implement missing tests using TDD
-
-Priority:
-1. Edge cases for existing skills
-2. Skill interaction tests
-3. Cooldown edge cases
-
-Run mvn test after each batch to verify.
-```
-
-### C-3: BUFF Tests
-
-**Reference**: `docs/BUFF_SYSTEM_V3_TESTPLAN.md`
-
-```
-Analyze test coverage gaps between docs/BUFF_SYSTEM_V3_TESTPLAN.md and existing buff tests.
-
-Steps:
-1. Review existing buff tests (BuffFactoryTest, BuffTileTest, etc.)
-2. Compare against BUFF_SYSTEM_V3_TESTPLAN.md
-3. List missing test cases
-4. Implement missing tests
-
-Focus areas:
-1. Buff stacking edge cases
-2. Buff expiration timing
-3. Buff interaction combinations
-4. Buff + skill interactions
-
-Run mvn test after each batch to verify.
-```
+### Bug Fixes During Phase C
+- Shield absorption in `Unit.withDamage()` - shield now correctly absorbs damage before HP
 
 ---
 
@@ -522,12 +473,12 @@ SUPABASE_ANON_KEY=your-anon-key
 - [x] All Code Health refactoring complete
 - [x] 692 tests passing
 
-### Milestone 2: Test Coverage Complete
-- [ ] Phase C-1: handleJoinMatch refactored
-- [x] Phase C-2: SKILL_SYSTEM tests (827 tests, 65 new skill tests added)
-- [ ] Phase C-3: BUFF tests complete
+### Milestone 2: Test Coverage Complete ✅
+- [x] Phase C-1: handleJoinMatch refactored
+- [x] Phase C-2: SKILL_SYSTEM tests (+107 tests)
+- [x] Phase C-3: BUFF tests (+53 tests)
 - [ ] Phase D: E2E tests passing
-- [x] Target: 800+ total tests ✅ (827 achieved)
+- [x] Target: 800+ total tests ✅ (922 achieved)
 
 ### Milestone 3: LibGDX Playable
 - [ ] Phase E-1 ~ E-3: Basic framework
@@ -554,6 +505,13 @@ SUPABASE_ANON_KEY=your-anon-key
 | 2025-12-08 | C-2 | SV-Series Validation tests | 18 tests (804 total) |
 | 2025-12-09 | C-2 | SMG/SH/SW Hero skill tests | 23 tests (827 total) |
 | 2025-12-09 | C-2 | Shield absorption bug fix | Unit.withDamage() now uses shield |
+| 2025-12-09 | C-2 | SSP-Series Special Skill States | 9 tests (889 total) |
+| 2025-12-09 | C-2 | SG-Series Skill + Guardian | 9 tests (898 total) |
+| 2025-12-09 | C-2 | SA-Series Skill Apply | 11 tests (909 total) |
+| 2025-12-09 | C-2 | SDT-Series Deterministic | 4 tests (913 total) |
+| 2025-12-09 | C-2 | SBC-Series Compatibility | 9 tests (922 total) |
+| 2025-12-09 | C-1 | handleJoinMatch() refactor | validateJoinRequest() helper added |
+| 2025-12-09 | C | **Phase C Complete** | 922 tests passing |
 
 ---
 

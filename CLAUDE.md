@@ -25,7 +25,7 @@ A 5x5 tactical board game featuring a game engine, WebSocket server, and web cli
 │       ├── core/            # Match, MatchService, MatchRegistry
 │       ├── dto/             # Message objects
 │       └── ws/              # WebSocket handlers
-├── src/test/java/           # Tests (827 passing)
+├── src/test/java/           # Tests (922 passing)
 └── client/                  # Web frontend (HTML/CSS/JS)
 ```
 
@@ -43,22 +43,22 @@ mvn exec:java                  # Start server
 
 ## 🗓️ Development Roadmap
 
-**Current Phase**: Phase C - Complete Remaining Tests (827 tests passing)
+**Current Phase**: Phase D - End-to-End Testing (922 tests passing)
 
 | Phase | Description | Est. Time | Status |
 |-------|-------------|-----------|--------|
-| **C** | Complete Remaining Tests | 6-10 hours | 🔄 In Progress |
-| D | End-to-End Testing | 4-6 hours | ⬜ Pending |
+| ~~C~~ | ~~Complete Remaining Tests~~ | ~~6-10 hours~~ | ✅ Complete |
+| **D** | End-to-End Testing | 4-6 hours | ⬜ Pending |
 | E | LibGDX Client | 20-30 hours | ⬜ Pending |
 | F | Supabase Integration | 8-12 hours | ⬜ Pending |
 
-### Phase C Tasks (Current)
+### Phase C Summary (Completed)
 
-| Task | Description | Est. Time | Status |
-|------|-------------|-----------|--------|
-| C-1 | handleJoinMatch() refactor | 30 min | ⬜ |
-| C-2 | SKILL_SYSTEM tests (~150) | 4-6 hours | ✅ 65 tests added |
-| C-3 | BUFF tests (~100) | 3-4 hours | ⬜ |
+| Task | Description | Tests Added | Status |
+|------|-------------|-------------|--------|
+| C-1 | handleJoinMatch() refactor | - | ✅ Complete |
+| C-2 | SKILL_SYSTEM tests | +42 | ✅ Complete |
+| C-3 | BUFF tests | +53 | ✅ Complete |
 
 **📄 Full roadmap details**: `/docs/docs_ROADMAP.md`
 
@@ -76,7 +76,7 @@ mvn exec:java                  # Start server
 | ✅ | Phase 8 | Unit-by-Unit Turn System |
 | ✅ | Code Health | All refactoring complete |
 
-**Test Status**: 827 tests passing
+**Test Status**: 922 tests passing
 
 ---
 
@@ -213,14 +213,14 @@ mvn exec:java                  # Start server
 
 ## 📊 Test Coverage Summary
 
-**Total: 827 tests passing**
+**Total: 922 tests passing**
 
 ### By Feature
 | Feature | Tests |
 |---------|-------|
 | Core Engine (validation, actions) | ~120 |
-| BUFF System | ~50 |
-| Skill System (18 skills) | ~160 |
+| BUFF System | ~100 |
+| Skill System (18 skills) | ~200 |
 | Guardian Passive | 16 |
 | Draft Phase | 110 |
 | Timer System | 108 |
@@ -228,7 +228,7 @@ mvn exec:java                  # Start server
 | Serialization | ~40 |
 | WebSocket/Server | ~50 |
 
-### Recently Added Tests (Phase C-2)
+### Phase C Tests Added
 | Series | Description | Tests |
 |--------|-------------|-------|
 | SCL | Cleric Skills | 12 |
@@ -237,39 +237,49 @@ mvn exec:java                  # Start server
 | SMG | Mage Wild Magic | 7 |
 | SH | Huntress Skills | 9 |
 | SW | Warrior Endure | 7 |
-
-### Remaining Tests
-| Test Plan | Remaining |
-|-----------|-----------|
-| SKILL_SYSTEM_V3_TESTPLAN.md | ~85 |
-| BUFF_SYSTEM_V3_TESTPLAN.md | ~100 |
+| SSP | Special Skill States | 9 |
+| SG | Skill + Guardian | 9 |
+| SA | Skill Apply (General) | 11 |
+| SDT | Deterministic Ordering | 4 |
+| SBC | Backward Compatibility | 9 |
+| BUFF | BUFF System Tests | +53 |
+| **Total Added** | | **+160** |
 
 ---
 
 ## 🚀 Quick Start Commands for Claude CLI
 
-### Phase C-1: Refactor handleJoinMatch
+### Phase D-1: Complete Flow Test
 ```
-Refactor MatchWebSocketHandler.handleJoinMatch() method.
-Split into: validateJoinRequest(), assignPlayerToMatch(), sendJoinConfirmation(), broadcastGameStart().
-Ensure all tests pass.
+Create EndToEndTest.java that tests complete game flow:
+1. Two players connect via WebSocket
+2. Both complete Draft phase (select hero, minions)
+3. Battle until one Hero dies
+4. Verify victory message sent correctly
+
+Use mock WebSocket sessions. Test both player perspectives.
 ```
 
-### Phase C-2: Analyze SKILL tests gap
+### Phase D-2: WebSocket Message Validation
 ```
-Analyze test coverage gaps between docs/SKILL_SYSTEM_V3_TESTPLAN.md and existing skill tests.
-List missing test cases by series.
-Do NOT implement yet - just provide analysis.
+Verify all WebSocket messages match docs/WS_PROTOCOL_V1.md:
+- JOIN_MATCH, DRAFT_PICK, ACTION, DEATH_CHOICE
+- GAME_STATE, YOUR_TURN, TIMER_SYNC, GAME_OVER
+
+Create WebSocketProtocolTest.java to validate message formats.
 ```
 
-### Phase C-3: Analyze BUFF tests gap
+### Phase D-3: Error Handling Tests
 ```
-Analyze test coverage gaps between docs/BUFF_SYSTEM_V3_TESTPLAN.md and existing buff tests.
-List missing test cases.
-Do NOT implement yet - just provide analysis.
+Test error scenarios:
+1. Invalid actions during opponent's turn
+2. Disconnection mid-game
+3. Timer expiration handling
+4. Invalid Draft selections
+5. Malformed WebSocket messages
 ```
 
 ---
 
-*Last updated: 2025-12-08*  
-*Tests: 692 passing*
+*Last updated: 2025-12-09*
+*Tests: 922 passing*
