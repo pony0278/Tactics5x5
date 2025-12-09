@@ -2,6 +2,7 @@ package com.tactics.client.net;
 
 import com.badlogic.gdx.Gdx;
 import org.teavm.jso.JSBody;
+import org.teavm.jso.JSFunctor;
 import org.teavm.jso.JSObject;
 import org.teavm.jso.websocket.WebSocket;
 
@@ -32,8 +33,16 @@ public class TeaVMWebSocketClient implements IWebSocketClient {
     private final Queue<String> outgoingQueue = new LinkedList<>();
     private final List<String> incomingQueue = new ArrayList<>();
 
-    @JSBody(params = {"delay", "callback"}, script = "setTimeout(function() { callback.run(); }, delay);")
-    private static native void setTimeout(int delay, Runnable callback);
+    /**
+     * JSFunctor interface for TeaVM-compatible callback.
+     */
+    @JSFunctor
+    public interface TimerCallback extends JSObject {
+        void onTimer();
+    }
+
+    @JSBody(params = {"delay", "callback"}, script = "setTimeout(function() { callback.onTimer(); }, delay);")
+    private static native void setTimeout(int delay, TimerCallback callback);
 
     @Override
     public void connect(String url) {
@@ -113,10 +122,13 @@ public class TeaVMWebSocketClient implements IWebSocketClient {
     private void scheduleReconnect() {
         log("Scheduling reconnect in " + currentReconnectDelay + "ms");
 
-        setTimeout(currentReconnectDelay, () -> {
-            if (autoReconnect && !intentionalDisconnect && !connected) {
-                log("Attempting reconnect...");
-                createAndConnect();
+        setTimeout(currentReconnectDelay, new TimerCallback() {
+            @Override
+            public void onTimer() {
+                if (autoReconnect && !intentionalDisconnect && !connected) {
+                    log("Attempting reconnect...");
+                    createAndConnect();
+                }
             }
         });
 
