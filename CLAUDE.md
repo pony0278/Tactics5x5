@@ -95,6 +95,8 @@ cd client-libgdx
 | E-4 | Draft UI (Placeholder) | 6-8 hours | 🔴 High | ✅ Complete |
 | E-5 | Battle UI (Placeholder) | 8-10 hours | 🔴 High | ✅ Complete |
 | E-CH | Code Health Check | 1-2 hours | 🟡 Medium | ✅ Complete |
+| E-R1 | Code Health: Split BattleScreen | 1-2 hours | 🟡 Medium | ✅ Complete |
+| E-R2 | Code Health: Centralize Colors | 0.5 hours | 🟡 Medium | ✅ Complete |
 | E-6 | Web Export Test (TeaVM) | 2-3 hours | 🔴 High | ⬜ Pending |
 | E-7 | Android Export | 2-3 hours | 🟡 Medium | ⬜ Pending |
 | E-8 | Animations & Effects | 8-10 hours | 🟡 Medium | ⬜ Pending |

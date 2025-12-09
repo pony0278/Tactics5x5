@@ -8,18 +8,11 @@ import com.tactics.client.net.GameMessageHandler;
 import com.tactics.client.net.IWebSocketClient;
 import com.tactics.client.net.WebSocketFactory;
 import com.tactics.client.net.WebSocketListener;
+import com.tactics.client.ui.GameColors;
 
 /**
  * Draft screen - player selects hero class and minions.
  * Full Draft phase UI using placeholder graphics (colored rectangles).
- *
- * Layout:
- * - Timer at top
- * - Hero selection (2x3 grid)
- * - Skill preview panel
- * - Minion selection (3 buttons)
- * - Team preview area
- * - Ready button + opponent status
  */
 public class DraftScreen extends BaseScreen implements WebSocketListener, GameMessageHandler.GameMessageListener {
 
@@ -27,14 +20,6 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
     // ========== Hero Data ==========
     private static final String[] HERO_CLASSES = {"WARRIOR", "MAGE", "ROGUE", "CLERIC", "HUNTRESS", "DUELIST"};
-    private static final Color[] HERO_COLORS = {
-            new Color(0.8f, 0.3f, 0.3f, 1),  // WARRIOR - red
-            new Color(0.3f, 0.3f, 0.8f, 1),  // MAGE - blue
-            new Color(0.3f, 0.6f, 0.3f, 1),  // ROGUE - green
-            new Color(0.8f, 0.8f, 0.3f, 1),  // CLERIC - yellow
-            new Color(0.6f, 0.3f, 0.6f, 1),  // HUNTRESS - purple
-            new Color(0.8f, 0.5f, 0.2f, 1)   // DUELIST - orange
-    };
 
     // Skill names per hero class (from SKILL_SYSTEM_V3.md)
     private static final String[][] HERO_SKILLS = {
@@ -48,11 +33,6 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
     // ========== Minion Data ==========
     private static final String[] MINION_TYPES = {"TANK", "ARCHER", "ASSASSIN"};
-    private static final Color[] MINION_COLORS = {
-            new Color(0.5f, 0.5f, 0.6f, 1),  // TANK - gray
-            new Color(0.4f, 0.6f, 0.4f, 1),  // ARCHER - green
-            new Color(0.6f, 0.4f, 0.5f, 1)   // ASSASSIN - dark pink
-    };
 
     // ========== Selection State ==========
     private int selectedHeroIndex = -1;
@@ -66,11 +46,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     private boolean timerActive = true;
 
     // ========== UI Layout Constants ==========
-
-    // Timer area (top)
     private static final float TIMER_Y = WORLD_HEIGHT - 50;
-
-    // Hero selection area (2x3 grid)
     private static final float HERO_SECTION_Y = WORLD_HEIGHT - 80;
     private static final float HERO_BUTTON_WIDTH = 110;
     private static final float HERO_BUTTON_HEIGHT = 70;
@@ -81,13 +57,11 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     private static final float HERO_GRID_WIDTH = HERO_COLS * HERO_BUTTON_WIDTH + (HERO_COLS - 1) * HERO_SPACING_X;
     private static final float HERO_START_X = (WORLD_WIDTH - HERO_GRID_WIDTH) / 2;
 
-    // Skill preview area
     private static final float SKILL_SECTION_Y = HERO_SECTION_Y - HERO_ROWS * (HERO_BUTTON_HEIGHT + HERO_SPACING_Y) - 50;
     private static final float SKILL_PANEL_HEIGHT = 60;
     private static final float SKILL_PANEL_WIDTH = 500;
     private static final float SKILL_PANEL_X = (WORLD_WIDTH - SKILL_PANEL_WIDTH) / 2;
 
-    // Minion selection area
     private static final float MINION_SECTION_Y = SKILL_SECTION_Y - SKILL_PANEL_HEIGHT - 40;
     private static final float MINION_BUTTON_WIDTH = 140;
     private static final float MINION_BUTTON_HEIGHT = 60;
@@ -95,12 +69,10 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     private static final float MINION_GRID_WIDTH = 3 * MINION_BUTTON_WIDTH + 2 * MINION_SPACING;
     private static final float MINION_START_X = (WORLD_WIDTH - MINION_GRID_WIDTH) / 2;
 
-    // Team preview area
     private static final float TEAM_SECTION_Y = MINION_SECTION_Y - MINION_BUTTON_HEIGHT - 50;
     private static final float TEAM_ICON_SIZE = 50;
     private static final float TEAM_ICON_SPACING = 15;
 
-    // Ready button and opponent status
     private static final float READY_BUTTON_WIDTH = 200;
     private static final float READY_BUTTON_HEIGHT = 45;
     private static final float READY_BUTTON_X = (WORLD_WIDTH - READY_BUTTON_WIDTH) / 2;
@@ -113,7 +85,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
     public DraftScreen(TacticsGame game) {
         super(game);
-        backgroundColor = new Color(0.12f, 0.14f, 0.18f, 1);
+        backgroundColor = GameColors.BG_DRAFT;
 
         messageHandler = new GameMessageHandler();
         messageHandler.setMessageListener(this);
@@ -122,7 +94,6 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     @Override
     public void show() {
         super.show();
-
         try {
             webSocket = WebSocketFactory.getInstance();
             webSocket.setListener(this);
@@ -131,9 +102,6 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
         }
     }
 
-    /**
-     * Reset the draft state for a new game.
-     */
     public void reset() {
         selectedHeroIndex = -1;
         selectedMinions = new boolean[3];
@@ -146,7 +114,6 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
     @Override
     protected void update(float delta) {
-        // Poll WebSocket messages
         processWebSocketMessages(webSocket, messageHandler);
 
         if (timerActive && !draftSubmitted) {
@@ -161,57 +128,38 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
     @Override
     protected void draw() {
-        // Title
         font.getData().setScale(1.8f);
         drawCenteredText("DRAFT PHASE", WORLD_WIDTH / 2, WORLD_HEIGHT - 20);
         font.getData().setScale(1f);
 
-        // Timer display
         drawTimer();
-
-        // Hero selection section
         drawHeroSection();
-
-        // Skill preview panel
         drawSkillPreview();
-
-        // Minion selection section
         drawMinionSection();
-
-        // Team preview area
         drawTeamPreview();
-
-        // Ready button
         drawReadyButton();
-
-        // Opponent status
         drawOpponentStatus();
     }
 
     // ========== Drawing Methods ==========
 
     private void drawTimer() {
-        // Timer background
         float timerWidth = 150;
         float timerHeight = 35;
         float timerX = WORLD_WIDTH - timerWidth - 20;
 
-        Color bgColor = draftTimer < 10 ? new Color(0.4f, 0.1f, 0.1f, 1) : new Color(0.2f, 0.2f, 0.25f, 1);
+        Color bgColor = draftTimer < 10 ? GameColors.TIMER_BG_CRITICAL : GameColors.TIMER_BG_NORMAL;
         drawButton(timerX, TIMER_Y - timerHeight, timerWidth, timerHeight, bgColor, Color.DARK_GRAY);
 
-        // Timer text
-        Color timerColor = draftTimer < 10 ? Color.RED : Color.WHITE;
+        Color timerColor = draftTimer < 10 ? GameColors.TIMER_CRITICAL : GameColors.TIMER_NORMAL;
         font.getData().setScale(1.2f);
-        String timerText = String.format("Time: %.0fs", draftTimer);
-        drawCenteredText(timerText, timerX + timerWidth / 2, TIMER_Y - timerHeight / 2 + 5);
+        drawCenteredText(String.format("Time: %.0fs", draftTimer), timerX + timerWidth / 2, TIMER_Y - timerHeight / 2 + 5);
         font.getData().setScale(1f);
     }
 
     private void drawHeroSection() {
-        // Section header
         drawText("SELECT HERO CLASS:", HERO_START_X, HERO_SECTION_Y, Color.CYAN);
 
-        // Draw 2x3 grid of hero buttons
         for (int i = 0; i < HERO_CLASSES.length; i++) {
             int col = i % HERO_COLS;
             int row = i / HERO_COLS;
@@ -219,8 +167,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
             float x = HERO_START_X + col * (HERO_BUTTON_WIDTH + HERO_SPACING_X);
             float y = HERO_SECTION_Y - 25 - row * (HERO_BUTTON_HEIGHT + HERO_SPACING_Y) - HERO_BUTTON_HEIGHT;
 
-            // Button colors
-            Color fillColor = HERO_COLORS[i].cpy();
+            Color fillColor = GameColors.getHeroColor(HERO_CLASSES[i]).cpy();
             Color borderColor;
 
             if (i == selectedHeroIndex) {
@@ -228,13 +175,11 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
                 borderColor = Color.WHITE;
             } else {
                 fillColor.a = 0.5f;
-                borderColor = new Color(0.4f, 0.4f, 0.4f, 1);
+                borderColor = GameColors.UNSELECTED_BORDER;
             }
 
-            // Draw button
             drawButton(x, y, HERO_BUTTON_WIDTH, HERO_BUTTON_HEIGHT, fillColor, borderColor);
 
-            // Draw hero name
             font.getData().setScale(0.9f);
             drawCenteredText(HERO_CLASSES[i], x + HERO_BUTTON_WIDTH / 2, y + HERO_BUTTON_HEIGHT / 2 + 5);
             font.getData().setScale(1f);
@@ -242,15 +187,11 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     }
 
     private void drawSkillPreview() {
-        // Section header
         drawText("SKILLS:", SKILL_PANEL_X, SKILL_SECTION_Y, Color.CYAN);
 
-        // Panel background
-        Color panelColor = new Color(0.15f, 0.15f, 0.2f, 1);
         drawButton(SKILL_PANEL_X, SKILL_SECTION_Y - 20 - SKILL_PANEL_HEIGHT,
-                   SKILL_PANEL_WIDTH, SKILL_PANEL_HEIGHT, panelColor, Color.DARK_GRAY);
+                   SKILL_PANEL_WIDTH, SKILL_PANEL_HEIGHT, GameColors.PANEL_BACKGROUND, Color.DARK_GRAY);
 
-        // Skill names
         if (selectedHeroIndex >= 0) {
             String[] skills = HERO_SKILLS[selectedHeroIndex];
             float skillY = SKILL_SECTION_Y - 20 - SKILL_PANEL_HEIGHT / 2 + 5;
@@ -272,17 +213,13 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     }
 
     private void drawMinionSection() {
-        // Section header
-        String header = "SELECT 2 MINIONS: (" + selectedMinionCount + "/2)";
-        drawText(header, MINION_START_X, MINION_SECTION_Y, Color.CYAN);
+        drawText("SELECT 2 MINIONS: (" + selectedMinionCount + "/2)", MINION_START_X, MINION_SECTION_Y, Color.CYAN);
 
-        // Draw 3 minion buttons
         for (int i = 0; i < MINION_TYPES.length; i++) {
             float x = MINION_START_X + i * (MINION_BUTTON_WIDTH + MINION_SPACING);
             float y = MINION_SECTION_Y - 25 - MINION_BUTTON_HEIGHT;
 
-            // Button colors
-            Color fillColor = MINION_COLORS[i].cpy();
+            Color fillColor = GameColors.getMinionColor(MINION_TYPES[i]).cpy();
             Color borderColor;
 
             if (selectedMinions[i]) {
@@ -290,13 +227,11 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
                 borderColor = Color.WHITE;
             } else {
                 fillColor.a = 0.5f;
-                borderColor = new Color(0.4f, 0.4f, 0.4f, 1);
+                borderColor = GameColors.UNSELECTED_BORDER;
             }
 
-            // Draw button
             drawButton(x, y, MINION_BUTTON_WIDTH, MINION_BUTTON_HEIGHT, fillColor, borderColor);
 
-            // Draw minion name
             font.getData().setScale(0.95f);
             drawCenteredText(MINION_TYPES[i], x + MINION_BUTTON_WIDTH / 2, y + MINION_BUTTON_HEIGHT / 2 + 5);
             font.getData().setScale(1f);
@@ -304,22 +239,19 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     }
 
     private void drawTeamPreview() {
-        // Section header
         drawText("YOUR TEAM:", (WORLD_WIDTH - 200) / 2, TEAM_SECTION_Y, Color.CYAN);
 
-        // Calculate starting position for centered icons
         float totalWidth = TEAM_ICON_SIZE * 3 + TEAM_ICON_SPACING * 2;
         float startX = (WORLD_WIDTH - totalWidth) / 2;
         float y = TEAM_SECTION_Y - 25 - TEAM_ICON_SIZE;
 
         // Hero icon
-        Color heroColor = selectedHeroIndex >= 0 ? HERO_COLORS[selectedHeroIndex] : new Color(0.3f, 0.3f, 0.3f, 1);
+        Color heroColor = selectedHeroIndex >= 0 ? GameColors.getHeroColor(HERO_CLASSES[selectedHeroIndex]) : GameColors.BUTTON_DISABLED;
         Color heroBorder = selectedHeroIndex >= 0 ? Color.WHITE : Color.DARK_GRAY;
         drawButton(startX, y, TEAM_ICON_SIZE, TEAM_ICON_SIZE, heroColor, heroBorder);
 
         font.getData().setScale(0.8f);
-        String heroLabel = selectedHeroIndex >= 0 ? "H" : "?";
-        drawCenteredText(heroLabel, startX + TEAM_ICON_SIZE / 2, y + TEAM_ICON_SIZE / 2 + 5);
+        drawCenteredText(selectedHeroIndex >= 0 ? "H" : "?", startX + TEAM_ICON_SIZE / 2, y + TEAM_ICON_SIZE / 2 + 5);
 
         // Minion icons
         int minionSlot = 0;
@@ -327,17 +259,16 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
             float mx = startX + (minionSlot + 1) * (TEAM_ICON_SIZE + TEAM_ICON_SPACING);
 
             if (selectedMinions[i]) {
-                drawButton(mx, y, TEAM_ICON_SIZE, TEAM_ICON_SIZE, MINION_COLORS[i], Color.WHITE);
+                drawButton(mx, y, TEAM_ICON_SIZE, TEAM_ICON_SIZE, GameColors.getMinionColor(MINION_TYPES[i]), Color.WHITE);
                 drawCenteredText("M" + (minionSlot + 1), mx + TEAM_ICON_SIZE / 2, y + TEAM_ICON_SIZE / 2 + 5);
                 minionSlot++;
             }
         }
 
-        // Empty slots for remaining minions
+        // Empty slots
         for (int slot = minionSlot; slot < 2; slot++) {
             float mx = startX + (slot + 1) * (TEAM_ICON_SIZE + TEAM_ICON_SPACING);
-            Color emptyColor = new Color(0.3f, 0.3f, 0.3f, 1);
-            drawButton(mx, y, TEAM_ICON_SIZE, TEAM_ICON_SIZE, emptyColor, Color.DARK_GRAY);
+            drawButton(mx, y, TEAM_ICON_SIZE, TEAM_ICON_SIZE, GameColors.BUTTON_DISABLED, Color.DARK_GRAY);
             drawCenteredText("?", mx + TEAM_ICON_SIZE / 2, y + TEAM_ICON_SIZE / 2 + 5);
         }
 
@@ -347,47 +278,29 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     private void drawReadyButton() {
         boolean canSubmit = selectedHeroIndex >= 0 && selectedMinionCount == 2 && !draftSubmitted;
 
-        Color fillColor;
-        Color borderColor;
-
+        Color fillColor, borderColor;
         if (draftSubmitted) {
             fillColor = new Color(0.3f, 0.4f, 0.3f, 1);
             borderColor = Color.GREEN;
         } else if (canSubmit) {
-            fillColor = new Color(0.2f, 0.5f, 0.2f, 1);
+            fillColor = GameColors.BUTTON_READY;
             borderColor = Color.WHITE;
         } else {
-            fillColor = new Color(0.25f, 0.25f, 0.25f, 1);
+            fillColor = GameColors.BUTTON_DISABLED;
             borderColor = Color.GRAY;
         }
 
         drawButton(READY_BUTTON_X, READY_BUTTON_Y, READY_BUTTON_WIDTH, READY_BUTTON_HEIGHT, fillColor, borderColor);
 
-        String buttonText;
-        if (draftSubmitted) {
-            buttonText = "WAITING...";
-        } else if (canSubmit) {
-            buttonText = "READY";
-        } else {
-            buttonText = "SELECT TEAM";
-        }
-
+        String buttonText = draftSubmitted ? "WAITING..." : (canSubmit ? "READY" : "SELECT TEAM");
         font.getData().setScale(1.1f);
         drawCenteredText(buttonText, WORLD_WIDTH / 2, READY_BUTTON_Y + READY_BUTTON_HEIGHT / 2 + 5);
         font.getData().setScale(1f);
     }
 
     private void drawOpponentStatus() {
-        String statusText;
-        Color statusColor;
-
-        if (opponentReady) {
-            statusText = "Opponent: READY";
-            statusColor = Color.GREEN;
-        } else {
-            statusText = "Opponent: Selecting...";
-            statusColor = Color.YELLOW;
-        }
+        String statusText = opponentReady ? "Opponent: READY" : "Opponent: Selecting...";
+        Color statusColor = opponentReady ? Color.GREEN : Color.YELLOW;
 
         font.getData().setScale(0.9f);
         drawCenteredText(statusText, WORLD_WIDTH / 2, OPPONENT_STATUS_Y);
@@ -403,7 +316,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
         float worldX = screenToWorldX(screenX);
         float worldY = screenToWorldY(screenY);
 
-        // Check hero buttons (2x3 grid)
+        // Hero buttons
         for (int i = 0; i < HERO_CLASSES.length; i++) {
             int col = i % HERO_COLS;
             int row = i / HERO_COLS;
@@ -418,7 +331,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
             }
         }
 
-        // Check minion buttons
+        // Minion buttons
         for (int i = 0; i < MINION_TYPES.length; i++) {
             float x = MINION_START_X + i * (MINION_BUTTON_WIDTH + MINION_SPACING);
             float y = MINION_SECTION_Y - 25 - MINION_BUTTON_HEIGHT;
@@ -429,7 +342,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
             }
         }
 
-        // Check ready button
+        // Ready button
         if (isPointInRect(worldX, worldY, READY_BUTTON_X, READY_BUTTON_Y, READY_BUTTON_WIDTH, READY_BUTTON_HEIGHT)) {
             if (selectedHeroIndex >= 0 && selectedMinionCount == 2) {
                 submitDraft();
@@ -442,12 +355,10 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
     private void toggleMinion(int index) {
         if (selectedMinions[index]) {
-            // Deselect
             selectedMinions[index] = false;
             selectedMinionCount--;
             Gdx.app.log(TAG, "Deselected minion: " + MINION_TYPES[index]);
         } else if (selectedMinionCount < 2) {
-            // Select
             selectedMinions[index] = true;
             selectedMinionCount++;
             Gdx.app.log(TAG, "Selected minion: " + MINION_TYPES[index]);
@@ -475,8 +386,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
         Gdx.app.log(TAG, "Submitting draft: " + heroClass + " + " + minion1 + ", " + minion2);
 
         if (webSocket != null && webSocket.isConnected()) {
-            String msg = messageHandler.createDraftPickAction("player-1", heroClass, minion1, minion2);
-            webSocket.send(msg);
+            webSocket.send(messageHandler.createDraftPickAction("player-1", heroClass, minion1, minion2));
         }
 
         draftSubmitted = true;
@@ -484,7 +394,6 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     }
 
     private void autoSubmitDraft() {
-        // Auto-select if not already
         if (selectedHeroIndex < 0) {
             selectedHeroIndex = (int) (Math.random() * HERO_CLASSES.length);
         }
@@ -525,30 +434,22 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     // ========== Game Message Listener ==========
 
     @Override
-    public void onMatchJoined(String matchId, String playerId, JsonValue state) {
-        // Already joined
-    }
+    public void onMatchJoined(String matchId, String playerId, JsonValue state) {}
 
     @Override
     public void onStateUpdate(JsonValue state) {
         if (state != null) {
             String phase = state.getString("phase", "");
             if ("BATTLE".equals(phase)) {
-                // Transition to Battle screen
-                Gdx.app.postRunnable(() -> {
-                    ScreenManager.getInstance().showBattleScreen();
-                });
+                Gdx.app.postRunnable(() -> ScreenManager.getInstance().showBattleScreen());
             }
 
-            // Check opponent ready status (if provided by server)
             JsonValue players = state.get("players");
             if (players != null) {
-                // Check if opponent has submitted draft
                 for (JsonValue player = players.child; player != null; player = player.next) {
                     String playerId = player.getString("playerId", "");
                     if (!"player-1".equals(playerId)) {
-                        boolean ready = player.getBoolean("draftReady", false);
-                        opponentReady = ready;
+                        opponentReady = player.getBoolean("draftReady", false);
                     }
                 }
             }
@@ -558,17 +459,14 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
     @Override
     public void onValidationError(String message, JsonValue action) {
         Gdx.app.error(TAG, "Draft error: " + message);
-        draftSubmitted = false; // Allow retry
+        draftSubmitted = false;
     }
 
     @Override
-    public void onGameOver(String winner, JsonValue state) {
-        // Should not happen in draft
-    }
+    public void onGameOver(String winner, JsonValue state) {}
 
     @Override
-    public void onPong() {
-    }
+    public void onPong() {}
 
     @Override
     public void onUnknownMessage(String type, JsonValue payload) {
