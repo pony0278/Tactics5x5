@@ -1,14 +1,16 @@
 # 5x5 Tactics Engine
 
 ## Project Overview
-A 5x5 tactical board game featuring a game engine, WebSocket server, and web client.
+A 5x5 tactical board game featuring a game engine, WebSocket server, and cross-platform client.
 
 ## Tech Stack
 - Java 17
 - Maven 3.8+
 - JUnit 5.10
-- Jetty 11 (WebSocket)
-- Vanilla JavaScript client (將替換為 LibGDX)
+- Jetty 11 (WebSocket Server)
+- LibGDX 1.12+ (Client)
+- TeaVM 0.9+ (Web Export)
+- java-websocket 1.5+ (WebSocket Client)
 
 ## Project Structure
 ```
@@ -26,42 +28,77 @@ A 5x5 tactical board game featuring a game engine, WebSocket server, and web cli
 │       ├── dto/             # Message objects
 │       └── ws/              # WebSocket handlers
 ├── src/test/java/           # Tests (1010 passing)
-└── client/                  # Web frontend (HTML/CSS/JS)
+├── client/                  # Legacy web frontend (HTML/CSS/JS)
+└── client-libgdx/           # LibGDX Client (NEW - Gradle subproject)
+    ├── core/                # Shared client code
+    │   └── src/main/java/com/tactics/client/
+    │       ├── screens/     # DraftScreen, BattleScreen, ResultScreen
+    │       ├── ui/          # UI components (buttons, dialogs)
+    │       ├── net/         # WebSocket client
+    │       └── render/      # Board, unit rendering
+    ├── desktop/             # Desktop launcher (dev/test)
+    ├── android/             # Android launcher
+    ├── teavm/               # Web export (TeaVM)
+    └── assets/              # Sprites, fonts (placeholder first)
 ```
+
+## Package Names
+| Module | Package |
+|--------|---------|
+| Engine | `com.tactics.engine` |
+| Server | `com.tactics.server` |
+| **Client** | `com.tactics.client` |
+
+## Server Configuration
+| Setting | Value |
+|---------|-------|
+| WebSocket URL | `ws://localhost:8080/match` |
+| Start Server | `mvn exec:java` |
 
 ## Common Commands
 ```bash
+# Engine/Server (Maven)
 mvn compile                    # Compile
 mvn test                       # Run all tests
 mvn test -Dtest=ClassName      # Run single test class
 mvn test -Dtest=Class#method   # Run single test method
 mvn clean package              # Package
 mvn exec:java                  # Start server
+
+# LibGDX Client (Gradle)
+cd client-libgdx
+./gradlew desktop:run          # Run desktop version
+./gradlew android:assembleDebug # Build Android APK
+./gradlew teavm:build          # Build web version
 ```
 
 ---
 
 ## 🗓️ Development Roadmap
 
-**Current Phase**: Phase E - LibGDX Client (1010 tests passing)
+**Current Phase**: Phase E - LibGDX + TeaVM Client (1010 tests passing)
 
 | Phase | Description | Est. Time | Status |
 |-------|-------------|-----------|--------|
 | ~~C~~ | ~~Complete Remaining Tests~~ | ~~6-10 hours~~ | ✅ Complete |
 | ~~D~~ | ~~End-to-End Testing~~ | ~~4-6 hours~~ | ✅ Complete |
-| **E** | **LibGDX Client** | 20-30 hours | ⬜ Pending |
+| **E** | **LibGDX + TeaVM Client** | 35-45 hours | ⬜ Pending |
 | F | Supabase Integration | 8-12 hours | ⬜ Pending |
 
-### Phase C & D Summary (Completed)
+### Phase E Tasks (Current)
 
-| Phase | Task | Tests Added | Status |
-|-------|------|-------------|--------|
-| C-1 | handleJoinMatch() refactor | - | ✅ Complete |
-| C-2 | SKILL_SYSTEM tests | +107 | ✅ Complete |
-| C-3 | BUFF tests | +53 | ✅ Complete |
-| D-1 | EndToEndTest.java | +25 | ✅ Complete |
-| D-2 | WebSocketProtocolTest.java | +36 | ✅ Complete |
-| D-3 | ErrorHandlingTest.java | +27 | ✅ Complete |
+| Task | Description | Est. Time | Priority | Status |
+|------|-------------|-----------|----------|--------|
+| E-1 | LibGDX + TeaVM Project Setup | 3-4 hours | 🔴 High | ⬜ |
+| E-2 | WebSocket Client | 4-6 hours | 🔴 High | ⬜ |
+| E-3 | Screen Framework | 4-6 hours | 🔴 High | ⬜ |
+| E-4 | Draft UI (Placeholder) | 6-8 hours | 🔴 High | ⬜ |
+| E-5 | Battle UI (Placeholder) | 8-10 hours | 🔴 High | ⬜ |
+| E-6 | Web Export Test (TeaVM) | 2-3 hours | 🔴 High | ⬜ |
+| E-7 | Android Export | 2-3 hours | 🟡 Medium | ⬜ |
+| E-8 | Animations & Effects | 8-10 hours | 🟡 Medium | ⬜ |
+| E-9 | Art Asset Replacement | TBD | 🟢 Low | ⬜ |
+| E-10 | Ads Integration | TBD | 🟢 Low | ⬜ |
 
 **📄 Full roadmap details**: `/docs/docs_ROADMAP.md`
 
@@ -78,8 +115,87 @@ mvn exec:java                  # Start server
 | ✅ | Phase 7 | Timer System (108 tests) |
 | ✅ | Phase 8 | Unit-by-Unit Turn System |
 | ✅ | Code Health | All refactoring complete |
+| ✅ | Phase C | Test Coverage (+160 tests) |
+| ✅ | Phase D | E2E Testing (+88 tests) |
 
 **Test Status**: 1010 tests passing
+
+---
+
+## 🎮 LibGDX Development Guidelines
+
+### Target Platforms
+| Platform | Priority | Technology | Status |
+|----------|----------|------------|--------|
+| **Web** | 🔴 High | TeaVM | Primary target |
+| **Desktop** | 🟡 Medium | LWJGL | Dev/testing |
+| **Android** | 🟡 Medium | Native | Secondary |
+| **iOS** | ❌ None | - | Not supported (RoboVM deprecated) |
+
+### Development Principles
+1. **Web First** - Test in browser frequently
+2. **Placeholder Graphics** - Colored rectangles first, art later
+3. **Platform Abstraction** - Use interfaces for platform-specific code
+4. **No Engine Dependency** - Client only uses WebSocket, not engine directly
+
+### Graphics Strategy
+```
+Phase 1 (E-1 to E-6): Placeholder
+- Units: Colored rectangles (Red=enemy, Blue=ally)
+- Board: Simple grid lines
+- UI: Basic shapes with text labels
+
+Phase 2 (E-9): Real Assets
+- Replace placeholders with actual sprites
+- Add visual polish
+```
+
+### Ads Integration (Deferred)
+```java
+// Define interface now, implement later
+public interface AdsController {
+    void showRewardedAd(Runnable onReward);
+    void showInterstitial();
+    boolean isAdReady();
+}
+
+// Use NoOp implementation during development
+public class NoOpAdsController implements AdsController {
+    public void showRewardedAd(Runnable onReward) { onReward.run(); }
+    public void showInterstitial() { /* no-op */ }
+    public boolean isAdReady() { return false; }
+}
+```
+
+---
+
+## 📦 LibGDX Project Dependencies
+
+### Core Dependencies
+```groovy
+// build.gradle (core module)
+dependencies {
+    api "com.badlogicgames.gdx:gdx:$gdxVersion"
+    api "org.java-websocket:Java-WebSocket:1.5.4" // Desktop/Android only
+}
+```
+
+### TeaVM Dependencies
+```groovy
+// build.gradle (teavm module)
+dependencies {
+    implementation "org.teavm:teavm-classlib:$teavmVersion"
+    implementation "org.teavm:teavm-jso:$teavmVersion"
+    implementation "org.teavm:teavm-jso-apis:$teavmVersion"
+}
+```
+
+### Platform-Specific WebSocket
+| Platform | Library | Notes |
+|----------|---------|-------|
+| Desktop | java-websocket | Standard Java library |
+| Android | java-websocket | Same as desktop |
+| Web/TeaVM | Browser WebSocket | Via JSBody annotation |
 
 ---
 
@@ -93,19 +209,11 @@ mvn exec:java                  # Start server
 | `/docs/SKILL_SYSTEM_V3.md` | 18 hero skills |
 | `/docs/GAME_FLOW_V3.md` | Complete game phases |
 
-### Test Plans
+### Protocol & Integration
 | Document | Description |
 |----------|-------------|
-| `/docs/SKILL_SYSTEM_V3_TESTPLAN.md` | Skill tests (201 cases) |
-| `/docs/BUFF_SYSTEM_V3_TESTPLAN.md` | BUFF tests (141 cases) |
-| `/docs/TIMER_TESTPLAN.md` | Timer tests (80 cases) |
-
-### Development
-| Document | Description |
-|----------|-------------|
-| `/docs/ROADMAP.md` | Full development roadmap |
-| `/docs/CODE_HEALTH_TODO.md` | Code health tracking |
 | `/docs/WS_PROTOCOL_V1.md` | WebSocket message format |
+| `/docs/docs_ROADMAP.md` | Full development roadmap |
 
 ---
 
@@ -114,7 +222,10 @@ mvn exec:java                  # Start server
 ### Layer Separation
 ```
 ┌─────────────────────────────────────────────────┐
-│  CLIENT (client/ → LibGDX)                      │  ← UI only
+│  CLIENT (client-libgdx/)                        │  ← UI + WebSocket only
+│  ├── screens/ → Game screens                    │
+│  ├── net/     → WebSocket client                │
+│  └── render/  → Visual rendering                │
 ├─────────────────────────────────────────────────┤
 │  SERVER (server/)                               │  ← Orchestration
 │  ├── ws/   → WebSocket handlers                 │
@@ -123,9 +234,6 @@ mvn exec:java                  # Start server
 ├─────────────────────────────────────────────────┤
 │  ENGINE (engine/)                               │  ← Pure game logic
 │  ├── rules/ → RuleEngine (facade)               │
-│  │   ├── ActionValidator, ActionExecutor        │
-│  │   ├── MoveExecutor, AttackExecutor           │
-│  │   └── TurnManager, GameOverChecker           │
 │  ├── skill/ → SkillExecutor (per hero)          │
 │  └── model/ → GameState, Unit, Buff             │
 └─────────────────────────────────────────────────┘
@@ -134,9 +242,25 @@ mvn exec:java                  # Start server
 ### Layer Rules
 | From | Can Access | Cannot Access |
 |------|------------|---------------|
-| CLIENT | WebSocket only | SERVER, ENGINE |
+| CLIENT | WebSocket only | SERVER, ENGINE directly |
 | SERVER | ENGINE | CLIENT internals |
 | ENGINE | Nothing external | SERVER, CLIENT |
+
+### Client-Server Communication
+```
+CLIENT                          SERVER
+  │                               │
+  │──── JOIN_MATCH ──────────────>│
+  │<─── GAME_STATE ───────────────│
+  │                               │
+  │──── DRAFT_PICK ──────────────>│
+  │<─── GAME_STATE ───────────────│
+  │                               │
+  │──── ACTION (MOVE/ATTACK) ────>│
+  │<─── GAME_STATE ───────────────│
+  │                               │
+  │<─── GAME_OVER ────────────────│
+```
 
 ---
 
@@ -173,8 +297,9 @@ mvn exec:java                  # Start server
 ### Architecture Principles
 1. **High Cohesion** - Each class has ONE clear responsibility
 2. **Low Coupling** - Minimize dependencies, use injection
-3. **Layer Separation** - ENGINE → SERVER → CLIENT
+3. **Layer Separation** - ENGINE → SERVER → CLIENT (via WebSocket)
 4. **Immutability** - GameState, Unit are immutable
+5. **Platform Abstraction** - Use interfaces for platform-specific code
 
 ### Code Standards
 | Rule | Limit |
@@ -184,17 +309,15 @@ mvn exec:java                  # Start server
 | Parameters | Max 3-4 per method |
 | Duplicate code | Extract after 3 occurrences |
 
-### Common Patterns (Reference existing implementations)
+### Common Patterns
 
 | Pattern | Purpose | Project Example |
 |---------|---------|-----------------|
-| **Facade** | Simplify complex subsystems | `RuleEngine` → delegates to `ActionValidator`, `ActionExecutor` |
-| **Strategy/Dispatch** | Swappable algorithms by type | `SkillExecutor` → dispatches to `WarriorSkillExecutor`, `MageSkillExecutor`, etc. |
-| **Immutable + withX()** | State immutability | `Unit.withHp()`, `GameState.withUnits()` |
-| **Dependency Injection** | Reduce coupling | `MatchService(RuleEngine engine)` constructor injection |
-| **Helper Extraction** | Remove duplicate code | `RuleEngineHelper.findUnitById()`, `hasSpeedBuff()` |
-
-**Note**: Interfaces are NOT required for this project scale. Use concrete classes to avoid over-engineering.
+| **Facade** | Simplify complex subsystems | `RuleEngine` |
+| **Strategy/Dispatch** | Swappable algorithms by type | `SkillExecutor` |
+| **Immutable + withX()** | State immutability | `Unit.withHp()` |
+| **Platform Factory** | Platform-specific implementations | `WebSocketFactory.create()` |
+| **Interface Abstraction** | Deferred implementation | `AdsController` |
 
 ### Testing (TDD)
 ```
@@ -202,7 +325,7 @@ mvn exec:java                  # Start server
 2. Write failing test first
 3. Write minimal code to pass
 4. Refactor if needed
-5. Run: mvn test
+5. Run: mvn test (engine) or ./gradlew test (client)
 ```
 
 ### Code Review Checklist
@@ -211,6 +334,7 @@ mvn exec:java                  # Start server
 - [ ] Methods < 30 lines
 - [ ] All tests pass
 - [ ] No duplicate code
+- [ ] Platform abstraction used where needed
 
 ---
 
@@ -232,60 +356,108 @@ mvn exec:java                  # Start server
 | WebSocket/Server | ~50 |
 | E2E Tests | 88 |
 
-### Phase C & D Tests Added
-| Series | Description | Tests |
-|--------|-------------|-------|
-| SCL | Cleric Skills | 12 |
-| SC | Cooldown System | 12 |
-| SV | Skill Validation | 18 |
-| SMG | Mage Wild Magic | 7 |
-| SH | Huntress Skills | 9 |
-| SW | Warrior Endure | 7 |
-| SSP | Special Skill States | 9 |
-| SG | Skill + Guardian | 9 |
-| SA | Skill Apply (General) | 11 |
-| SDT | Deterministic Ordering | 4 |
-| SBC | Backward Compatibility | 9 |
-| BUFF | BUFF System Tests | +53 |
-| E2E | End-to-End Game Flow | 25 |
-| WSP | WebSocket Protocol | 36 |
-| ERR | Error Handling | 27 |
-| **Total Added** | | **+248** |
-
 ---
 
 ## 🚀 Quick Start Commands for Claude CLI
 
-### Phase E-1: LibGDX Project Setup
+### E-1: LibGDX + TeaVM Project Setup
 ```
-Create LibGDX client project structure:
-1. Use Gradle multi-module setup
-2. Core module depends on engine module (shared models)
-3. Desktop launcher for development
-4. Include java-websocket library
+Create LibGDX project with TeaVM web support.
 
-Do NOT implement rendering yet - just project structure.
+Location: client-libgdx/ (inside existing project repo)
+Package: com.tactics.client
+
+Requirements:
+1. Use gdx-liftoff or manual Gradle setup
+2. Modules: core, desktop, android, teavm
+3. Dependencies:
+   - LibGDX 1.12+
+   - TeaVM 0.9+
+   - java-websocket 1.5+ (desktop/android)
+4. Verify all platforms build:
+   - cd client-libgdx && ./gradlew desktop:run
+   - ./gradlew android:assembleDebug
+   - ./gradlew teavm:build
+5. Create "Hello Tactics" screen
+
+Do NOT implement game logic yet - just project structure.
 ```
 
-### Phase E-2: WebSocket Client
+### E-2: WebSocket Client
 ```
-Implement TacticsWebSocketClient.java:
-1. Connects to ws://server:8080/match
-2. Sends/receives JSON per docs/WS_PROTOCOL_V1.md
-3. Handles reconnection with exponential backoff
-4. Notifies listeners on message received
+Implement WebSocket client with platform abstraction.
+
+Create in client-libgdx/core/src/main/java/com/tactics/client/net/:
+
+1. IWebSocketClient.java (interface)
+   - connect(String url)
+   - send(String message)
+   - disconnect()
+   - setListener(WebSocketListener listener)
+   - isConnected()
+
+2. WebSocketListener.java (interface)
+   - onConnected()
+   - onMessage(String message)
+   - onDisconnected()
+   - onError(String error)
+
+3. DesktopWebSocketClient.java
+   - Uses java-websocket library
+   - Auto-reconnect with exponential backoff
+
+4. TeaVMWebSocketClient.java
+   - Uses browser WebSocket via @JSBody
+   - Same interface as desktop
+
+5. WebSocketFactory.java
+   - create() returns platform-specific implementation
+
+6. GameMessageHandler.java
+   - Parse JSON messages per WS_PROTOCOL_V1.md
+   - Dispatch to appropriate handlers
+
+Server URL: ws://localhost:8080/match
+Test with: mvn exec:java (in project root)
 ```
 
-### Phase E-3: Screen Framework
+### E-3: Screen Framework
 ```
-Create base screen structure:
-1. BaseScreen.java - common functionality
-2. DraftScreen.java - hero/minion selection
-3. BattleScreen.java - main game board
-4. ResultScreen.java - victory/defeat display
+Create screen framework with placeholder UI.
+
+Create in client-libgdx/core/src/main/java/com/tactics/client/screens/:
+
+1. BaseScreen.java
+   - Common functionality (input, camera, batch)
+   - Abstract render() and update() methods
+
+2. ScreenManager.java
+   - Screen stack management
+   - Transitions between screens
+
+3. ConnectScreen.java
+   - Server URL input (or hardcoded for now)
+   - "Connect" button
+   - Connection status display
+
+4. DraftScreen.java
+   - Placeholder layout for hero/minion selection
+   - Timer display area
+
+5. BattleScreen.java
+   - Placeholder 5x5 grid
+   - Action button areas
+
+6. ResultScreen.java
+   - Victory/Defeat display
+   - "Play Again" button
+
+Use colored rectangles for all UI elements.
+Follow GAME_FLOW_V3.md for screen transitions.
 ```
 
 ---
 
 *Last updated: 2025-12-09*
 *Tests: 1010 passing*
+*Current Phase: E - LibGDX + TeaVM Client*
