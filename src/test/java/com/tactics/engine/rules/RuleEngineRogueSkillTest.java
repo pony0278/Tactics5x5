@@ -7,6 +7,7 @@ import com.tactics.engine.buff.BuffInstance;
 import com.tactics.engine.buff.BuffType;
 import com.tactics.engine.model.*;
 import com.tactics.engine.skill.SkillRegistry;
+import com.tactics.engine.util.RngProvider;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -140,6 +141,10 @@ public class RuleEngineRogueSkillTest {
                 HeroClass.MAGE, SkillRegistry.MAGE_WILD_MAGIC);
 
             GameState state = createGameState(Arrays.asList(rogue, mage), P2);
+
+            // Use fixed RNG to avoid debuff (need nextInt(100) >= 33 to skip debuff)
+            // Seed 12345 gives first nextInt(100) = 51, which is >= 33 (no debuff)
+            ruleEngine.setRngProvider(new RngProvider(12345));
 
             // When: Mage uses Wild Magic (AoE - damages all enemies)
             Action action = Action.useSkill(P2, P2_MAGE, null, null);
