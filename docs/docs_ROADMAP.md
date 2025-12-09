@@ -3,8 +3,8 @@
 This document tracks the upcoming development phases for the 5x5 Tactics Engine.
 
 **Last Updated**: 2025-12-09
-**Current Tests**: 922 passing
-**Current Phase**: Phase D - End-to-End Testing
+**Current Tests**: 1010 passing
+**Current Phase**: Phase E - LibGDX Client (Pending)
 
 ---
 
@@ -13,8 +13,8 @@ This document tracks the upcoming development phases for the 5x5 Tactics Engine.
 | Phase | Description | Est. Time | Status |
 |-------|-------------|-----------|--------|
 | ~~C~~ | ~~Complete Remaining Tests~~ | ~~6-10 hours~~ | ✅ Complete (922 tests) |
-| **D** | **End-to-End Testing** | 4-6 hours | 🔄 Current |
-| E | LibGDX Client | 20-30 hours | ⬜ Pending |
+| ~~D~~ | ~~End-to-End Testing~~ | ~~4-6 hours~~ | ✅ Complete (1010 tests) |
+| **E** | **LibGDX Client** | 20-30 hours | ⬜ Pending |
 | F | Supabase Integration | 8-12 hours | ⬜ Pending |
 
 **Total Estimated Time**: 38-58 hours (~5-8 working days)
@@ -63,67 +63,51 @@ This document tracks the upcoming development phases for the 5x5 Tactics Engine.
 
 ---
 
-## Phase D: End-to-End Testing
+## Phase D: End-to-End Testing ✅ COMPLETE
 
 **Goal**: Verify complete game flow before building new client.
 
-**Estimated Time**: 4-6 hours
+**Status**: ✅ Complete - 1010 tests passing (+88 tests added)
 
-### Tasks
+### Final Summary
 
-| Task | Description | Est. Time | Status |
-|------|-------------|-----------|--------|
-| D-1 | Draft → Battle → Victory complete flow | 2 hours | ⬜ |
-| D-2 | WebSocket message validation | 2 hours | ⬜ |
-| D-3 | Error handling & edge cases | 2 hours | ⬜ |
+| Task | Description | Tests Added | Status |
+|------|-------------|-------------|--------|
+| D-1 | EndToEndTest.java - Complete game flow | +25 | ✅ Complete |
+| D-2 | WebSocketProtocolTest.java - Protocol validation | +36 | ✅ Complete |
+| D-3 | ErrorHandlingTest.java - Error handling | +27 | ✅ Complete |
 
-### D-1: Complete Flow Test
+### D-1 End-to-End Tests (25 tests)
 
-```
-Create EndToEndTest.java that tests complete game flow:
+| Series | Description | Tests |
+|--------|-------------|-------|
+| E2E-CONN | Connection and join flow | 5 |
+| E2E-ACT | Action flow with state updates | 4 |
+| E2E-TURN | Turn switching | 4 |
+| E2E-GAME | Complete game scenarios | 3 |
+| E2E-ERR | Error handling | 5 |
+| E2E-MSG | Message format verification | 4 |
 
-1. Two players connect via WebSocket
-2. Both complete Draft phase (select hero, minions)
-3. Battle until one Hero dies
-4. Verify victory message sent correctly
+### D-2 Protocol Validation Tests (36 tests)
 
-Use mock WebSocket sessions.
-Test both player perspectives.
-```
+| Series | Description | Tests |
+|--------|-------------|-------|
+| WSP-IN | Client → Server messages | 12 |
+| WSP-OUT | Server → Client messages | 6 |
+| WSP-STATE | GameState serialization | 8 |
+| WSP-JSON | JSON serialization | 7 |
+| WSP-TIMER | Timer message format | 3 |
 
-### D-2: WebSocket Message Validation
+### D-3 Error Handling Tests (27 tests)
 
-```
-Verify all WebSocket messages match docs/WS_PROTOCOL_V1.md:
-
-Client → Server:
-- JOIN_MATCH
-- DRAFT_PICK
-- ACTION (MOVE, ATTACK, USE_SKILL, END_TURN)
-- DEATH_CHOICE
-
-Server → Client:
-- GAME_STATE
-- YOUR_TURN (with availableUnitIds for unit-by-unit)
-- TIMER_SYNC
-- GAME_OVER
-
-Create WebSocketProtocolTest.java to validate message formats.
-```
-
-### D-3: Error Handling Tests
-
-```
-Test error scenarios:
-
-1. Invalid actions during opponent's turn
-2. Disconnection mid-game
-3. Timer expiration handling
-4. Invalid Draft selections
-5. Malformed WebSocket messages
-
-Ensure graceful error handling and appropriate error messages.
-```
+| Series | Description | Tests |
+|--------|-------------|-------|
+| ERR-TURN | Invalid turn handling | 4 |
+| ERR-DISC | Disconnection handling | 4 |
+| ERR-TIMER | Timer expiration | 3 |
+| ERR-MSG | Malformed messages | 5 |
+| ERR-EDGE | Edge cases | 7 |
+| ERR-CONSIST | State consistency | 4 |
 
 ---
 
@@ -477,8 +461,8 @@ SUPABASE_ANON_KEY=your-anon-key
 - [x] Phase C-1: handleJoinMatch refactored
 - [x] Phase C-2: SKILL_SYSTEM tests (+107 tests)
 - [x] Phase C-3: BUFF tests (+53 tests)
-- [ ] Phase D: E2E tests passing
-- [x] Target: 800+ total tests ✅ (922 achieved)
+- [x] Phase D: E2E tests passing (+88 tests)
+- [x] Target: 800+ total tests ✅ (1010 achieved)
 
 ### Milestone 3: LibGDX Playable
 - [ ] Phase E-1 ~ E-3: Basic framework
@@ -512,6 +496,10 @@ SUPABASE_ANON_KEY=your-anon-key
 | 2025-12-09 | C-2 | SBC-Series Compatibility | 9 tests (922 total) |
 | 2025-12-09 | C-1 | handleJoinMatch() refactor | validateJoinRequest() helper added |
 | 2025-12-09 | C | **Phase C Complete** | 922 tests passing |
+| 2025-12-09 | D-1 | EndToEndTest.java | 25 tests (947 total) |
+| 2025-12-09 | D-2 | WebSocketProtocolTest.java | 36 tests (983 total) |
+| 2025-12-09 | D-3 | ErrorHandlingTest.java | 27 tests (1010 total) |
+| 2025-12-09 | D | **Phase D Complete** | 1010 tests passing |
 
 ---
 

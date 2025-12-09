@@ -25,7 +25,7 @@ A 5x5 tactical board game featuring a game engine, WebSocket server, and web cli
 │       ├── core/            # Match, MatchService, MatchRegistry
 │       ├── dto/             # Message objects
 │       └── ws/              # WebSocket handlers
-├── src/test/java/           # Tests (922 passing)
+├── src/test/java/           # Tests (1010 passing)
 └── client/                  # Web frontend (HTML/CSS/JS)
 ```
 
@@ -43,22 +43,25 @@ mvn exec:java                  # Start server
 
 ## 🗓️ Development Roadmap
 
-**Current Phase**: Phase D - End-to-End Testing (922 tests passing)
+**Current Phase**: Phase E - LibGDX Client (1010 tests passing)
 
 | Phase | Description | Est. Time | Status |
 |-------|-------------|-----------|--------|
 | ~~C~~ | ~~Complete Remaining Tests~~ | ~~6-10 hours~~ | ✅ Complete |
-| **D** | End-to-End Testing | 4-6 hours | ⬜ Pending |
-| E | LibGDX Client | 20-30 hours | ⬜ Pending |
+| ~~D~~ | ~~End-to-End Testing~~ | ~~4-6 hours~~ | ✅ Complete |
+| **E** | **LibGDX Client** | 20-30 hours | ⬜ Pending |
 | F | Supabase Integration | 8-12 hours | ⬜ Pending |
 
-### Phase C Summary (Completed)
+### Phase C & D Summary (Completed)
 
-| Task | Description | Tests Added | Status |
-|------|-------------|-------------|--------|
+| Phase | Task | Tests Added | Status |
+|-------|------|-------------|--------|
 | C-1 | handleJoinMatch() refactor | - | ✅ Complete |
-| C-2 | SKILL_SYSTEM tests | +42 | ✅ Complete |
+| C-2 | SKILL_SYSTEM tests | +107 | ✅ Complete |
 | C-3 | BUFF tests | +53 | ✅ Complete |
+| D-1 | EndToEndTest.java | +25 | ✅ Complete |
+| D-2 | WebSocketProtocolTest.java | +36 | ✅ Complete |
+| D-3 | ErrorHandlingTest.java | +27 | ✅ Complete |
 
 **📄 Full roadmap details**: `/docs/docs_ROADMAP.md`
 
@@ -76,7 +79,7 @@ mvn exec:java                  # Start server
 | ✅ | Phase 8 | Unit-by-Unit Turn System |
 | ✅ | Code Health | All refactoring complete |
 
-**Test Status**: 922 tests passing
+**Test Status**: 1010 tests passing
 
 ---
 
@@ -213,7 +216,7 @@ mvn exec:java                  # Start server
 
 ## 📊 Test Coverage Summary
 
-**Total: 922 tests passing**
+**Total: 1010 tests passing**
 
 ### By Feature
 | Feature | Tests |
@@ -227,8 +230,9 @@ mvn exec:java                  # Start server
 | Unit Turn System | 38 |
 | Serialization | ~40 |
 | WebSocket/Server | ~50 |
+| E2E Tests | 88 |
 
-### Phase C Tests Added
+### Phase C & D Tests Added
 | Series | Description | Tests |
 |--------|-------------|-------|
 | SCL | Cleric Skills | 12 |
@@ -243,43 +247,45 @@ mvn exec:java                  # Start server
 | SDT | Deterministic Ordering | 4 |
 | SBC | Backward Compatibility | 9 |
 | BUFF | BUFF System Tests | +53 |
-| **Total Added** | | **+160** |
+| E2E | End-to-End Game Flow | 25 |
+| WSP | WebSocket Protocol | 36 |
+| ERR | Error Handling | 27 |
+| **Total Added** | | **+248** |
 
 ---
 
 ## 🚀 Quick Start Commands for Claude CLI
 
-### Phase D-1: Complete Flow Test
+### Phase E-1: LibGDX Project Setup
 ```
-Create EndToEndTest.java that tests complete game flow:
-1. Two players connect via WebSocket
-2. Both complete Draft phase (select hero, minions)
-3. Battle until one Hero dies
-4. Verify victory message sent correctly
+Create LibGDX client project structure:
+1. Use Gradle multi-module setup
+2. Core module depends on engine module (shared models)
+3. Desktop launcher for development
+4. Include java-websocket library
 
-Use mock WebSocket sessions. Test both player perspectives.
-```
-
-### Phase D-2: WebSocket Message Validation
-```
-Verify all WebSocket messages match docs/WS_PROTOCOL_V1.md:
-- JOIN_MATCH, DRAFT_PICK, ACTION, DEATH_CHOICE
-- GAME_STATE, YOUR_TURN, TIMER_SYNC, GAME_OVER
-
-Create WebSocketProtocolTest.java to validate message formats.
+Do NOT implement rendering yet - just project structure.
 ```
 
-### Phase D-3: Error Handling Tests
+### Phase E-2: WebSocket Client
 ```
-Test error scenarios:
-1. Invalid actions during opponent's turn
-2. Disconnection mid-game
-3. Timer expiration handling
-4. Invalid Draft selections
-5. Malformed WebSocket messages
+Implement TacticsWebSocketClient.java:
+1. Connects to ws://server:8080/match
+2. Sends/receives JSON per docs/WS_PROTOCOL_V1.md
+3. Handles reconnection with exponential backoff
+4. Notifies listeners on message received
+```
+
+### Phase E-3: Screen Framework
+```
+Create base screen structure:
+1. BaseScreen.java - common functionality
+2. DraftScreen.java - hero/minion selection
+3. BattleScreen.java - main game board
+4. ResultScreen.java - victory/defeat display
 ```
 
 ---
 
 *Last updated: 2025-12-09*
-*Tests: 922 passing*
+*Tests: 1010 passing*
