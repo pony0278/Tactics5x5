@@ -87,6 +87,7 @@ client-libgdx/
 | E-5 | Battle UI (Placeholder) | 8-10 hours | 🔴 High | ✅ Complete |
 | E-CH | Code Health Refactoring | 2-3 hours | 🔴 High | ✅ Complete |
 | E-6 | Web Export Test (TeaVM) | 2-3 hours | 🔴 High | ✅ Complete |
+| E-6.5 | WebSocket Game Test | 1-2 hours | 🔴 High | ✅ Complete |
 | E-7 | Android Export | 2-3 hours | 🟡 Medium | ⬜ Pending |
 | E-8 | Animations & Effects | 8-10 hours | 🟡 Medium | ⬜ Pending |
 | E-9 | Art Asset Replacement | TBD | 🟢 Low | ⬜ Pending |
@@ -272,6 +273,37 @@ Pending Browser Testing:
 
 ---
 
+### E-6.5: WebSocket Game Test ✅ COMPLETE
+
+**Estimated Time**: 1-2 hours
+**Status**: ✅ Complete
+
+```
+Automated WebSocket test simulating two players completing a full game.
+
+Location: client-libgdx/test-scripts/
+
+Files Created:
+- WebSocketGameTest.java - Java test (JDK 11+, no dependencies)
+- websocket_game_test.py - Python test (requires websockets)
+- README.md - Usage instructions
+
+Test Results:
+✅ Both players connect successfully
+✅ Both players join same match (P1, P2 assigned)
+✅ game_ready message received
+✅ State updates flowing correctly
+✅ Actions processed (END_TURN)
+✅ Game ends properly with winner
+
+Protocol Details Discovered:
+- Server assigns P1/P2 regardless of client playerId
+- Actions require matchId in payload
+- Clients respond on state_update when currentPlayerId matches
+```
+
+---
+
 ### E-7: Android Export
 
 **Estimated Time**: 2-3 hours
@@ -380,6 +412,7 @@ Implementation later:
 | 2025-12-09 | E | E-1 ~ E-5 Complete | LibGDX client with screens |
 | 2025-12-09 | E | E-CH Complete | Code Health R-1 + R-2 |
 | 2025-12-09 | E | **E-6 Complete** | TeaVM build working (1.8 MB) |
+| 2025-12-09 | E | **E-6.5 Complete** | WebSocket game test passing |
 
 ---
 
