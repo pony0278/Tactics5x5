@@ -285,8 +285,10 @@ public class GameMessageHandler {
         sb.append("\"action\":{");
         sb.append("\"type\":\"USE_SKILL\",");
         sb.append("\"skillId\":\"").append(escapeJson(skillId)).append("\"");
+        // Server expects flat targetX/targetY, not nested targetPosition
         if (targetX >= 0 && targetY >= 0) {
-            sb.append(",\"targetPosition\":{\"x\":").append(targetX).append(",\"y\":").append(targetY).append("}");
+            sb.append(",\"targetX\":").append(targetX);
+            sb.append(",\"targetY\":").append(targetY);
         }
         if (targetUnitId != null) {
             sb.append(",\"targetUnitId\":\"").append(escapeJson(targetUnitId)).append("\"");
@@ -371,8 +373,10 @@ public class GameMessageHandler {
         sb.append("\"action\":{");
         sb.append("\"type\":\"").append(actionType).append("\"");
 
+        // Server expects flat targetX/targetY, not nested targetPosition
         if (targetX >= 0 && targetY >= 0) {
-            sb.append(",\"targetPosition\":{\"x\":").append(targetX).append(",\"y\":").append(targetY).append("}");
+            sb.append(",\"targetX\":").append(targetX);
+            sb.append(",\"targetY\":").append(targetY);
         }
 
         if (targetUnitId != null) {
