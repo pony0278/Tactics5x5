@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.tactics.client.ui.GameColors;
+import com.tactics.client.util.TextRenderer;
 
 import java.util.List;
 import java.util.Set;
@@ -33,11 +34,13 @@ public class BoardRenderer {
     private final ShapeRenderer shapeRenderer;
     private final SpriteBatch batch;
     private final BitmapFont font;
+    private final boolean isTeaVM;
 
     public BoardRenderer(ShapeRenderer shapeRenderer, SpriteBatch batch, BitmapFont font) {
         this.shapeRenderer = shapeRenderer;
         this.batch = batch;
         this.font = font;
+        this.isTeaVM = TextRenderer.isTeaVM();
     }
 
     /**
@@ -83,8 +86,8 @@ public class BoardRenderer {
             }
         }
 
-        // Draw grid coordinates (debug)
-        if (showCoordinates) {
+        // Draw grid coordinates (debug) - skip on TeaVM
+        if (showCoordinates && !isTeaVM && font != null) {
             font.getData().setScale(0.5f);
             batch.begin();
             for (int x = 0; x < GRID_SIZE; x++) {
@@ -119,16 +122,23 @@ public class BoardRenderer {
             shapeRenderer.rect(drawX, drawY, size, size);
             shapeRenderer.end();
 
-            // Draw buff letter
-            font.getData().setScale(0.6f);
-            batch.begin();
-            String letter = tile.buffType.substring(0, 1);
-            float textX = drawX + size / 2 - 4;
-            float textY = drawY + size / 2 + 5;
-            font.setColor(Color.WHITE);
-            font.draw(batch, letter, textX, textY);
-            batch.end();
-            font.getData().setScale(1f);
+            // Draw buff letter - use placeholder on TeaVM
+            if (isTeaVM || font == null) {
+                shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+                shapeRenderer.setColor(new Color(1, 1, 1, 0.5f));
+                shapeRenderer.rect(drawX + size / 2 - 4, drawY + size / 2 - 6, 10, 12);
+                shapeRenderer.end();
+            } else {
+                font.getData().setScale(0.6f);
+                batch.begin();
+                String letter = tile.buffType.substring(0, 1);
+                float textX = drawX + size / 2 - 4;
+                float textY = drawY + size / 2 + 5;
+                font.setColor(Color.WHITE);
+                font.draw(batch, letter, textX, textY);
+                batch.end();
+                font.getData().setScale(1f);
+            }
         }
     }
 
@@ -159,15 +169,22 @@ public class BoardRenderer {
             // Draw unit body
             drawFilledRect(drawX, drawY, UNIT_SIZE, UNIT_SIZE, unitColor, borderColor);
 
-            // Draw unit label (H=Hero, M=Minion)
-            font.getData().setScale(0.9f);
-            batch.begin();
-            String label = unit.isHero ? "H" : "M";
-            font.setColor(Color.WHITE);
-            float textWidth = font.getXHeight() * label.length() * 0.6f;
-            font.draw(batch, label, drawX + UNIT_SIZE / 2 - textWidth / 2, drawY + UNIT_SIZE / 2 + 5);
-            batch.end();
-            font.getData().setScale(1f);
+            // Draw unit label (H=Hero, M=Minion) - use placeholder on TeaVM
+            if (isTeaVM || font == null) {
+                shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+                shapeRenderer.setColor(new Color(1, 1, 1, 0.5f));
+                shapeRenderer.rect(drawX + UNIT_SIZE / 2 - 6, drawY + UNIT_SIZE / 2 - 8, 12, 16);
+                shapeRenderer.end();
+            } else {
+                font.getData().setScale(0.9f);
+                batch.begin();
+                String label = unit.isHero ? "H" : "M";
+                font.setColor(Color.WHITE);
+                float textWidth = font.getXHeight() * label.length() * 0.6f;
+                font.draw(batch, label, drawX + UNIT_SIZE / 2 - textWidth / 2, drawY + UNIT_SIZE / 2 + 5);
+                batch.end();
+                font.getData().setScale(1f);
+            }
 
             // Draw HP bar
             renderHPBar(drawX, drawY + UNIT_SIZE + HP_BAR_OFFSET, UNIT_SIZE, HP_BAR_HEIGHT, unit.hp, unit.maxHp);

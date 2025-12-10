@@ -15,6 +15,7 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 import com.tactics.client.TacticsGame;
 import com.tactics.client.net.GameMessageHandler;
 import com.tactics.client.net.IWebSocketClient;
+import com.tactics.client.util.TextRenderer;
 
 /**
  * Base screen class providing common functionality for all game screens.
@@ -28,7 +29,8 @@ public abstract class BaseScreen extends InputAdapter implements Screen {
     protected final TacticsGame game;
     protected final SpriteBatch batch;
     protected final ShapeRenderer shapeRenderer;
-    protected final BitmapFont font;
+    protected final BitmapFont font;  // Only used on desktop/Android
+    protected final boolean isTeaVM;  // True if running in web browser
     protected final OrthographicCamera camera;
     protected final Viewport viewport;
     protected final InputMultiplexer inputMultiplexer;
@@ -39,8 +41,15 @@ public abstract class BaseScreen extends InputAdapter implements Screen {
         this.game = game;
         this.batch = game.batch;
         this.shapeRenderer = new ShapeRenderer();
-        this.font = new BitmapFont();
-        this.font.setColor(Color.WHITE);
+        this.isTeaVM = TextRenderer.isTeaVM();
+
+        // Only load BitmapFont on desktop/Android - TeaVM doesn't support Pool reflection
+        if (!isTeaVM) {
+            this.font = new BitmapFont(Gdx.files.internal("default.fnt"));
+            this.font.setColor(Color.WHITE);
+        } else {
+            this.font = null; // Not used on web
+        }
 
         // Setup camera and viewport
         this.camera = new OrthographicCamera();
@@ -108,7 +117,9 @@ public abstract class BaseScreen extends InputAdapter implements Screen {
     @Override
     public void dispose() {
         shapeRenderer.dispose();
-        font.dispose();
+        if (font != null) {
+            font.dispose();
+        }
     }
 
     // ========== Input Handling Helpers ==========
@@ -174,43 +185,64 @@ public abstract class BaseScreen extends InputAdapter implements Screen {
     }
 
     /**
-     * Draw centered text.
+     * Draw centered text. On TeaVM, draws a placeholder rectangle instead.
      * @param text Text to draw
      * @param centerX Center X position
      * @param y Y position (baseline)
      */
     protected void drawCenteredText(String text, float centerX, float y) {
-        batch.begin();
-        float textWidth = font.getXHeight() * text.length() * 0.6f;
-        font.draw(batch, text, centerX - textWidth / 2, y);
-        batch.end();
+        if (isTeaVM) {
+            // On web: draw a placeholder rectangle
+            float width = text.length() * 8; // Approximate width
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
+            shapeRenderer.rect(centerX - width / 2, y - 15, width, 20);
+            shapeRenderer.end();
+        } else {
+            // Desktop: use BitmapFont
+            TextRenderer.drawCenteredText(batch, font, text, centerX, y);
+        }
     }
 
     /**
-     * Draw text at position.
+     * Draw text at position. On TeaVM, draws a placeholder rectangle instead.
      * @param text Text to draw
      * @param x X position
      * @param y Y position (baseline)
      */
     protected void drawText(String text, float x, float y) {
-        batch.begin();
-        font.draw(batch, text, x, y);
-        batch.end();
+        if (isTeaVM) {
+            // On web: draw a placeholder rectangle
+            float width = text.length() * 8;
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
+            shapeRenderer.rect(x, y - 15, width, 20);
+            shapeRenderer.end();
+        } else {
+            TextRenderer.drawText(batch, font, text, x, y);
+        }
     }
 
     /**
-     * Draw text at position with specific color.
+     * Draw text at position with specific color. On TeaVM, draws a placeholder rectangle.
      * @param text Text to draw
      * @param x X position
      * @param y Y position
      * @param color Text color
      */
     protected void drawText(String text, float x, float y, Color color) {
-        batch.begin();
-        font.setColor(color);
-        font.draw(batch, text, x, y);
-        font.setColor(Color.WHITE);
-        batch.end();
+        if (isTeaVM) {
+            // On web: draw a colored placeholder rectangle
+            float width = text.length() * 8;
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.setColor(new Color(color.r, color.g, color.b, 0.5f));
+            shapeRenderer.rect(x, y - 15, width, 20);
+            shapeRenderer.end();
+        } else {
+            font.setColor(color);
+            TextRenderer.drawText(batch, font, text, x, y);
+            font.setColor(Color.WHITE);
+        }
     }
 
     // ========== WebSocket Helpers ==========

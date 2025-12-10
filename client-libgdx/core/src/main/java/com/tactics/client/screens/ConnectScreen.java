@@ -3,6 +3,7 @@ package com.tactics.client.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.JsonValue;
+import com.tactics.client.GameSession;
 import com.tactics.client.TacticsGame;
 import com.tactics.client.net.GameMessageHandler;
 import com.tactics.client.net.IWebSocketClient;
@@ -16,7 +17,7 @@ import com.tactics.client.net.WebSocketListener;
 public class ConnectScreen extends BaseScreen implements WebSocketListener, GameMessageHandler.GameMessageListener {
 
     private static final String TAG = "ConnectScreen";
-    private static final String SERVER_URL = "ws://localhost:8080/match";
+    private static final String SERVER_URL = "ws://localhost:8080/ws";
 
     // Connection state
     private enum ConnectionState {
@@ -80,10 +81,14 @@ public class ConnectScreen extends BaseScreen implements WebSocketListener, Game
 
     @Override
     protected void draw() {
-        // Title
-        font.getData().setScale(2.5f);
+        // Title (larger text placeholder on TeaVM)
+        if (!isTeaVM && font != null) {
+            font.getData().setScale(2.5f);
+        }
         drawCenteredText("5x5 TACTICS", WORLD_WIDTH / 2, WORLD_HEIGHT - 80);
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) {
+            font.getData().setScale(1f);
+        }
 
         // Server URL
         drawCenteredText("Server: " + SERVER_URL, WORLD_WIDTH / 2, WORLD_HEIGHT - 140);
@@ -109,11 +114,15 @@ public class ConnectScreen extends BaseScreen implements WebSocketListener, Game
             drawText(errorMessage, BUTTON_X, BUTTON_Y - 60, Color.RED);
         }
 
-        // Instructions
-        font.getData().setScale(0.8f);
+        // Instructions (smaller text on desktop)
+        if (!isTeaVM && font != null) {
+            font.getData().setScale(0.8f);
+        }
         drawCenteredText("Start server with: mvn exec:java", WORLD_WIDTH / 2, 80);
         drawCenteredText("Press Connect to join a match", WORLD_WIDTH / 2, 50);
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) {
+            font.getData().setScale(1f);
+        }
     }
 
     private Color getButtonColor() {
@@ -236,7 +245,12 @@ public class ConnectScreen extends BaseScreen implements WebSocketListener, Game
 
     @Override
     public void onMatchJoined(String matchId, String playerId, JsonValue state) {
-        Gdx.app.log(TAG, "Match joined: " + matchId);
+        Gdx.app.log(TAG, "Match joined: " + matchId + " as player " + playerId);
+
+        // Store the server-assigned matchId and playerId in GameSession
+        // These will be used for all subsequent action messages
+        GameSession.getInstance().setMatchInfo(matchId, playerId);
+
         this.state = ConnectionState.WAITING_FOR_OPPONENT;
         statusMessage = "Waiting for opponent...";
 

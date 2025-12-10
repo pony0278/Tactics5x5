@@ -34,6 +34,7 @@ task copyHtml(type: Copy) {
     into "${buildDir}/generated/teavm/js"
 }
 
+// Run copy tasks AFTER JavaScript generation to ensure files aren't overwritten
 tasks.named('generateJavaScript').configure {
-    dependsOn copyAssets, copyHtml
+    finalizedBy copyAssets, copyHtml
 }

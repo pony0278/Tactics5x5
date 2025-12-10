@@ -22,6 +22,7 @@ public class TeaVMLauncher {
         TeaApplicationConfiguration config = new TeaApplicationConfiguration("canvas");
         config.width = 800;
         config.height = 600;
+        // Assets (font files) will be preloaded before game starts
         new TeaApplication(new TacticsGame(), config);
     }
 }

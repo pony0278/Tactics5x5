@@ -3,6 +3,7 @@ package com.tactics.client.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.JsonValue;
+import com.tactics.client.GameSession;
 import com.tactics.client.TacticsGame;
 import com.tactics.client.net.GameMessageHandler;
 import com.tactics.client.net.IWebSocketClient;
@@ -128,9 +129,9 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
     @Override
     protected void draw() {
-        font.getData().setScale(1.8f);
+        if (!isTeaVM && font != null) font.getData().setScale(1.8f);
         drawCenteredText("DRAFT PHASE", WORLD_WIDTH / 2, WORLD_HEIGHT - 20);
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) font.getData().setScale(1f);
 
         drawTimer();
         drawHeroSection();
@@ -152,9 +153,9 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
         drawButton(timerX, TIMER_Y - timerHeight, timerWidth, timerHeight, bgColor, Color.DARK_GRAY);
 
         Color timerColor = draftTimer < 10 ? GameColors.TIMER_CRITICAL : GameColors.TIMER_NORMAL;
-        font.getData().setScale(1.2f);
+        if (!isTeaVM && font != null) font.getData().setScale(1.2f);
         drawCenteredText(String.format("Time: %.0fs", draftTimer), timerX + timerWidth / 2, TIMER_Y - timerHeight / 2 + 5);
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) font.getData().setScale(1f);
     }
 
     private void drawHeroSection() {
@@ -180,9 +181,9 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
             drawButton(x, y, HERO_BUTTON_WIDTH, HERO_BUTTON_HEIGHT, fillColor, borderColor);
 
-            font.getData().setScale(0.9f);
+            if (!isTeaVM && font != null) font.getData().setScale(0.9f);
             drawCenteredText(HERO_CLASSES[i], x + HERO_BUTTON_WIDTH / 2, y + HERO_BUTTON_HEIGHT / 2 + 5);
-            font.getData().setScale(1f);
+            if (!isTeaVM && font != null) font.getData().setScale(1f);
         }
     }
 
@@ -196,19 +197,19 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
             String[] skills = HERO_SKILLS[selectedHeroIndex];
             float skillY = SKILL_SECTION_Y - 20 - SKILL_PANEL_HEIGHT / 2 + 5;
 
-            font.getData().setScale(0.85f);
+            if (!isTeaVM && font != null) font.getData().setScale(0.85f);
             StringBuilder skillText = new StringBuilder();
             for (int i = 0; i < skills.length; i++) {
                 if (i > 0) skillText.append("  |  ");
                 skillText.append((i + 1)).append(". ").append(skills[i]);
             }
             drawCenteredText(skillText.toString(), WORLD_WIDTH / 2, skillY);
-            font.getData().setScale(1f);
+            if (!isTeaVM && font != null) font.getData().setScale(1f);
         } else {
-            font.getData().setScale(0.9f);
+            if (!isTeaVM && font != null) font.getData().setScale(0.9f);
             drawCenteredText("(Select a hero to see skills)", WORLD_WIDTH / 2,
                            SKILL_SECTION_Y - 20 - SKILL_PANEL_HEIGHT / 2 + 5);
-            font.getData().setScale(1f);
+            if (!isTeaVM && font != null) font.getData().setScale(1f);
         }
     }
 
@@ -232,9 +233,9 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
             drawButton(x, y, MINION_BUTTON_WIDTH, MINION_BUTTON_HEIGHT, fillColor, borderColor);
 
-            font.getData().setScale(0.95f);
+            if (!isTeaVM && font != null) font.getData().setScale(0.95f);
             drawCenteredText(MINION_TYPES[i], x + MINION_BUTTON_WIDTH / 2, y + MINION_BUTTON_HEIGHT / 2 + 5);
-            font.getData().setScale(1f);
+            if (!isTeaVM && font != null) font.getData().setScale(1f);
         }
     }
 
@@ -250,7 +251,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
         Color heroBorder = selectedHeroIndex >= 0 ? Color.WHITE : Color.DARK_GRAY;
         drawButton(startX, y, TEAM_ICON_SIZE, TEAM_ICON_SIZE, heroColor, heroBorder);
 
-        font.getData().setScale(0.8f);
+        if (!isTeaVM && font != null) font.getData().setScale(0.8f);
         drawCenteredText(selectedHeroIndex >= 0 ? "H" : "?", startX + TEAM_ICON_SIZE / 2, y + TEAM_ICON_SIZE / 2 + 5);
 
         // Minion icons
@@ -272,7 +273,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
             drawCenteredText("?", mx + TEAM_ICON_SIZE / 2, y + TEAM_ICON_SIZE / 2 + 5);
         }
 
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) font.getData().setScale(1f);
     }
 
     private void drawReadyButton() {
@@ -293,18 +294,18 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
         drawButton(READY_BUTTON_X, READY_BUTTON_Y, READY_BUTTON_WIDTH, READY_BUTTON_HEIGHT, fillColor, borderColor);
 
         String buttonText = draftSubmitted ? "WAITING..." : (canSubmit ? "READY" : "SELECT TEAM");
-        font.getData().setScale(1.1f);
+        if (!isTeaVM && font != null) font.getData().setScale(1.1f);
         drawCenteredText(buttonText, WORLD_WIDTH / 2, READY_BUTTON_Y + READY_BUTTON_HEIGHT / 2 + 5);
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) font.getData().setScale(1f);
     }
 
     private void drawOpponentStatus() {
         String statusText = opponentReady ? "Opponent: READY" : "Opponent: Selecting...";
         Color statusColor = opponentReady ? Color.GREEN : Color.YELLOW;
 
-        font.getData().setScale(0.9f);
+        if (!isTeaVM && font != null) font.getData().setScale(0.9f);
         drawCenteredText(statusText, WORLD_WIDTH / 2, OPPONENT_STATUS_Y);
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) font.getData().setScale(1f);
     }
 
     // ========== Input Handling ==========
@@ -385,8 +386,17 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
         Gdx.app.log(TAG, "Submitting draft: " + heroClass + " + " + minion1 + ", " + minion2);
 
-        if (webSocket != null && webSocket.isConnected()) {
-            webSocket.send(messageHandler.createDraftPickAction("player-1", heroClass, minion1, minion2));
+        GameSession session = GameSession.getInstance();
+        if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
+            String msg = messageHandler.createSelectTeamMessage(
+                session.getMatchId(),
+                session.getPlayerId(),
+                heroClass, minion1, minion2
+            );
+            Gdx.app.log(TAG, "Sending: " + msg);
+            webSocket.send(msg);
+        } else {
+            Gdx.app.error(TAG, "Cannot submit draft: no valid session or connection");
         }
 
         draftSubmitted = true;
@@ -444,11 +454,13 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
                 Gdx.app.postRunnable(() -> ScreenManager.getInstance().showBattleScreen());
             }
 
+            // Check opponent's ready state using server-assigned playerId
+            String myPlayerId = GameSession.getInstance().getPlayerId();
             JsonValue players = state.get("players");
-            if (players != null) {
+            if (players != null && myPlayerId != null) {
                 for (JsonValue player = players.child; player != null; player = player.next) {
-                    String playerId = player.getString("playerId", "");
-                    if (!"player-1".equals(playerId)) {
+                    String pid = player.getString("playerId", "");
+                    if (!myPlayerId.equals(pid)) {
                         opponentReady = player.getBoolean("draftReady", false);
                     }
                 }

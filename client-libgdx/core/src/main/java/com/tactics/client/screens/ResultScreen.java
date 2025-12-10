@@ -70,25 +70,25 @@ public class ResultScreen extends BaseScreen {
     protected void draw() {
         // Animated result text
         float scale = Math.min(animationTime / ANIMATION_DURATION, 1f) * 3f + 1f;
-        font.getData().setScale(scale);
+        if (!isTeaVM && font != null) font.getData().setScale(scale);
 
         String resultText = isVictory ? "VICTORY!" : "DEFEAT";
         Color resultColor = isVictory ? Color.GOLD : Color.RED;
 
         // Add pulsing effect
         float pulse = (float) (Math.sin(animationTime * 3) * 0.1 + 1);
-        font.getData().setScale(scale * pulse);
+        if (!isTeaVM && font != null) font.getData().setScale(scale * pulse);
 
         float textY = WORLD_HEIGHT / 2 + 100;
-        drawCenteredText(resultText, WORLD_WIDTH / 2, textY, resultColor);
+        drawText(resultText, WORLD_WIDTH / 2 - resultText.length() * 10, textY, resultColor);
 
-        font.getData().setScale(1.5f);
+        if (!isTeaVM && font != null) font.getData().setScale(1.5f);
 
         // Winner info
         String winnerInfo = isVictory ? "You won the battle!" : "Your hero has fallen...";
         drawCenteredText(winnerInfo, WORLD_WIDTH / 2, textY - 80);
 
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) font.getData().setScale(1f);
 
         // Stats placeholder
         drawCenteredText("Rounds played: 5", WORLD_WIDTH / 2, textY - 130);
@@ -101,18 +101,9 @@ public class ResultScreen extends BaseScreen {
         drawCenteredText("PLAY AGAIN", WORLD_WIDTH / 2, PLAY_AGAIN_Y + BUTTON_HEIGHT / 2 + 6);
 
         // Footer
-        font.getData().setScale(0.8f);
+        if (!isTeaVM && font != null) font.getData().setScale(0.8f);
         drawCenteredText("Thank you for playing 5x5 Tactics!", WORLD_WIDTH / 2, 50);
-        font.getData().setScale(1f);
-    }
-
-    private void drawCenteredText(String text, float centerX, float y, Color color) {
-        batch.begin();
-        font.setColor(color);
-        float textWidth = font.getXHeight() * text.length() * 0.6f;
-        font.draw(batch, text, centerX - textWidth / 2, y);
-        font.setColor(Color.WHITE);
-        batch.end();
+        if (!isTeaVM && font != null) font.getData().setScale(1f);
     }
 
     @Override

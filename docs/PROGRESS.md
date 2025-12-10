@@ -4,7 +4,44 @@ This document tracks completed work and outlines the roadmap for future developm
 
 ---
 
-## Current Status: V3 Phase 6 Complete (Draft Phase)
+## Current Status: Phase E - LibGDX + TeaVM Client (In Progress)
+
+**Test Count**: 1010 tests passing
+
+The game engine is complete with all V3 features. Now working on the LibGDX cross-platform client with TeaVM web export.
+
+### Phase E Progress (LibGDX Client)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| E-1 | LibGDX + TeaVM Project Setup | ✅ Complete |
+| E-2 | WebSocket Client | ✅ Complete |
+| E-3 | Screen Framework | ✅ Complete |
+| E-4 | Draft UI (Placeholder) | ✅ Complete |
+| E-5 | Battle UI (Placeholder) | ✅ Complete |
+| E-CH | Code Health Check | ✅ Complete |
+| E-R1 | Code Health: Split BattleScreen | ✅ Complete |
+| E-R2 | Code Health: Centralize Colors | ✅ Complete |
+| E-6 | Web Export Test (TeaVM) | ✅ Complete |
+| E-6.5 | Automated WebSocket Test | ✅ Complete |
+| E-7 | Android Export | ⬜ Pending |
+| E-8 | Animations & Effects | ⬜ Pending |
+| E-9 | Art Asset Replacement | ⬜ Pending |
+| E-10 | Ads Integration | ⬜ Pending |
+
+### Recent Bug Fixes (2025-12-10)
+
+| Bug | Fix | Files Changed |
+|-----|-----|---------------|
+| TeaVM text rendering (`Pool.obtain()` reflection) | Skip BitmapFont on TeaVM, use shape placeholders | All screen classes |
+| `$obj.$toString is not a function` | Added `@JSBody` native methods for safe JS string extraction | `TeaVMWebSocketClient.java` |
+| Missing matchId/playerId in actions | Created `GameSession` singleton to store server-assigned IDs | `GameSession.java`, all screens |
+| `onTimer is not a function` | Changed `@JSFunctor` anonymous inner class to lambda | `TeaVMWebSocketClient.java` |
+| Invalid action type DRAFT_PICK | Added `select_team` message type to server, renamed client method | `MatchWebSocketHandler.java`, `GameMessageHandler.java`, `DraftScreen.java` |
+
+---
+
+## Engine Status (Complete)
 
 The game engine now supports all V3 BUFF types, game rules, all Phase 4 skills (A-D), Death Choice flow, and Draft Phase:
 
@@ -431,6 +468,9 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| E-6.5 | 2025-12-10 | TeaVM bug fixes (text rendering, WebSocket JS interop, session management, select_team protocol), 1010 tests |
+| E-6 | 2025-12-09 | TeaVM web export working, automated WebSocket game test |
+| E-1 to E-5 | 2025-12-08 | LibGDX project setup, WebSocket client, screen framework, Draft/Battle UI |
 | V3.0-Phase6 | 2025-12-07 | Draft Phase (DraftState, DraftResult, DraftSetupService, 110 draft tests), 520 tests |
 | V3.0-Phase5 | 2025-12-07 | Death Choice flow (SPAWN_OBSTACLE/SPAWN_BUFF_TILE on minion death), 410 tests |
 | V3.0-CodeHealth | 2025-12-07 | Full RuleEngine refactoring (98 lines facade + ActionValidator/ActionExecutor/SkillExecutor), 393 tests |
@@ -447,4 +487,4 @@ java -jar target/tactics5x5-1.0-SNAPSHOT.jar
 
 ---
 
-*Last updated: 2025-12-07*
+*Last updated: 2025-12-10*

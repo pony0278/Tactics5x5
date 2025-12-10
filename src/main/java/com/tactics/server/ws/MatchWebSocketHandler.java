@@ -105,6 +105,9 @@ public class MatchWebSocketHandler implements TimerCallback {
             case "action":
                 handleAction(connection, payload);
                 break;
+            case "select_team":
+                handleSelectTeam(connection, payload);
+                break;
             default:
                 sendValidationError(connection, "Unknown message type: " + type, null);
                 break;
@@ -359,6 +362,60 @@ public class MatchWebSocketHandler implements TimerCallback {
             // Validation failed - send error only to sender
             sendValidationError(connection, e.getMessage(), actionPayload);
         }
+    }
+
+    /**
+     * Handles select_team message for draft phase.
+     * Payload: { matchId, playerId, heroClass, minions: [type1, type2] }
+     */
+    @SuppressWarnings("unchecked")
+    private void handleSelectTeam(ClientConnection connection, Map<String, Object> payload) {
+        String matchId = getStringFromPayload(payload, "matchId");
+        String playerId = getStringFromPayload(payload, "playerId");
+        String heroClass = getStringFromPayload(payload, "heroClass");
+        java.util.List<String> minions = (java.util.List<String>) payload.get("minions");
+
+        if (matchId == null || playerId == null) {
+            sendValidationError(connection, "Missing matchId or playerId in select_team", null);
+            return;
+        }
+
+        if (heroClass == null || heroClass.isEmpty()) {
+            sendValidationError(connection, "Missing heroClass in select_team", null);
+            return;
+        }
+
+        if (minions == null || minions.size() != 2) {
+            sendValidationError(connection, "select_team requires exactly 2 minions", null);
+            return;
+        }
+
+        // For now, acknowledge the selection and send state update
+        // In a full implementation, this would update DraftState
+        Match match = matchService.findMatch(matchId);
+        if (match == null) {
+            sendValidationError(connection, "Match not found: " + matchId, null);
+            return;
+        }
+
+        // Log the selection (in production, would store in DraftState)
+        System.out.println("Player " + playerId + " selected: " + heroClass + " + " + minions);
+
+        // Mark player as ready (simplified - in production track both players)
+        // For MVP, we just acknowledge and wait for both players
+        GameState state = match.getState();
+        Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(state);
+
+        // Send draft_ready acknowledgment
+        OutgoingMessage response = new OutgoingMessage("draft_ready",
+            java.util.Map.of(
+                "playerId", playerId,
+                "heroClass", heroClass,
+                "minions", minions,
+                "state", stateMap
+            ));
+        String jsonResponse = JsonHelper.toJson(response);
+        broadcastToMatch(matchId, jsonResponse);
     }
 
     /**

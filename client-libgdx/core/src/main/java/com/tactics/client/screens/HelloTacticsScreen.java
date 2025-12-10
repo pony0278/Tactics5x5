@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.tactics.client.TacticsGame;
+import com.tactics.client.util.TextRenderer;
 
 /**
  * Initial "Hello Tactics" screen to verify the setup works.
@@ -16,17 +17,22 @@ public class HelloTacticsScreen implements Screen {
 
     private final TacticsGame game;
     private ShapeRenderer shapeRenderer;
-    private BitmapFont font;
+    private BitmapFont font;  // Only used on desktop/Android
+    private final boolean isTeaVM;
 
     public HelloTacticsScreen(TacticsGame game) {
         this.game = game;
+        this.isTeaVM = TextRenderer.isTeaVM();
     }
 
     @Override
     public void show() {
         shapeRenderer = new ShapeRenderer();
-        font = new BitmapFont();
-        font.setColor(Color.WHITE);
+        // Only load BitmapFont on desktop/Android - TeaVM doesn't support Pool reflection
+        if (!isTeaVM) {
+            font = new BitmapFont(Gdx.files.internal("default.fnt"));
+            font.setColor(Color.WHITE);
+        }
         Gdx.app.log("HelloTacticsScreen", "Screen shown");
     }
 
@@ -72,14 +78,26 @@ public class HelloTacticsScreen implements Screen {
 
         shapeRenderer.end();
 
-        // Draw text
-        game.batch.begin();
-        font.getData().setScale(2);
-        font.draw(game.batch, "Hello Tactics!", width / 2 - 80, height - 50);
-        font.getData().setScale(1);
-        font.draw(game.batch, "5x5 Tactics Engine - LibGDX Client", width / 2 - 120, height - 90);
-        font.draw(game.batch, "Press any key to continue...", width / 2 - 100, 50);
-        game.batch.end();
+        // Draw text - use shapes on TeaVM, BitmapFont on desktop
+        if (isTeaVM) {
+            // TeaVM: Draw placeholder rectangles for text
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
+            // Title placeholder
+            shapeRenderer.rect(width / 2 - 100, height - 70, 200, 30);
+            // Subtitle placeholder
+            shapeRenderer.rect(width / 2 - 150, height - 105, 300, 20);
+            // Press any key placeholder
+            shapeRenderer.rect(width / 2 - 100, 35, 200, 20);
+            shapeRenderer.end();
+        } else {
+            // Desktop: Use BitmapFont
+            game.batch.begin();
+            TextRenderer.drawCenteredText(game.batch, font, "Hello Tactics!", width / 2, height - 50);
+            TextRenderer.drawCenteredText(game.batch, font, "5x5 Tactics Engine - LibGDX Client", width / 2, height - 90);
+            TextRenderer.drawCenteredText(game.batch, font, "Press any key to continue...", width / 2, 50);
+            game.batch.end();
+        }
     }
 
     @Override

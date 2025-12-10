@@ -8,7 +8,7 @@ public interface IWebSocketClient {
 
     /**
      * Connect to a WebSocket server.
-     * @param url The WebSocket URL (e.g., "ws://localhost:8080/match")
+     * @param url The WebSocket URL (e.g., "ws://localhost:8080/ws")
      */
     void connect(String url);
 

@@ -44,6 +44,20 @@ public class TeaVMWebSocketClient implements IWebSocketClient {
     @JSBody(params = {"delay", "callback"}, script = "setTimeout(function() { callback.onTimer(); }, delay);")
     private static native void setTimeout(int delay, TimerCallback callback);
 
+    // Safe JS string extraction methods - avoid calling Java toString() on JS objects
+    // Use JSObject since TeaVM's websocket API uses generic JSObject for events
+    @JSBody(params = {"event"}, script = "return event.data || '';")
+    private static native String getMessageData(JSObject event);
+
+    @JSBody(params = {"event"}, script = "return event.reason || '';")
+    private static native String getCloseReason(JSObject event);
+
+    @JSBody(params = {"event"}, script = "return event.code || 0;")
+    private static native int getCloseCode(JSObject event);
+
+    @JSBody(params = {"obj"}, script = "return obj ? String(obj) : '';")
+    private static native String jsToString(JSObject obj);
+
     @Override
     public void connect(String url) {
         this.serverUrl = url;
@@ -76,20 +90,24 @@ public class TeaVMWebSocketClient implements IWebSocketClient {
             });
 
             socket.onMessage(event -> {
-                String data = event.getData().cast();
+                // Use safe JS string extraction - don't call Java methods on JS objects
+                String data = getMessageData(event);
                 log("Received: " + data);
                 // Add to queue for thread-safe polling
                 synchronized (incomingQueue) {
                     incomingQueue.add(data);
                 }
                 // Also notify listener for backwards compatibility
-                if (listener != null) {
+                if (listener != null && data != null && !data.isEmpty()) {
                     Gdx.app.postRunnable(() -> listener.onMessage(data));
                 }
             });
 
             socket.onClose(event -> {
-                log("Disconnected");
+                // Use safe JS extraction for close event data
+                int code = getCloseCode(event);
+                String reason = getCloseReason(event);
+                log("Disconnected (code=" + code + ", reason=" + reason + ")");
                 connected = false;
 
                 if (listener != null) {
@@ -122,13 +140,11 @@ public class TeaVMWebSocketClient implements IWebSocketClient {
     private void scheduleReconnect() {
         log("Scheduling reconnect in " + currentReconnectDelay + "ms");
 
-        setTimeout(currentReconnectDelay, new TimerCallback() {
-            @Override
-            public void onTimer() {
-                if (autoReconnect && !intentionalDisconnect && !connected) {
-                    log("Attempting reconnect...");
-                    createAndConnect();
-                }
+        // Use lambda for @JSFunctor - anonymous inner classes don't work with TeaVM JSO
+        setTimeout(currentReconnectDelay, (TimerCallback) () -> {
+            if (autoReconnect && !intentionalDisconnect && !connected) {
+                log("Attempting reconnect...");
+                createAndConnect();
             }
         });
 

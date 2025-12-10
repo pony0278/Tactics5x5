@@ -3,6 +3,7 @@ package com.tactics.client.screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.JsonValue;
+import com.tactics.client.GameSession;
 import com.tactics.client.TacticsGame;
 import com.tactics.client.net.GameMessageHandler;
 import com.tactics.client.net.IWebSocketClient;
@@ -170,8 +171,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
     private void onTimerExpired() {
         Gdx.app.log(TAG, "Action timer expired - auto END_TURN");
-        if (webSocket != null && webSocket.isConnected()) {
-            webSocket.send(messageHandler.createEndTurnAction("player-1"));
+        GameSession session = GameSession.getInstance();
+        if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
+            webSocket.send(messageHandler.createEndTurnAction(session.getMatchId(), session.getPlayerId()));
         }
         actionTimer = 10f;
     }
@@ -220,7 +222,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
         String turnText = isPlayerTurn ? "YOUR TURN" : "OPPONENT'S TURN";
         Color turnColor = isPlayerTurn ? Color.GREEN : Color.RED;
-        font.getData().setScale(1.3f);
+        if (!isTeaVM && font != null) font.getData().setScale(1.3f);
         drawText(turnText, 20, TURN_INDICATOR_Y - 10, turnColor);
         drawText("Round " + currentRound, 200, TURN_INDICATOR_Y - 10, Color.WHITE);
 
@@ -237,7 +239,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
         Color timerColor = actionTimer < 3 ? GameColors.TIMER_CRITICAL : (actionTimer < 5 ? GameColors.TIMER_WARNING : GameColors.TIMER_NORMAL);
         drawCenteredText(String.format("%.1fs", actionTimer), timerX + timerWidth / 2, TURN_INDICATOR_Y - 10);
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) font.getData().setScale(1f);
     }
 
     // ========== Action Buttons ==========
@@ -280,9 +282,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
                 text = "SKILL (" + selectedUnit.skillCooldown + ")";
             }
 
-            font.getData().setScale(0.85f);
+            if (!isTeaVM && font != null) font.getData().setScale(0.85f);
             drawCenteredText(text, ACTION_PANEL_X + ACTION_BUTTON_WIDTH / 2, y + ACTION_BUTTON_HEIGHT / 2 + 5);
-            font.getData().setScale(1f);
+            if (!isTeaVM && font != null) font.getData().setScale(1f);
 
             y -= ACTION_BUTTON_HEIGHT + ACTION_BUTTON_SPACING;
         }
@@ -293,9 +295,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     private void drawUnitInfoPanel() {
         drawButton(INFO_PANEL_X, INFO_PANEL_Y - INFO_PANEL_HEIGHT, INFO_PANEL_WIDTH, INFO_PANEL_HEIGHT, GameColors.PANEL_BACKGROUND, Color.DARK_GRAY);
 
-        font.getData().setScale(0.9f);
+        if (!isTeaVM && font != null) font.getData().setScale(0.9f);
         drawText("UNIT INFO", INFO_PANEL_X + 10, INFO_PANEL_Y - 10, Color.CYAN);
-        font.getData().setScale(0.8f);
+        if (!isTeaVM && font != null) font.getData().setScale(0.8f);
 
         float lineY = INFO_PANEL_Y - 35;
         float lineSpacing = 20;
@@ -329,7 +331,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
         } else {
             drawText("(Select a unit)", INFO_PANEL_X + 10, lineY, Color.GRAY);
         }
-        font.getData().setScale(1f);
+        if (!isTeaVM && font != null) font.getData().setScale(1f);
     }
 
     // ========== Input Handling ==========
@@ -358,8 +360,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
     private void sendDeathChoice(String buffType) {
         Gdx.app.log(TAG, "Death choice selected: " + buffType);
-        if (webSocket != null && webSocket.isConnected()) {
-            webSocket.send(messageHandler.createDeathChoiceAction("player-1", buffType));
+        GameSession session = GameSession.getInstance();
+        if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
+            webSocket.send(messageHandler.createDeathChoiceAction(session.getMatchId(), session.getPlayerId(), buffType));
         }
     }
 
@@ -493,8 +496,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     private void sendMoveAction(int targetX, int targetY) {
         if (selectedUnit == null) return;
         Gdx.app.log(TAG, "Sending MOVE to " + targetX + ", " + targetY);
-        if (webSocket != null && webSocket.isConnected()) {
-            webSocket.send(messageHandler.createMoveAction("player-1", targetX, targetY));
+        GameSession session = GameSession.getInstance();
+        if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
+            webSocket.send(messageHandler.createMoveAction(session.getMatchId(), session.getPlayerId(), targetX, targetY));
         }
         selectedUnit.x = targetX;
         selectedUnit.y = targetY;
@@ -505,8 +509,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     private void sendAttackAction(String targetId) {
         if (selectedUnit == null) return;
         Gdx.app.log(TAG, "Sending ATTACK to " + targetId);
-        if (webSocket != null && webSocket.isConnected()) {
-            webSocket.send(messageHandler.createAttackAction("player-1", selectedUnit.x, selectedUnit.y, targetId));
+        GameSession session = GameSession.getInstance();
+        if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
+            webSocket.send(messageHandler.createAttackAction(session.getMatchId(), session.getPlayerId(), selectedUnit.x, selectedUnit.y, targetId));
         }
         currentActionMode = ActionMode.NONE;
         validAttackTargets.clear();
@@ -515,8 +520,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     private void sendSkillAction(int targetX, int targetY) {
         if (selectedUnit == null || !selectedUnit.isHero) return;
         Gdx.app.log(TAG, "Sending USE_SKILL to " + targetX + ", " + targetY);
-        if (webSocket != null && webSocket.isConnected()) {
-            webSocket.send(messageHandler.createUseSkillAction("player-1", "skill-1", targetX, targetY, null));
+        GameSession session = GameSession.getInstance();
+        if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
+            webSocket.send(messageHandler.createUseSkillAction(session.getMatchId(), session.getPlayerId(), "skill-1", targetX, targetY, null));
         }
         currentActionMode = ActionMode.NONE;
         validAttackTargets.clear();
@@ -524,8 +530,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
     private void sendEndTurn() {
         Gdx.app.log(TAG, "Sending END_TURN");
-        if (webSocket != null && webSocket.isConnected()) {
-            webSocket.send(messageHandler.createEndTurnAction("player-1"));
+        GameSession session = GameSession.getInstance();
+        if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
+            webSocket.send(messageHandler.createEndTurnAction(session.getMatchId(), session.getPlayerId()));
         }
         currentActionMode = ActionMode.NONE;
         validMoveTargets.clear();
@@ -563,15 +570,18 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     public void onStateUpdate(JsonValue state) {
         Gdx.app.log(TAG, "State update received");
         if (state != null) {
+            String myPlayerId = GameSession.getInstance().getPlayerId();
             String currentPlayer = state.getString("currentPlayer", "");
-            isPlayerTurn = "player-1".equals(currentPlayer) || "P1".equals(currentPlayer);
+            // Check if it's our turn (using server-assigned playerId)
+            isPlayerTurn = myPlayerId != null && myPlayerId.equals(currentPlayer);
             currentRound = state.getInt("round", currentRound);
             actionTimer = 10f;
 
             JsonValue deathChoice = state.get("pendingDeathChoice");
             if (deathChoice != null) {
                 String chooser = deathChoice.getString("chooser", "");
-                if ("player-1".equals(chooser) || "P1".equals(chooser)) {
+                // Check if we need to make the death choice
+                if (myPlayerId != null && myPlayerId.equals(chooser)) {
                     String killerId = deathChoice.getString("killerId", "");
                     deathChoiceDialog.show(killerId, this::sendDeathChoice);
                 }
@@ -590,7 +600,8 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     @Override
     public void onGameOver(String winner, JsonValue state) {
         Gdx.app.log(TAG, "Game over! Winner: " + winner);
-        boolean isVictory = "player-1".equals(winner) || "P1".equals(winner);
+        String myPlayerId = GameSession.getInstance().getPlayerId();
+        boolean isVictory = myPlayerId != null && myPlayerId.equals(winner);
         Gdx.app.postRunnable(() -> ScreenManager.getInstance().showResultScreen(isVictory, winner));
     }
 

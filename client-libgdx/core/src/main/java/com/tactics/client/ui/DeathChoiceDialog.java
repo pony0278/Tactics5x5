@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.tactics.client.util.TextRenderer;
 
 /**
  * Modal dialog for death choice selection.
@@ -111,27 +112,43 @@ public class DeathChoiceDialog {
         shapeRenderer.rect(dialogX, dialogY, DIALOG_WIDTH, DIALOG_HEIGHT);
         shapeRenderer.end();
 
-        // Title
-        batch.begin();
-        font.getData().setScale(1.2f);
-        font.setColor(Color.WHITE);
-        String title = "MINION DIED!";
-        float titleWidth = title.length() * font.getXHeight() * 0.6f;
-        font.draw(batch, title, screenWidth / 2 - titleWidth / 2, dialogY + DIALOG_HEIGHT - 25);
+        // Title - use placeholders on TeaVM
+        boolean isTeaVM = TextRenderer.isTeaVM();
+        if (isTeaVM || font == null) {
+            // Draw placeholder rectangles for text
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
+            // Title placeholder
+            shapeRenderer.rect(screenWidth / 2 - 60, dialogY + DIALOG_HEIGHT - 40, 120, 20);
+            // Subtitle placeholder
+            shapeRenderer.rect(screenWidth / 2 - 80, dialogY + DIALOG_HEIGHT - 65, 160, 15);
+            // Timer placeholder
+            Color timerColor = timer < 2 ? GameColors.TIMER_CRITICAL : GameColors.TIMER_WARNING;
+            shapeRenderer.setColor(new Color(timerColor.r, timerColor.g, timerColor.b, 0.5f));
+            shapeRenderer.rect(screenWidth / 2 - 40, dialogY + DIALOG_HEIGHT - 90, 80, 15);
+            shapeRenderer.end();
+        } else {
+            batch.begin();
+            font.getData().setScale(1.2f);
+            font.setColor(Color.WHITE);
+            String title = "MINION DIED!";
+            float titleWidth = title.length() * font.getXHeight() * 0.6f;
+            font.draw(batch, title, screenWidth / 2 - titleWidth / 2, dialogY + DIALOG_HEIGHT - 25);
 
-        font.getData().setScale(0.9f);
-        String subtitle = "Choose buff for killer:";
-        float subtitleWidth = subtitle.length() * font.getXHeight() * 0.5f;
-        font.draw(batch, subtitle, screenWidth / 2 - subtitleWidth / 2, dialogY + DIALOG_HEIGHT - 55);
+            font.getData().setScale(0.9f);
+            String subtitle = "Choose buff for killer:";
+            float subtitleWidth = subtitle.length() * font.getXHeight() * 0.5f;
+            font.draw(batch, subtitle, screenWidth / 2 - subtitleWidth / 2, dialogY + DIALOG_HEIGHT - 55);
 
-        // Timer
-        Color timerColor = timer < 2 ? GameColors.TIMER_CRITICAL : GameColors.TIMER_WARNING;
-        font.setColor(timerColor);
-        String timerText = String.format("Time: %.1fs", timer);
-        float timerWidth = timerText.length() * font.getXHeight() * 0.5f;
-        font.draw(batch, timerText, screenWidth / 2 - timerWidth / 2, dialogY + DIALOG_HEIGHT - 80);
-        font.getData().setScale(1f);
-        batch.end();
+            // Timer
+            Color timerColor = timer < 2 ? GameColors.TIMER_CRITICAL : GameColors.TIMER_WARNING;
+            font.setColor(timerColor);
+            String timerText = String.format("Time: %.1fs", timer);
+            float timerWidth = timerText.length() * font.getXHeight() * 0.5f;
+            font.draw(batch, timerText, screenWidth / 2 - timerWidth / 2, dialogY + DIALOG_HEIGHT - 80);
+            font.getData().setScale(1f);
+            batch.end();
+        }
 
         // Buff buttons (2 rows of 3)
         float rowWidth = 3 * BUTTON_WIDTH + 2 * BUTTON_SPACING;
@@ -158,14 +175,22 @@ public class DeathChoiceDialog {
             shapeRenderer.rect(x, y, BUTTON_WIDTH, BUTTON_HEIGHT);
             shapeRenderer.end();
 
-            // Button text
-            batch.begin();
-            font.getData().setScale(0.75f);
-            font.setColor(Color.WHITE);
-            float textWidth = BUFF_TYPES[i].length() * font.getXHeight() * 0.5f;
-            font.draw(batch, BUFF_TYPES[i], x + BUTTON_WIDTH / 2 - textWidth / 2, y + BUTTON_HEIGHT / 2 + 5);
-            font.getData().setScale(1f);
-            batch.end();
+            // Button text - use placeholder on TeaVM
+            if (isTeaVM || font == null) {
+                shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+                shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
+                float textWidth = BUFF_TYPES[i].length() * 6;
+                shapeRenderer.rect(x + BUTTON_WIDTH / 2 - textWidth / 2, y + BUTTON_HEIGHT / 2 - 5, textWidth, 12);
+                shapeRenderer.end();
+            } else {
+                batch.begin();
+                font.getData().setScale(0.75f);
+                font.setColor(Color.WHITE);
+                float textWidth = BUFF_TYPES[i].length() * font.getXHeight() * 0.5f;
+                font.draw(batch, BUFF_TYPES[i], x + BUTTON_WIDTH / 2 - textWidth / 2, y + BUTTON_HEIGHT / 2 + 5);
+                font.getData().setScale(1f);
+                batch.end();
+            }
         }
     }
 

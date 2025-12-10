@@ -166,44 +166,48 @@ public class GameMessageHandler {
     /**
      * Create a MOVE action message.
      *
-     * @param playerId The player ID
+     * @param matchId  The match ID (from server's match_joined)
+     * @param playerId The player ID (from server's match_joined)
      * @param targetX  Target X position
      * @param targetY  Target Y position
      * @return JSON string
      */
-    public String createMoveAction(String playerId, int targetX, int targetY) {
-        return createActionMessage(playerId, "MOVE", targetX, targetY, null);
+    public String createMoveAction(String matchId, String playerId, int targetX, int targetY) {
+        return createActionMessage(matchId, playerId, "MOVE", targetX, targetY, null);
     }
 
     /**
      * Create an ATTACK action message.
      *
+     * @param matchId      The match ID
      * @param playerId     The player ID
      * @param targetX      Target X position
      * @param targetY      Target Y position
      * @param targetUnitId The ID of the unit to attack
      * @return JSON string
      */
-    public String createAttackAction(String playerId, int targetX, int targetY, String targetUnitId) {
-        return createActionMessage(playerId, "ATTACK", targetX, targetY, targetUnitId);
+    public String createAttackAction(String matchId, String playerId, int targetX, int targetY, String targetUnitId) {
+        return createActionMessage(matchId, playerId, "ATTACK", targetX, targetY, targetUnitId);
     }
 
     /**
      * Create a MOVE_AND_ATTACK action message.
      *
+     * @param matchId      The match ID
      * @param playerId     The player ID
      * @param targetX      Movement target X position
      * @param targetY      Movement target Y position
      * @param targetUnitId The ID of the unit to attack
      * @return JSON string
      */
-    public String createMoveAndAttackAction(String playerId, int targetX, int targetY, String targetUnitId) {
-        return createActionMessage(playerId, "MOVE_AND_ATTACK", targetX, targetY, targetUnitId);
+    public String createMoveAndAttackAction(String matchId, String playerId, int targetX, int targetY, String targetUnitId) {
+        return createActionMessage(matchId, playerId, "MOVE_AND_ATTACK", targetX, targetY, targetUnitId);
     }
 
     /**
      * Create a USE_SKILL action message.
      *
+     * @param matchId      The match ID
      * @param playerId     The player ID
      * @param skillId      The skill ID
      * @param targetX      Target X position (or -1 if not needed)
@@ -211,9 +215,10 @@ public class GameMessageHandler {
      * @param targetUnitId Target unit ID (or null if not needed)
      * @return JSON string
      */
-    public String createUseSkillAction(String playerId, String skillId, int targetX, int targetY, String targetUnitId) {
+    public String createUseSkillAction(String matchId, String playerId, String skillId, int targetX, int targetY, String targetUnitId) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"type\":\"action\",\"payload\":{");
+        sb.append("\"matchId\":\"").append(escapeJson(matchId)).append("\",");
         sb.append("\"playerId\":\"").append(escapeJson(playerId)).append("\",");
         sb.append("\"action\":{");
         sb.append("\"type\":\"USE_SKILL\",");
@@ -231,12 +236,14 @@ public class GameMessageHandler {
     /**
      * Create an END_TURN action message.
      *
+     * @param matchId  The match ID
      * @param playerId The player ID
      * @return JSON string
      */
-    public String createEndTurnAction(String playerId) {
+    public String createEndTurnAction(String matchId, String playerId) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"type\":\"action\",\"payload\":{");
+        sb.append("\"matchId\":\"").append(escapeJson(matchId)).append("\",");
         sb.append("\"playerId\":\"").append(escapeJson(playerId)).append("\",");
         sb.append("\"action\":{\"type\":\"END_TURN\"}");
         sb.append("}}");
@@ -244,36 +251,39 @@ public class GameMessageHandler {
     }
 
     /**
-     * Create a DRAFT_PICK action message.
+     * Create a select_team message for draft phase.
+     * This is a separate message type, NOT an action.
      *
+     * @param matchId    The match ID
      * @param playerId   The player ID
      * @param heroClass  The hero class selected
      * @param minion1    First minion type
      * @param minion2    Second minion type
      * @return JSON string
      */
-    public String createDraftPickAction(String playerId, String heroClass, String minion1, String minion2) {
+    public String createSelectTeamMessage(String matchId, String playerId, String heroClass, String minion1, String minion2) {
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"type\":\"action\",\"payload\":{");
+        sb.append("{\"type\":\"select_team\",\"payload\":{");
+        sb.append("\"matchId\":\"").append(escapeJson(matchId)).append("\",");
         sb.append("\"playerId\":\"").append(escapeJson(playerId)).append("\",");
-        sb.append("\"action\":{");
-        sb.append("\"type\":\"DRAFT_PICK\",");
         sb.append("\"heroClass\":\"").append(escapeJson(heroClass)).append("\",");
         sb.append("\"minions\":[\"").append(escapeJson(minion1)).append("\",\"").append(escapeJson(minion2)).append("\"]");
-        sb.append("}}}");
+        sb.append("}}");
         return sb.toString();
     }
 
     /**
      * Create a DEATH_CHOICE action message.
      *
+     * @param matchId  The match ID
      * @param playerId The player ID
      * @param buffType The buff type chosen (POWER, LIFE, SPEED, WEAKNESS, BLEED, SLOW)
      * @return JSON string
      */
-    public String createDeathChoiceAction(String playerId, String buffType) {
+    public String createDeathChoiceAction(String matchId, String playerId, String buffType) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"type\":\"action\",\"payload\":{");
+        sb.append("\"matchId\":\"").append(escapeJson(matchId)).append("\",");
         sb.append("\"playerId\":\"").append(escapeJson(playerId)).append("\",");
         sb.append("\"action\":{");
         sb.append("\"type\":\"DEATH_CHOICE\",");
@@ -291,9 +301,10 @@ public class GameMessageHandler {
         return "{\"type\":\"ping\",\"payload\":{}}";
     }
 
-    private String createActionMessage(String playerId, String actionType, int targetX, int targetY, String targetUnitId) {
+    private String createActionMessage(String matchId, String playerId, String actionType, int targetX, int targetY, String targetUnitId) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"type\":\"action\",\"payload\":{");
+        sb.append("\"matchId\":\"").append(escapeJson(matchId)).append("\",");
         sb.append("\"playerId\":\"").append(escapeJson(playerId)).append("\",");
         sb.append("\"action\":{");
         sb.append("\"type\":\"").append(actionType).append("\"");
