@@ -143,7 +143,7 @@ public class DeathChoiceDialog {
             // Timer
             Color timerColor = timer < 2 ? GameColors.TIMER_CRITICAL : GameColors.TIMER_WARNING;
             font.setColor(timerColor);
-            String timerText = String.format("Time: %.1fs", timer);
+            String timerText = "Time: " + formatTimer(timer) + "s";
             float timerWidth = timerText.length() * font.getXHeight() * 0.5f;
             font.draw(batch, timerText, screenWidth / 2 - timerWidth / 2, dialogY + DIALOG_HEIGHT - 80);
             font.getData().setScale(1f);
@@ -250,5 +250,14 @@ public class DeathChoiceDialog {
      */
     public String getKillerId() {
         return killerId;
+    }
+
+    /**
+     * Format timer (GWT doesn't support String.format).
+     */
+    private String formatTimer(float value) {
+        int intPart = (int) value;
+        int fracPart = (int) ((value - intPart) * 10);
+        return intPart + "." + fracPart;
     }
 }

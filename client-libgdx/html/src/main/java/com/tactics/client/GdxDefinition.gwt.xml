@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC "-//Google Inc.//DTD Google Web Toolkit 2.10.0//EN"
+        "http://www.gwtproject.org/doctype/2.10.0/gwt-module.dtd">
+<module rename-to="html">
+    <inherits name='com.badlogic.gdx.backends.gdx_backends_gwt' />
+
+    <!-- Entry point -->
+    <entry-point class='com.tactics.client.gwt.GwtLauncher' />
+
+    <!-- Source paths - relative to this module's package (com.tactics.client) -->
+    <!-- Empty path means current package, gwt means the gwt subpackage -->
+    <source path="" />
+    <source path="gwt" />
+
+    <!-- Asset path for GWT preloader -->
+    <set-configuration-property name="gdx.assetpath" value="../assets" />
+
+    <!-- Enable reflection for specific classes if needed -->
+    <extend-configuration-property name="gdx.reflect.include" value="com.tactics.client" />
+
+    <!-- Set default user agents -->
+    <set-property name="user.agent" value="gecko1_8, safari" />
+
+    <!-- Optimize -->
+    <set-property name="compiler.stackMode" value="strip" />
+    <set-configuration-property name="devModeRedirectEnabled" value="true" />
+</module>

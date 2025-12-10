@@ -9,7 +9,8 @@ A 5x5 tactical board game featuring a game engine, WebSocket server, and cross-p
 - JUnit 5.10
 - Jetty 11 (WebSocket Server)
 - LibGDX 1.12+ (Client)
-- TeaVM 0.9+ (Web Export)
+- TeaVM 0.9+ (Web Export - legacy)
+- GWT 2.10.0 (Web Export - new)
 - java-websocket 1.5+ (WebSocket Client)
 
 ## Project Structure
@@ -38,7 +39,8 @@ A 5x5 tactical board game featuring a game engine, WebSocket server, and cross-p
     │       └── render/      # Board, unit rendering
     ├── desktop/             # Desktop launcher (dev/test)
     ├── android/             # Android launcher
-    ├── teavm/               # Web export (TeaVM)
+    ├── teavm/               # Web export (TeaVM - legacy)
+    ├── html/                # Web export (GWT - new, official LibGDX)
     └── assets/              # Sprites, fonts (placeholder first)
 ```
 
@@ -69,7 +71,9 @@ mvn exec:java                  # Start server
 cd client-libgdx
 ./gradlew desktop:run          # Run desktop version
 ./gradlew android:assembleDebug # Build Android APK
-./gradlew teavm:build          # Build web version
+./gradlew teavm:build          # Build web version (TeaVM)
+./gradlew html:compileGwt      # Build web version (GWT)
+./gradlew html:dist            # Create GWT distribution
 ```
 
 ---
@@ -98,6 +102,7 @@ cd client-libgdx
 | E-R1 | Code Health: Split BattleScreen | 1-2 hours | 🟡 Medium | ✅ Complete |
 | E-R2 | Code Health: Centralize Colors | 0.5 hours | 🟡 Medium | ✅ Complete |
 | E-6 | Web Export Test (TeaVM) | 2-3 hours | 🔴 High | ✅ Complete |
+| E-6.5 | GWT Web Export (Official LibGDX) | 2-3 hours | 🔴 High | ✅ Complete |
 | E-7 | Android Export | 2-3 hours | 🟡 Medium | ⬜ Pending |
 | E-8 | Animations & Effects | 8-10 hours | 🟡 Medium | ⬜ Pending |
 | E-9 | Art Asset Replacement | TBD | 🟢 Low | ⬜ Pending |
@@ -130,9 +135,10 @@ cd client-libgdx
 ### Target Platforms
 | Platform | Priority | Technology | Status |
 |----------|----------|------------|--------|
-| **Web** | 🔴 High | TeaVM | Primary target |
-| **Desktop** | 🟡 Medium | LWJGL | Dev/testing |
-| **Android** | 🟡 Medium | Native | Secondary |
+| **Web** | 🔴 High | GWT (official) | ✅ Primary target |
+| **Web** | 🟡 Medium | TeaVM | ✅ Alternative |
+| **Desktop** | 🟡 Medium | LWJGL | ✅ Dev/testing |
+| **Android** | 🟡 Medium | Native | ⬜ Secondary |
 | **iOS** | ❌ None | - | Not supported (RoboVM deprecated) |
 
 ### Development Principles
@@ -193,12 +199,24 @@ dependencies {
 }
 ```
 
+### GWT Dependencies
+```groovy
+// build.gradle (html module)
+dependencies {
+    implementation project(":core")
+    implementation "com.badlogicgames.gdx:gdx:$gdxVersion:sources"
+    implementation "com.badlogicgames.gdx:gdx-backend-gwt:$gdxVersion"
+    implementation "com.badlogicgames.gdx:gdx-backend-gwt:$gdxVersion:sources"
+}
+```
+
 ### Platform-Specific WebSocket
 | Platform | Library | Notes |
 |----------|---------|-------|
 | Desktop | java-websocket | Standard Java library |
 | Android | java-websocket | Same as desktop |
 | Web/TeaVM | Browser WebSocket | Via JSBody annotation |
+| Web/GWT | Browser WebSocket | Via JSNI |
 
 ---
 
@@ -461,6 +479,7 @@ Follow GAME_FLOW_V3.md for screen transitions.
 
 ---
 
-*Last updated: 2025-12-09*
+*Last updated: 2025-12-10*
 *Tests: 1010 passing*
-*Current Phase: E - LibGDX + TeaVM Client*
+*Current Phase: E - LibGDX + TeaVM/GWT Client*
+*GWT Build: ✅ Successful (html/build/dist/ ~5MB)*

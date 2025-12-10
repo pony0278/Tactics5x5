@@ -238,7 +238,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
         drawButton(timerX, TURN_INDICATOR_Y - TURN_INDICATOR_HEIGHT + 5, timerWidth, TURN_INDICATOR_HEIGHT - 10, timerBgColor, Color.DARK_GRAY);
 
         Color timerColor = actionTimer < 3 ? GameColors.TIMER_CRITICAL : (actionTimer < 5 ? GameColors.TIMER_WARNING : GameColors.TIMER_NORMAL);
-        drawCenteredText(String.format("%.1fs", actionTimer), timerX + timerWidth / 2, TURN_INDICATOR_Y - 10);
+        drawCenteredText(formatTimer(actionTimer, 1) + "s", timerX + timerWidth / 2, TURN_INDICATOR_Y - 10);
         if (!isTeaVM && font != null) font.getData().setScale(1f);
     }
 
@@ -617,5 +617,22 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
     public void showDeathChoice(String killerId) {
         deathChoiceDialog.show(killerId, this::sendDeathChoice);
+    }
+
+    // ========== GWT-compatible Utilities ==========
+
+    /**
+     * Format a float timer value (GWT doesn't support String.format).
+     * @param value The timer value
+     * @param decimals Number of decimal places (0 or 1)
+     * @return Formatted string like "5.2" or "5"
+     */
+    private String formatTimer(float value, int decimals) {
+        if (decimals == 0) {
+            return String.valueOf((int) value);
+        }
+        int intPart = (int) value;
+        int fracPart = (int) ((value - intPart) * 10);
+        return intPart + "." + fracPart;
     }
 }

@@ -154,7 +154,7 @@ public class DraftScreen extends BaseScreen implements WebSocketListener, GameMe
 
         Color timerColor = draftTimer < 10 ? GameColors.TIMER_CRITICAL : GameColors.TIMER_NORMAL;
         if (!isTeaVM && font != null) font.getData().setScale(1.2f);
-        drawCenteredText(String.format("Time: %.0fs", draftTimer), timerX + timerWidth / 2, TIMER_Y - timerHeight / 2 + 5);
+        drawCenteredText("Time: " + (int) draftTimer + "s", timerX + timerWidth / 2, TIMER_Y - timerHeight / 2 + 5);
         if (!isTeaVM && font != null) font.getData().setScale(1f);
     }
 

@@ -1,0 +1,74 @@
+// GWT/HTML module build configuration
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java', '../core/src/main/java']
+        }
+        resources {
+            srcDirs = ['src/main/resources', '../assets']
+        }
+    }
+}
+
+gwt {
+    gwtVersion = project.gwtVersion
+    modules 'com.tactics.client.GdxDefinition'
+    devModules 'com.tactics.client.GdxDefinitionSuperdev'
+
+    // Increase memory for GWT compiler
+    minHeapSize = '512M'
+    maxHeapSize = '2G'
+
+    compiler {
+        strict = true
+        style = 'OBF'  // DETAILED, PRETTY, or OBF (obfuscated)
+        optimize = 9
+        disableCastChecking = true
+    }
+}
+
+gretty {
+    contextPath = '/'
+    extraResourceBase 'src/main/webapp'
+}
+
+task superDev(type: org.wisepersist.gradle.plugins.gwt.GwtSuperDev) {
+    workDir = file("${buildDir}/superdev")
+    doFirst {
+        gwt.modules = gwt.devModules
+    }
+}
+
+task dist(dependsOn: [compileGwt]) {
+    doLast {
+        copy {
+            from('src/main/webapp') {
+                exclude 'index.html'
+            }
+            into "${buildDir}/dist"
+        }
+        copy {
+            from('src/main/webapp') {
+                include 'index.html'
+            }
+            into "${buildDir}/dist"
+            filter { line ->
+                line.replace('<!--GWTNOSCRIPT-->', '<script src="html/html.nocache.js"></script>')
+            }
+        }
+        copy {
+            from("${buildDir}/gwt/out")
+            into "${buildDir}/dist"
+        }
+    }
+}
+
+task cleanDist(type: Delete) {
+    delete "${buildDir}/dist"
+}
