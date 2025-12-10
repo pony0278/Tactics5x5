@@ -34,13 +34,18 @@ public class BoardRenderer {
     private final ShapeRenderer shapeRenderer;
     private final SpriteBatch batch;
     private final BitmapFont font;
-    private final boolean isTeaVM;
 
     public BoardRenderer(ShapeRenderer shapeRenderer, SpriteBatch batch, BitmapFont font) {
         this.shapeRenderer = shapeRenderer;
         this.batch = batch;
         this.font = font;
-        this.isTeaVM = TextRenderer.isTeaVM();
+    }
+
+    /**
+     * Check if running in web browser (dynamically, not cached).
+     */
+    private boolean isWebBuild() {
+        return TextRenderer.isWebBuild();
     }
 
     /**
@@ -87,7 +92,7 @@ public class BoardRenderer {
         }
 
         // Draw grid coordinates (debug) - skip on TeaVM
-        if (showCoordinates && !isTeaVM && font != null) {
+        if (showCoordinates && !isWebBuild() && font != null) {
             font.getData().setScale(0.5f);
             batch.begin();
             for (int x = 0; x < GRID_SIZE; x++) {
@@ -123,7 +128,7 @@ public class BoardRenderer {
             shapeRenderer.end();
 
             // Draw buff letter - use placeholder on TeaVM
-            if (isTeaVM || font == null) {
+            if (isWebBuild() || font == null) {
                 shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
                 shapeRenderer.setColor(new Color(1, 1, 1, 0.5f));
                 shapeRenderer.rect(drawX + size / 2 - 4, drawY + size / 2 - 6, 10, 12);
@@ -170,7 +175,7 @@ public class BoardRenderer {
             drawFilledRect(drawX, drawY, UNIT_SIZE, UNIT_SIZE, unitColor, borderColor);
 
             // Draw unit label (H=Hero, M=Minion) - use placeholder on TeaVM
-            if (isTeaVM || font == null) {
+            if (isWebBuild() || font == null) {
                 shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
                 shapeRenderer.setColor(new Color(1, 1, 1, 0.5f));
                 shapeRenderer.rect(drawX + UNIT_SIZE / 2 - 6, drawY + UNIT_SIZE / 2 - 8, 12, 16);

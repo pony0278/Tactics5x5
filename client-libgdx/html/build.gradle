@@ -27,8 +27,8 @@ gwt {
 
     compiler {
         strict = true
-        style = 'OBF'  // DETAILED, PRETTY, or OBF (obfuscated)
-        optimize = 9
+        style = 'DETAILED'  // DETAILED for debugging, OBF for production
+        optimize = 0        // 0 for debugging, 9 for production
         disableCastChecking = true
     }
 }
@@ -65,6 +65,11 @@ task dist(dependsOn: [compileGwt]) {
         copy {
             from("${buildDir}/gwt/out")
             into "${buildDir}/dist"
+        }
+        // Copy assets folder
+        copy {
+            from('../assets')
+            into "${buildDir}/dist/assets"
         }
     }
 }

@@ -11,68 +11,96 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 /**
  * Web-safe text rendering utility.
  *
- * BitmapFont uses Pool reflection (GlyphLayout, GlyphRun) which doesn't work in TeaVM/GWT.
- * This class detects the runtime environment and provides appropriate rendering:
+ * BitmapFont rendering:
  * - Desktop/Android: Uses BitmapFont normally
- * - Web (TeaVM/GWT): Skips text, uses shape placeholders
+ * - GWT: Uses BitmapFont (supported)
+ * - TeaVM: Uses shape placeholders (BitmapFont has issues)
  */
 public class TextRenderer {
 
-    // Cached value - null means not yet detected
+    // Cached values
     private static Boolean isWebCached = null;
+    private static Boolean isTeaVMCached = null;
 
     /**
-     * Detect if running in web environment using LibGDX Application type.
-     * This method is GWT-compatible (no reflection).
-     */
-    private static boolean detectWebBuild() {
-        // Use LibGDX's Application type - works in GWT
-        if (Gdx.app != null) {
-            Application.ApplicationType type = Gdx.app.getType();
-            return type == Application.ApplicationType.WebGL;
-        }
-        // Fallback: assume desktop if Gdx.app not yet initialized
-        return false;
-    }
-
-    /**
-     * Check if running in web environment (TeaVM or GWT).
-     * Value is cached after first call for performance.
+     * Check if running in web environment (WebGL).
      */
     public static boolean isWebBuild() {
-        if (isWebCached == null) {
-            isWebCached = detectWebBuild();
+        if (isWebCached == null && Gdx.app != null) {
+            try {
+                isWebCached = Gdx.app.getType() == Application.ApplicationType.WebGL;
+            } catch (Exception e) {
+                isWebCached = true;
+            }
         }
-        return isWebCached;
+        return isWebCached != null ? isWebCached : true;
     }
 
     /**
-     * Check if running in TeaVM/web environment.
-     * @deprecated Use {@link #isWebBuild()} instead
+     * Check if running in TeaVM specifically (not GWT).
+     * TeaVM has issues with BitmapFont Pool reflection.
+     * GWT can handle BitmapFont fine.
+     */
+    public static boolean isTeaVMBuild() {
+        if (isTeaVMCached == null) {
+            isTeaVMCached = detectTeaVM();
+        }
+        return isTeaVMCached;
+    }
+
+    private static boolean detectTeaVM() {
+        // TeaVM sets a specific system property or has specific class
+        // In GWT, system properties are very limited
+        // TeaVM: org.teavm.* classes exist
+        // GWT: com.google.gwt.* classes exist
+        try {
+            // Try to detect TeaVM by checking for its runtime marker
+            // TeaVM's JavaScript runtime has specific characteristics
+            String vmName = System.getProperty("java.vm.name", "");
+            if (vmName.toLowerCase().contains("teavm")) {
+                return true;
+            }
+            // In browser, both GWT and TeaVM have limited System.getProperty
+            // GWT returns null for most properties
+            // For now, assume NOT TeaVM if we're in GWT (GWT can handle fonts)
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if fonts should be skipped (only for TeaVM).
+     * GWT can handle BitmapFont.
+     */
+    public static boolean shouldSkipFonts() {
+        return isTeaVMBuild();
+    }
+
+    /**
+     * @deprecated Use {@link #isWebBuild()} or {@link #shouldSkipFonts()}
      */
     @Deprecated
     public static boolean isTeaVM() {
-        return isWebBuild();
+        return shouldSkipFonts();
     }
 
     /**
-     * Draw text safely - skips on web builds, uses BitmapFont on desktop.
-     *
-     * @param batch SpriteBatch for text rendering
-     * @param font BitmapFont to use (ignored on web)
-     * @param text Text to draw
-     * @param x X position
-     * @param y Y position
+     * Draw text safely.
+     * Works on Desktop, Android, and GWT.
+     * Falls back to nothing on TeaVM.
      */
     public static void drawText(SpriteBatch batch, BitmapFont font,
                                 String text, float x, float y) {
-        if (isWebBuild()) {
-            // Skip text on web - use HTML overlay or shapes instead
+        if (shouldSkipFonts() || font == null || text == null) {
             return;
         }
-        // Desktop: use BitmapFont with pre-allocated GlyphLayout
-        GlyphLayout layout = new GlyphLayout(font, text);
-        font.draw(batch, layout, x, y);
+        try {
+            GlyphLayout layout = new GlyphLayout(font, text);
+            font.draw(batch, layout, x, y);
+        } catch (Exception e) {
+            // Font rendering failed - ignore
+        }
     }
 
     /**
@@ -80,16 +108,19 @@ public class TextRenderer {
      */
     public static void drawCenteredText(SpriteBatch batch, BitmapFont font,
                                         String text, float centerX, float y) {
-        if (isWebBuild()) {
+        if (shouldSkipFonts() || font == null || text == null) {
             return;
         }
-        GlyphLayout layout = new GlyphLayout(font, text);
-        font.draw(batch, layout, centerX - layout.width / 2, y);
+        try {
+            GlyphLayout layout = new GlyphLayout(font, text);
+            font.draw(batch, layout, centerX - layout.width / 2, y);
+        } catch (Exception e) {
+            // Font rendering failed - ignore
+        }
     }
 
     /**
-     * Draw a text placeholder rectangle (for TeaVM builds).
-     * Use this to indicate where text would appear.
+     * Draw a text placeholder rectangle (for builds that can't use fonts).
      */
     public static void drawTextPlaceholder(ShapeRenderer shapes,
                                            float x, float y,

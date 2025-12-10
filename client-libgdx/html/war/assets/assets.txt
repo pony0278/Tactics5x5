@@ -1,5 +1,5 @@
 d:assets:assets:0:application/unknown:1
-t:assets.txt:assets-9114824b0035286b0d23f59937fc9ebd.txt:48:text/plain:1
+t:assets.txt:assets-1e1e0d4165e69f9e4a45c3f5fec92040.txt:87:text/plain:1
 t:default.fnt:default-301cd793092dcaaafd793b66d5d46060.fnt:11628:application/unknown:1
 i:default.png:default-3ea789c54d8f27e82e768a7f9f41f55f.png:10653:image/png:1
 t:com/badlogic/gdx/graphics/g3d/particles/particles.fragment.glsl:particles.fragment-b90524761fdf09b0a836056d590c30b8.glsl:820:application/unknown:1

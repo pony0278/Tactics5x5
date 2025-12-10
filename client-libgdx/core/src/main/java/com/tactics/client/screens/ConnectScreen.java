@@ -2,6 +2,7 @@ package com.tactics.client.screens;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.utils.JsonValue;
 import com.tactics.client.GameSession;
 import com.tactics.client.TacticsGame;
@@ -81,13 +82,14 @@ public class ConnectScreen extends BaseScreen implements WebSocketListener, Game
 
     @Override
     protected void draw() {
-        // Title (larger text placeholder on TeaVM)
-        if (!isTeaVM && font != null) {
-            font.getData().setScale(2.5f);
+        // Title (larger text)
+        BitmapFont f = getFont();
+        if (!shouldSkipFonts() && f != null) {
+            f.getData().setScale(2.5f);
         }
         drawCenteredText("5x5 TACTICS", WORLD_WIDTH / 2, WORLD_HEIGHT - 80);
-        if (!isTeaVM && font != null) {
-            font.getData().setScale(1f);
+        if (!shouldSkipFonts() && f != null) {
+            f.getData().setScale(1f);
         }
 
         // Server URL
@@ -114,14 +116,14 @@ public class ConnectScreen extends BaseScreen implements WebSocketListener, Game
             drawText(errorMessage, BUTTON_X, BUTTON_Y - 60, Color.RED);
         }
 
-        // Instructions (smaller text on desktop)
-        if (!isTeaVM && font != null) {
-            font.getData().setScale(0.8f);
+        // Instructions (smaller text)
+        if (!shouldSkipFonts() && f != null) {
+            f.getData().setScale(0.8f);
         }
         drawCenteredText("Start server with: mvn exec:java", WORLD_WIDTH / 2, 80);
         drawCenteredText("Press Connect to join a match", WORLD_WIDTH / 2, 50);
-        if (!isTeaVM && font != null) {
-            font.getData().setScale(1f);
+        if (!shouldSkipFonts() && f != null) {
+            f.getData().setScale(1f);
         }
     }
 

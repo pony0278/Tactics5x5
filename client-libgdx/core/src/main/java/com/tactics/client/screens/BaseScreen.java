@@ -29,27 +29,35 @@ public abstract class BaseScreen extends InputAdapter implements Screen {
     protected final TacticsGame game;
     protected final SpriteBatch batch;
     protected final ShapeRenderer shapeRenderer;
-    protected final BitmapFont font;  // Only used on desktop/Android
-    protected final boolean isTeaVM;  // True if running in web browser
+    protected BitmapFont font;  // Only used on desktop/Android, lazy-loaded
+    protected boolean fontLoaded = false;  // Track if we've attempted to load font
     protected final OrthographicCamera camera;
     protected final Viewport viewport;
     protected final InputMultiplexer inputMultiplexer;
 
     protected Color backgroundColor = new Color(0.1f, 0.1f, 0.2f, 1);
 
+    /**
+     * Check if running in web browser (TeaVM or GWT).
+     */
+    protected boolean isWebBuild() {
+        return TextRenderer.isWebBuild();
+    }
+
+    /**
+     * Check if fonts should be skipped (TeaVM only, not GWT).
+     */
+    protected boolean shouldSkipFonts() {
+        return TextRenderer.shouldSkipFonts();
+    }
+
     public BaseScreen(TacticsGame game) {
         this.game = game;
         this.batch = game.batch;
         this.shapeRenderer = new ShapeRenderer();
-        this.isTeaVM = TextRenderer.isTeaVM();
 
-        // Only load BitmapFont on desktop/Android - TeaVM doesn't support Pool reflection
-        if (!isTeaVM) {
-            this.font = new BitmapFont(Gdx.files.internal("default.fnt"));
-            this.font.setColor(Color.WHITE);
-        } else {
-            this.font = null; // Not used on web
-        }
+        // Don't load font here - do it lazily when first needed
+        this.font = null;
 
         // Setup camera and viewport
         this.camera = new OrthographicCamera();
@@ -59,6 +67,23 @@ public abstract class BaseScreen extends InputAdapter implements Screen {
         // Setup input handling
         this.inputMultiplexer = new InputMultiplexer();
         inputMultiplexer.addProcessor(this);
+    }
+
+    /**
+     * Lazily load font when first needed.
+     * Works on Desktop, Android, and GWT (but not TeaVM).
+     */
+    protected BitmapFont getFont() {
+        if (!fontLoaded && !shouldSkipFonts()) {
+            try {
+                this.font = new BitmapFont(Gdx.files.internal("default.fnt"));
+                this.font.setColor(Color.WHITE);
+            } catch (Exception e) {
+                Gdx.app.error("BaseScreen", "Failed to load font: " + e.getMessage());
+            }
+            fontLoaded = true;
+        }
+        return font;
     }
 
     @Override
@@ -185,63 +210,92 @@ public abstract class BaseScreen extends InputAdapter implements Screen {
     }
 
     /**
-     * Draw centered text. On TeaVM, draws a placeholder rectangle instead.
+     * Draw centered text. On web builds, draws a placeholder rectangle instead.
      * @param text Text to draw
      * @param centerX Center X position
      * @param y Y position (baseline)
      */
     protected void drawCenteredText(String text, float centerX, float y) {
-        if (isTeaVM) {
-            // On web: draw a placeholder rectangle
+        if (text == null) return;
+        if (shouldSkipFonts()) {
+            // TeaVM: draw a placeholder rectangle
             float width = text.length() * 8; // Approximate width
-            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
-            shapeRenderer.rect(centerX - width / 2, y - 15, width, 20);
-            shapeRenderer.end();
+            try {
+                shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+                shapeRenderer.setColor(0.8f, 0.8f, 0.8f, 0.3f);
+                shapeRenderer.rect(centerX - width / 2, y - 15, width, 20);
+            } finally {
+                shapeRenderer.end();
+            }
         } else {
-            // Desktop: use BitmapFont
-            TextRenderer.drawCenteredText(batch, font, text, centerX, y);
+            // Desktop/GWT: use BitmapFont
+            BitmapFont f = getFont();
+            if (f != null) {
+                batch.begin();
+                TextRenderer.drawCenteredText(batch, f, text, centerX, y);
+                batch.end();
+            }
         }
     }
 
     /**
-     * Draw text at position. On TeaVM, draws a placeholder rectangle instead.
+     * Draw text at position. On web builds, draws a placeholder rectangle instead.
      * @param text Text to draw
      * @param x X position
      * @param y Y position (baseline)
      */
     protected void drawText(String text, float x, float y) {
-        if (isTeaVM) {
-            // On web: draw a placeholder rectangle
+        if (text == null) return;
+        if (shouldSkipFonts()) {
+            // TeaVM: draw a placeholder rectangle
             float width = text.length() * 8;
-            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
-            shapeRenderer.rect(x, y - 15, width, 20);
-            shapeRenderer.end();
+            try {
+                shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+                shapeRenderer.setColor(0.8f, 0.8f, 0.8f, 0.3f);
+                shapeRenderer.rect(x, y - 15, width, 20);
+            } finally {
+                shapeRenderer.end();
+            }
         } else {
-            TextRenderer.drawText(batch, font, text, x, y);
+            // Desktop/GWT: use BitmapFont
+            BitmapFont f = getFont();
+            if (f != null) {
+                batch.begin();
+                TextRenderer.drawText(batch, f, text, x, y);
+                batch.end();
+            }
         }
     }
 
     /**
-     * Draw text at position with specific color. On TeaVM, draws a placeholder rectangle.
+     * Draw text at position with specific color. On web builds, draws a placeholder rectangle.
      * @param text Text to draw
      * @param x X position
      * @param y Y position
      * @param color Text color
      */
     protected void drawText(String text, float x, float y, Color color) {
-        if (isTeaVM) {
-            // On web: draw a colored placeholder rectangle
+        if (text == null || color == null) return;
+        if (shouldSkipFonts()) {
+            // TeaVM: draw a colored placeholder rectangle
             float width = text.length() * 8;
-            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            shapeRenderer.setColor(new Color(color.r, color.g, color.b, 0.5f));
-            shapeRenderer.rect(x, y - 15, width, 20);
-            shapeRenderer.end();
+            try {
+                shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+                shapeRenderer.setColor(color.r, color.g, color.b, 0.5f);
+                shapeRenderer.rect(x, y - 15, width, 20);
+            } finally {
+                shapeRenderer.end();
+            }
         } else {
-            font.setColor(color);
-            TextRenderer.drawText(batch, font, text, x, y);
-            font.setColor(Color.WHITE);
+            // Desktop/GWT: use BitmapFont
+            BitmapFont f = getFont();
+            if (f != null) {
+                batch.begin();
+                f.setColor(color);
+                TextRenderer.drawText(batch, f, text, x, y);
+                f.setColor(Color.WHITE);
+                batch.end();
+            }
         }
     }
 

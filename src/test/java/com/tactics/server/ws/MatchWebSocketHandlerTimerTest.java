@@ -140,9 +140,9 @@ class MatchWebSocketHandlerTimerTest {
     class TimerMessageFormatTests {
 
         @Test
-        @DisplayName("TA-006: YOUR_TURN includes timer info when game starts")
+        @DisplayName("TA-006: YOUR_TURN includes timer info when battle starts after draft")
         void ta006_yourTurnIncludesTimerInfo() {
-            // Given: Two players join a match
+            // Given: Two players join a match and complete draft
             Unit hero1 = createHero("p1_hero", new PlayerId("P1"), 5, new Position(1, 1));
             Unit hero2 = createHero("p2_hero", new PlayerId("P2"), 5, new Position(3, 3));
             GameState state = createGameState(Arrays.asList(hero1, hero2), new PlayerId("P1"));
@@ -159,11 +159,18 @@ class MatchWebSocketHandlerTimerTest {
             handler.onOpen(conn1);
             handler.onMessage(conn1, joinMsg);
 
-            // P2 joins - this triggers game start
+            // P2 joins - this starts draft phase (not battle)
             handler.onOpen(conn2);
             handler.onMessage(conn2, joinMsg);
 
-            // Then: P1 receives YOUR_TURN with timer info
+            // Both players submit their draft
+            String p1Draft = "{\"type\":\"select_team\",\"payload\":{\"matchId\":\"match-1\",\"playerId\":\"P1\",\"heroClass\":\"WARRIOR\",\"minions\":[\"TANK\",\"ARCHER\"]}}";
+            String p2Draft = "{\"type\":\"select_team\",\"payload\":{\"matchId\":\"match-1\",\"playerId\":\"P2\",\"heroClass\":\"MAGE\",\"minions\":[\"TANK\",\"ASSASSIN\"]}}";
+
+            handler.onMessage(conn1, p1Draft);
+            handler.onMessage(conn2, p2Draft);
+
+            // Then: P1 receives YOUR_TURN with timer info after draft completes
             List<String> yourTurnMsgs = conn1.getMessagesByType("your_turn");
             assertEquals(1, yourTurnMsgs.size());
 
@@ -264,7 +271,7 @@ class MatchWebSocketHandlerTimerTest {
     class TimerStateIntegrationTests {
 
         @Test
-        @DisplayName("Timer starts when both players join")
+        @DisplayName("Timer starts when both players complete draft")
         void timerStartsWhenBothPlayersJoin() {
             // Given: Empty match
             Unit hero1 = createHero("p1_hero", new PlayerId("P1"), 5, new Position(1, 1));
@@ -280,13 +287,23 @@ class MatchWebSocketHandlerTimerTest {
             handler.onOpen(conn1);
             handler.onMessage(conn1, "{\"type\":\"join_match\",\"payload\":{\"matchId\":\"match-1\"}}");
 
-            // Timer not started yet (only 1 player)
+            // Timer not started yet (only 1 player, and no draft)
             assertNull(timerService.getTimerState("match-1", TimerType.ACTION));
 
             handler.onOpen(conn2);
             handler.onMessage(conn2, "{\"type\":\"join_match\",\"payload\":{\"matchId\":\"match-1\"}}");
 
-            // Then: Timer is now running
+            // Timer still not started (need draft completion)
+            assertNull(timerService.getTimerState("match-1", TimerType.ACTION));
+
+            // Both players submit draft
+            String p1Draft = "{\"type\":\"select_team\",\"payload\":{\"matchId\":\"match-1\",\"playerId\":\"P1\",\"heroClass\":\"WARRIOR\",\"minions\":[\"TANK\",\"ARCHER\"]}}";
+            String p2Draft = "{\"type\":\"select_team\",\"payload\":{\"matchId\":\"match-1\",\"playerId\":\"P2\",\"heroClass\":\"MAGE\",\"minions\":[\"TANK\",\"ASSASSIN\"]}}";
+
+            handler.onMessage(conn1, p1Draft);
+            handler.onMessage(conn2, p2Draft);
+
+            // Then: Timer is now running after draft completes
             assertEquals(TimerState.RUNNING, timerService.getTimerState("match-1", TimerType.ACTION));
         }
 

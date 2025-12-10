@@ -3,6 +3,8 @@ package com.tactics.client.gwt;
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.backends.gwt.GwtApplication;
 import com.badlogic.gdx.backends.gwt.GwtApplicationConfiguration;
+import com.badlogic.gdx.backends.gwt.preloader.Preloader;
+import com.google.gwt.core.client.GWT;
 import com.tactics.client.TacticsGame;
 import com.tactics.client.net.WebSocketFactory;
 
@@ -26,5 +28,24 @@ public class GwtLauncher extends GwtApplication {
         // Register GWT-specific WebSocket client creator
         WebSocketFactory.registerCreator(GwtWebSocketClient::new);
         return new TacticsGame();
+    }
+
+    @Override
+    public Preloader.PreloaderCallback getPreloaderCallback() {
+        // Use default preloader with error logging
+        return new Preloader.PreloaderCallback() {
+            @Override
+            public void error(String file) {
+                GWT.log("Preloader error: " + file);
+            }
+
+            @Override
+            public void update(Preloader.PreloaderState state) {
+                // Log progress for debugging
+                if (state.hasEnded()) {
+                    GWT.log("Preloader finished");
+                }
+            }
+        };
     }
 }

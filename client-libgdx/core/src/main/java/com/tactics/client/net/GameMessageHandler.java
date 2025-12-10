@@ -32,6 +32,27 @@ public class GameMessageHandler {
         void onPong();
 
         void onUnknownMessage(String type, JsonValue payload);
+
+        /**
+         * Called when draft_ready message is received.
+         * @param playerId The player who submitted their draft
+         * @param heroClass The hero class they selected
+         * @param draftComplete True if both players are now ready
+         */
+        default void onDraftReady(String playerId, String heroClass, boolean draftComplete) {}
+
+        /**
+         * Called when game_ready message is received.
+         * @param phase The current game phase (usually "DRAFT")
+         */
+        default void onGameReady(String phase) {}
+
+        /**
+         * Called when your_turn message is received.
+         * @param unitId The unit that should act
+         * @param timerInfo Timer information (actionStartTime, timeoutMs, timerType)
+         */
+        default void onYourTurn(String unitId, JsonValue timerInfo) {}
     }
 
     private final JsonReader jsonReader = new JsonReader();
@@ -80,6 +101,15 @@ public class GameMessageHandler {
                     break;
                 case "pong":
                     handlePong();
+                    break;
+                case "draft_ready":
+                    handleDraftReady(payload);
+                    break;
+                case "game_ready":
+                    handleGameReady(payload);
+                    break;
+                case "your_turn":
+                    handleYourTurn(payload);
                     break;
                 default:
                     Gdx.app.log(TAG, "Unknown message type: " + type);
@@ -142,6 +172,38 @@ public class GameMessageHandler {
 
         if (messageListener != null) {
             messageListener.onPong();
+        }
+    }
+
+    private void handleDraftReady(JsonValue payload) {
+        String playerId = payload.getString("playerId", "");
+        String heroClass = payload.getString("heroClass", "");
+        boolean draftComplete = payload.getBoolean("draftComplete", false);
+
+        Gdx.app.log(TAG, "Draft ready: " + playerId + " selected " + heroClass + ", complete=" + draftComplete);
+
+        if (messageListener != null) {
+            messageListener.onDraftReady(playerId, heroClass, draftComplete);
+        }
+    }
+
+    private void handleGameReady(JsonValue payload) {
+        String phase = payload.getString("phase", "DRAFT");
+
+        Gdx.app.log(TAG, "Game ready, phase: " + phase);
+
+        if (messageListener != null) {
+            messageListener.onGameReady(phase);
+        }
+    }
+
+    private void handleYourTurn(JsonValue payload) {
+        String unitId = payload.getString("unitId", "");
+
+        Gdx.app.log(TAG, "Your turn: " + unitId);
+
+        if (messageListener != null) {
+            messageListener.onYourTurn(unitId, payload);
         }
     }
 

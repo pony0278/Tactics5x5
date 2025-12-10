@@ -112,9 +112,9 @@ public class DeathChoiceDialog {
         shapeRenderer.rect(dialogX, dialogY, DIALOG_WIDTH, DIALOG_HEIGHT);
         shapeRenderer.end();
 
-        // Title - use placeholders on TeaVM
-        boolean isTeaVM = TextRenderer.isTeaVM();
-        if (isTeaVM || font == null) {
+        // Title - use placeholders on web builds
+        boolean isWebBuild = TextRenderer.isWebBuild();
+        if (isWebBuild || font == null) {
             // Draw placeholder rectangles for text
             shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
@@ -176,7 +176,7 @@ public class DeathChoiceDialog {
             shapeRenderer.end();
 
             // Button text - use placeholder on TeaVM
-            if (isTeaVM || font == null) {
+            if (isWebBuild || font == null) {
                 shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
                 shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
                 float textWidth = BUFF_TYPES[i].length() * 6;

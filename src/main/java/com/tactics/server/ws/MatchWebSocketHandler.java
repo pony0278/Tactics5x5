@@ -8,6 +8,7 @@ import com.tactics.engine.model.Position;
 import com.tactics.server.core.ActionResult;
 import com.tactics.server.core.ClientSlot;
 import com.tactics.server.core.Match;
+import com.tactics.server.core.MatchDraftTracker;
 import com.tactics.server.core.MatchService;
 import com.tactics.server.dto.*;
 import com.tactics.server.timer.TimerCallback;
@@ -24,12 +25,14 @@ public class MatchWebSocketHandler implements TimerCallback {
 
     private final MatchService matchService;
     private final ConnectionRegistry connectionRegistry;
+    private final MatchDraftTracker draftTracker;
     private boolean useTimers = true;
 
     public MatchWebSocketHandler(MatchService matchService,
                                  ConnectionRegistry connectionRegistry) {
         this.matchService = matchService;
         this.connectionRegistry = connectionRegistry;
+        this.draftTracker = new MatchDraftTracker();
         // Register this handler as the timer callback
         matchService.setTimerCallback(this);
     }
@@ -286,10 +289,15 @@ public class MatchWebSocketHandler implements TimerCallback {
 
     /**
      * Sends match_joined confirmation to the connecting player.
+     * Includes phase information (DRAFT phase initially).
      */
     private void sendJoinConfirmation(ClientConnection connection, PlayerAssignment assignment) {
         GameState state = assignment.getMatch().getState();
         Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(state);
+
+        // Add phase to state
+        String phase = draftTracker.getPhase(assignment.getMatchId()).name();
+        stateMap.put("phase", phase);
 
         MatchJoinedPayload responsePayload = new MatchJoinedPayload(
             assignment.getMatchId(), assignment.getPlayerId(), stateMap);
@@ -300,20 +308,29 @@ public class MatchWebSocketHandler implements TimerCallback {
     }
 
     /**
-     * Broadcasts game_ready and starts the timer when both players have joined.
+     * Broadcasts game_ready when both players have joined.
+     * Does NOT start battle - waits for draft completion.
      */
     private void broadcastGameStart(PlayerAssignment assignment) {
         String matchId = assignment.getMatchId();
 
+        // Get current draft state for both players
+        boolean p1Ready = draftTracker.hasPlayerSubmitted(matchId, "P1");
+        boolean p2Ready = draftTracker.hasPlayerSubmitted(matchId, "P2");
+
+        // Broadcast that both players connected - draft can begin
         OutgoingMessage gameReady = new OutgoingMessage("game_ready",
-            java.util.Map.of("message", "Both players connected. Game starting!"));
+            java.util.Map.of(
+                "message", "Both players connected. Draft phase starting!",
+                "phase", "DRAFT",
+                "p1DraftReady", p1Ready,
+                "p2DraftReady", p2Ready
+            ));
         String readyJson = JsonHelper.toJson(gameReady);
         broadcastToMatch(matchId, readyJson);
 
-        if (useTimers) {
-            GameState state = assignment.getMatch().getState();
-            sendYourTurnWithTimer(matchId, state);
-        }
+        // Do NOT start battle timer - wait for draft completion
+        // Battle starts when both players complete draft via handleSelectTeam
     }
 
     private void handleAction(ClientConnection connection, Map<String, Object> payload) {
@@ -390,32 +407,65 @@ public class MatchWebSocketHandler implements TimerCallback {
             return;
         }
 
-        // For now, acknowledge the selection and send state update
-        // In a full implementation, this would update DraftState
         Match match = matchService.findMatch(matchId);
         if (match == null) {
             sendValidationError(connection, "Match not found: " + matchId, null);
             return;
         }
 
-        // Log the selection (in production, would store in DraftState)
+        // Check if already submitted
+        if (draftTracker.hasPlayerSubmitted(matchId, playerId)) {
+            sendValidationError(connection, "Draft already submitted", null);
+            return;
+        }
+
         System.out.println("Player " + playerId + " selected: " + heroClass + " + " + minions);
 
-        // Mark player as ready (simplified - in production track both players)
-        // For MVP, we just acknowledge and wait for both players
-        GameState state = match.getState();
-        Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(state);
+        // Record selection and check if both ready
+        boolean bothReady = draftTracker.recordSelection(matchId, playerId, heroClass, minions);
 
-        // Send draft_ready acknowledgment
-        OutgoingMessage response = new OutgoingMessage("draft_ready",
+        // Send draft_ready acknowledgment to all
+        OutgoingMessage ackResponse = new OutgoingMessage("draft_ready",
             java.util.Map.of(
                 "playerId", playerId,
                 "heroClass", heroClass,
                 "minions", minions,
-                "state", stateMap
+                "draftComplete", bothReady
             ));
-        String jsonResponse = JsonHelper.toJson(response);
-        broadcastToMatch(matchId, jsonResponse);
+        broadcastToMatch(matchId, JsonHelper.toJson(ackResponse));
+
+        // If both players ready, create GameState and start battle
+        if (bothReady) {
+            System.out.println("Both players ready - creating game state from draft");
+
+            // Create GameState from draft selections
+            GameState newState = draftTracker.createGameStateFromDraft(matchId);
+            if (newState == null) {
+                sendValidationError(connection, "Failed to create game from draft", null);
+                return;
+            }
+
+            // Update match with new state
+            matchService.getMatchRegistry().updateMatchState(matchId, newState);
+
+            // Serialize state with phase
+            Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(newState);
+            stateMap.put("phase", "BATTLE");
+
+            // Broadcast phase transition
+            OutgoingMessage phaseChange = new OutgoingMessage("state_update",
+                java.util.Map.of(
+                    "state", stateMap,
+                    "phase", "BATTLE",
+                    "message", "Draft complete! Battle begins!"
+                ));
+            broadcastToMatch(matchId, JsonHelper.toJson(phaseChange));
+
+            // Start the first turn timer
+            if (useTimers) {
+                sendYourTurnWithTimer(matchId, newState);
+            }
+        }
     }
 
     /**
@@ -424,6 +474,10 @@ public class MatchWebSocketHandler implements TimerCallback {
     private void handleActionResult(String matchId, ActionResult result) {
         GameState newState = result.getNewState();
         Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(newState);
+
+        // Add phase to state
+        String phase = newState.isGameOver() ? "GAME_OVER" : "BATTLE";
+        stateMap.put("phase", phase);
 
         OutgoingMessage response;
         if (result.isGameOver()) {
@@ -457,6 +511,10 @@ public class MatchWebSocketHandler implements TimerCallback {
      */
     private void handleLegacyActionResult(String matchId, GameState newState) {
         Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(newState);
+
+        // Add phase to state
+        String phase = newState.isGameOver() ? "GAME_OVER" : "BATTLE";
+        stateMap.put("phase", phase);
 
         OutgoingMessage response;
         if (newState.isGameOver()) {
@@ -507,6 +565,7 @@ public class MatchWebSocketHandler implements TimerCallback {
 
         // Also broadcast state update with timer to all players
         Map<String, Object> stateMap = matchService.getGameStateSerializer().toJsonMap(state);
+        stateMap.put("phase", "BATTLE");  // Add phase
         TimerPayload timerPayload = new TimerPayload(startTime, TimerConfig.ACTION_TIMEOUT_MS, "ACTION");
         StateUpdatePayload updatePayload = new StateUpdatePayload(stateMap, timerPayload, currentPlayerId);
         OutgoingMessage stateUpdate = new OutgoingMessage("state_update", updatePayload);

@@ -222,7 +222,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
         String turnText = isPlayerTurn ? "YOUR TURN" : "OPPONENT'S TURN";
         Color turnColor = isPlayerTurn ? Color.GREEN : Color.RED;
-        if (!isTeaVM && font != null) font.getData().setScale(1.3f);
+        if (!shouldSkipFonts() && getFont() != null) getFont().getData().setScale(1.3f);
         drawText(turnText, 20, TURN_INDICATOR_Y - 10, turnColor);
         drawText("Round " + currentRound, 200, TURN_INDICATOR_Y - 10, Color.WHITE);
 
@@ -239,7 +239,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
         Color timerColor = actionTimer < 3 ? GameColors.TIMER_CRITICAL : (actionTimer < 5 ? GameColors.TIMER_WARNING : GameColors.TIMER_NORMAL);
         drawCenteredText(formatTimer(actionTimer, 1) + "s", timerX + timerWidth / 2, TURN_INDICATOR_Y - 10);
-        if (!isTeaVM && font != null) font.getData().setScale(1f);
+        if (!shouldSkipFonts() && getFont() != null) getFont().getData().setScale(1f);
     }
 
     // ========== Action Buttons ==========
@@ -282,9 +282,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
                 text = "SKILL (" + selectedUnit.skillCooldown + ")";
             }
 
-            if (!isTeaVM && font != null) font.getData().setScale(0.85f);
+            if (!shouldSkipFonts() && getFont() != null) getFont().getData().setScale(0.85f);
             drawCenteredText(text, ACTION_PANEL_X + ACTION_BUTTON_WIDTH / 2, y + ACTION_BUTTON_HEIGHT / 2 + 5);
-            if (!isTeaVM && font != null) font.getData().setScale(1f);
+            if (!shouldSkipFonts() && getFont() != null) getFont().getData().setScale(1f);
 
             y -= ACTION_BUTTON_HEIGHT + ACTION_BUTTON_SPACING;
         }
@@ -295,9 +295,9 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     private void drawUnitInfoPanel() {
         drawButton(INFO_PANEL_X, INFO_PANEL_Y - INFO_PANEL_HEIGHT, INFO_PANEL_WIDTH, INFO_PANEL_HEIGHT, GameColors.PANEL_BACKGROUND, Color.DARK_GRAY);
 
-        if (!isTeaVM && font != null) font.getData().setScale(0.9f);
+        if (!shouldSkipFonts() && getFont() != null) getFont().getData().setScale(0.9f);
         drawText("UNIT INFO", INFO_PANEL_X + 10, INFO_PANEL_Y - 10, Color.CYAN);
-        if (!isTeaVM && font != null) font.getData().setScale(0.8f);
+        if (!shouldSkipFonts() && getFont() != null) getFont().getData().setScale(0.8f);
 
         float lineY = INFO_PANEL_Y - 35;
         float lineSpacing = 20;
@@ -331,7 +331,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
         } else {
             drawText("(Select a unit)", INFO_PANEL_X + 10, lineY, Color.GRAY);
         }
-        if (!isTeaVM && font != null) font.getData().setScale(1f);
+        if (!shouldSkipFonts() && getFont() != null) getFont().getData().setScale(1f);
     }
 
     // ========== Input Handling ==========
@@ -611,6 +611,25 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     @Override
     public void onUnknownMessage(String type, JsonValue payload) {
         Gdx.app.log(TAG, "Unknown message: " + type);
+    }
+
+    @Override
+    public void onYourTurn(String unitId, JsonValue timerInfo) {
+        Gdx.app.log(TAG, "Your turn! Unit: " + unitId);
+        isPlayerTurn = true;
+        if (timerInfo != null) {
+            int timeoutMs = timerInfo.getInt("timeoutMs", 10000);
+            actionTimer = timeoutMs / 1000f;
+        } else {
+            actionTimer = 10f;
+        }
+        timerActive = true;
+    }
+
+    @Override
+    public void onDraftReady(String playerId, String heroClass, boolean draftComplete) {
+        // Ignore draft messages on battle screen
+        Gdx.app.log(TAG, "Ignoring draft_ready on BattleScreen");
     }
 
     // ========== Public Methods ==========

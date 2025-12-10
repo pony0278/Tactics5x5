@@ -18,22 +18,39 @@ public class HelloTacticsScreen implements Screen {
     private final TacticsGame game;
     private ShapeRenderer shapeRenderer;
     private BitmapFont font;  // Only used on desktop/Android
-    private final boolean isTeaVM;
+    private boolean fontLoaded = false;
 
     public HelloTacticsScreen(TacticsGame game) {
         this.game = game;
-        this.isTeaVM = TextRenderer.isTeaVM();
+    }
+
+    /**
+     * Check if running in web browser (dynamically, not cached at construction).
+     */
+    private boolean isWebBuild() {
+        return TextRenderer.isWebBuild();
     }
 
     @Override
     public void show() {
         shapeRenderer = new ShapeRenderer();
-        // Only load BitmapFont on desktop/Android - TeaVM doesn't support Pool reflection
-        if (!isTeaVM) {
-            font = new BitmapFont(Gdx.files.internal("default.fnt"));
-            font.setColor(Color.WHITE);
-        }
         Gdx.app.log("HelloTacticsScreen", "Screen shown");
+    }
+
+    /**
+     * Lazily load font on desktop/Android only.
+     */
+    private BitmapFont getFont() {
+        if (!fontLoaded && !isWebBuild()) {
+            try {
+                font = new BitmapFont(Gdx.files.internal("default.fnt"));
+                font.setColor(Color.WHITE);
+            } catch (Exception e) {
+                Gdx.app.error("HelloTacticsScreen", "Failed to load font: " + e.getMessage());
+            }
+            fontLoaded = true;
+        }
+        return font;
     }
 
     @Override
@@ -78,9 +95,9 @@ public class HelloTacticsScreen implements Screen {
 
         shapeRenderer.end();
 
-        // Draw text - use shapes on TeaVM, BitmapFont on desktop
-        if (isTeaVM) {
-            // TeaVM: Draw placeholder rectangles for text
+        // Draw text - use shapes on web, BitmapFont on desktop
+        if (isWebBuild()) {
+            // Web: Draw placeholder rectangles for text
             shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             shapeRenderer.setColor(new Color(1, 1, 1, 0.3f));
             // Title placeholder
@@ -92,11 +109,14 @@ public class HelloTacticsScreen implements Screen {
             shapeRenderer.end();
         } else {
             // Desktop: Use BitmapFont
-            game.batch.begin();
-            TextRenderer.drawCenteredText(game.batch, font, "Hello Tactics!", width / 2, height - 50);
-            TextRenderer.drawCenteredText(game.batch, font, "5x5 Tactics Engine - LibGDX Client", width / 2, height - 90);
-            TextRenderer.drawCenteredText(game.batch, font, "Press any key to continue...", width / 2, 50);
-            game.batch.end();
+            BitmapFont f = getFont();
+            if (f != null) {
+                game.batch.begin();
+                TextRenderer.drawCenteredText(game.batch, f, "Hello Tactics!", width / 2, height - 50);
+                TextRenderer.drawCenteredText(game.batch, f, "5x5 Tactics Engine - LibGDX Client", width / 2, height - 90);
+                TextRenderer.drawCenteredText(game.batch, f, "Press any key to continue...", width / 2, 50);
+                game.batch.end();
+            }
         }
     }
 
