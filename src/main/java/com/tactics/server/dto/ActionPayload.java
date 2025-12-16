@@ -9,15 +9,18 @@ public class ActionPayload {
     private final Integer targetX;
     private final Integer targetY;
     private final String targetUnitId;
+    private final String actingUnitId;
 
     public ActionPayload(String type,
                          Integer targetX,
                          Integer targetY,
-                         String targetUnitId) {
+                         String targetUnitId,
+                         String actingUnitId) {
         this.type = type;
         this.targetX = targetX;
         this.targetY = targetY;
         this.targetUnitId = targetUnitId;
+        this.actingUnitId = actingUnitId;
     }
 
     public String getType() {
@@ -34,5 +37,9 @@ public class ActionPayload {
 
     public String getTargetUnitId() {
         return targetUnitId;
+    }
+
+    public String getActingUnitId() {
+        return actingUnitId;
     }
 }

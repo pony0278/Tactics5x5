@@ -70,6 +70,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     // ========== Game State ==========
     private boolean isPlayerTurn = true;
     private int currentRound = 1;
+    private String currentActingUnitId = null;  // Unit whose turn it is
 
     // ========== Timer ==========
     private float actionTimer = 10f;
@@ -170,10 +171,10 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     }
 
     private void onTimerExpired() {
-        Gdx.app.log(TAG, "Action timer expired - auto END_TURN");
+        Gdx.app.log(TAG, "Action timer expired - auto END_TURN for unit: " + currentActingUnitId);
         GameSession session = GameSession.getInstance();
-        if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
-            webSocket.send(messageHandler.createEndTurnAction(session.getMatchId(), session.getPlayerId()));
+        if (webSocket != null && webSocket.isConnected() && session.hasValidSession() && currentActingUnitId != null) {
+            webSocket.send(messageHandler.createEndTurnAction(session.getMatchId(), session.getPlayerId(), currentActingUnitId));
         }
         actionTimer = 10f;
     }
@@ -495,10 +496,10 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
     private void sendMoveAction(int targetX, int targetY) {
         if (selectedUnit == null) return;
-        Gdx.app.log(TAG, "Sending MOVE to " + targetX + ", " + targetY);
+        Gdx.app.log(TAG, "Sending MOVE to " + targetX + ", " + targetY + " with unit " + selectedUnit.id);
         GameSession session = GameSession.getInstance();
         if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
-            webSocket.send(messageHandler.createMoveAction(session.getMatchId(), session.getPlayerId(), targetX, targetY));
+            webSocket.send(messageHandler.createMoveAction(session.getMatchId(), session.getPlayerId(), selectedUnit.id, targetX, targetY));
         }
         selectedUnit.x = targetX;
         selectedUnit.y = targetY;
@@ -508,10 +509,13 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
     private void sendAttackAction(String targetId) {
         if (selectedUnit == null) return;
-        Gdx.app.log(TAG, "Sending ATTACK to " + targetId);
+        UnitData target = findUnitById(targetId);
+        int targetX = target != null ? target.x : -1;
+        int targetY = target != null ? target.y : -1;
+        Gdx.app.log(TAG, "Sending ATTACK to " + targetId + " with unit " + selectedUnit.id);
         GameSession session = GameSession.getInstance();
         if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
-            webSocket.send(messageHandler.createAttackAction(session.getMatchId(), session.getPlayerId(), selectedUnit.x, selectedUnit.y, targetId));
+            webSocket.send(messageHandler.createAttackAction(session.getMatchId(), session.getPlayerId(), selectedUnit.id, targetX, targetY, targetId));
         }
         currentActionMode = ActionMode.NONE;
         validAttackTargets.clear();
@@ -519,7 +523,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
 
     private void sendSkillAction(int targetX, int targetY) {
         if (selectedUnit == null || !selectedUnit.isHero) return;
-        Gdx.app.log(TAG, "Sending USE_SKILL to " + targetX + ", " + targetY);
+        Gdx.app.log(TAG, "Sending USE_SKILL to " + targetX + ", " + targetY + " with unit " + selectedUnit.id);
         GameSession session = GameSession.getInstance();
         if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
             webSocket.send(messageHandler.createUseSkillAction(session.getMatchId(), session.getPlayerId(), "skill-1", targetX, targetY, null));
@@ -529,14 +533,24 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     }
 
     private void sendEndTurn() {
-        Gdx.app.log(TAG, "Sending END_TURN");
+        String unitId = selectedUnit != null ? selectedUnit.id : null;
+        Gdx.app.log(TAG, "Sending END_TURN with unit " + unitId);
         GameSession session = GameSession.getInstance();
         if (webSocket != null && webSocket.isConnected() && session.hasValidSession()) {
-            webSocket.send(messageHandler.createEndTurnAction(session.getMatchId(), session.getPlayerId()));
+            webSocket.send(messageHandler.createEndTurnAction(session.getMatchId(), session.getPlayerId(), unitId));
         }
         currentActionMode = ActionMode.NONE;
         validMoveTargets.clear();
         validAttackTargets.clear();
+    }
+
+    private UnitData findUnitById(String unitId) {
+        for (UnitData unit : units) {
+            if (unit.id.equals(unitId)) {
+                return unit;
+            }
+        }
+        return null;
     }
 
     // ========== WebSocket Listener ==========
@@ -617,6 +631,7 @@ public class BattleScreen extends BaseScreen implements WebSocketListener, GameM
     public void onYourTurn(String unitId, JsonValue timerInfo) {
         Gdx.app.log(TAG, "Your turn! Unit: " + unitId);
         isPlayerTurn = true;
+        currentActingUnitId = unitId;  // Track which unit should act
         if (timerInfo != null) {
             int timeoutMs = timerInfo.getInt("timeoutMs", 10000);
             actionTimer = timeoutMs / 1000f;

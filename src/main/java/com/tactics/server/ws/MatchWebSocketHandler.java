@@ -589,7 +589,8 @@ public class MatchWebSocketHandler implements TimerCallback {
         Integer targetX = getIntegerFromPayload(actionMap, "targetX");
         Integer targetY = getIntegerFromPayload(actionMap, "targetY");
         String targetUnitId = getStringFromPayload(actionMap, "targetUnitId");
-        return new ActionPayload(type, targetX, targetY, targetUnitId);
+        String actingUnitId = getStringFromPayload(actionMap, "actingUnitId");
+        return new ActionPayload(type, targetX, targetY, targetUnitId, actingUnitId);
     }
 
     private Action buildAction(ActionPayload actionPayload, String playerId) {
@@ -605,8 +606,11 @@ public class MatchWebSocketHandler implements TimerCallback {
             targetPosition = new Position(actionPayload.getTargetX(), actionPayload.getTargetY());
         }
 
-        // Include playerId in Action for RuleEngine validation
-        return new Action(actionType, new PlayerId(playerId), targetPosition, actionPayload.getTargetUnitId());
+        // Include playerId and actingUnitId in Action for RuleEngine validation
+        // V3: actingUnitId specifies which unit performs the action (unit-by-unit turn system)
+        return new Action(actionType, new PlayerId(playerId), targetPosition,
+                         actionPayload.getTargetUnitId(), actionPayload.getActingUnitId(),
+                         null, null);
     }
 
     private void broadcastToMatch(String matchId, String jsonMessage) {

@@ -228,14 +228,15 @@ public class GameMessageHandler {
     /**
      * Create a MOVE action message.
      *
-     * @param matchId  The match ID (from server's match_joined)
-     * @param playerId The player ID (from server's match_joined)
-     * @param targetX  Target X position
-     * @param targetY  Target Y position
+     * @param matchId      The match ID (from server's match_joined)
+     * @param playerId     The player ID (from server's match_joined)
+     * @param actingUnitId The ID of the unit performing the action
+     * @param targetX      Target X position
+     * @param targetY      Target Y position
      * @return JSON string
      */
-    public String createMoveAction(String matchId, String playerId, int targetX, int targetY) {
-        return createActionMessage(matchId, playerId, "MOVE", targetX, targetY, null);
+    public String createMoveAction(String matchId, String playerId, String actingUnitId, int targetX, int targetY) {
+        return createActionMessage(matchId, playerId, "MOVE", targetX, targetY, null, actingUnitId);
     }
 
     /**
@@ -243,13 +244,14 @@ public class GameMessageHandler {
      *
      * @param matchId      The match ID
      * @param playerId     The player ID
+     * @param actingUnitId The ID of the unit performing the action
      * @param targetX      Target X position
      * @param targetY      Target Y position
      * @param targetUnitId The ID of the unit to attack
      * @return JSON string
      */
-    public String createAttackAction(String matchId, String playerId, int targetX, int targetY, String targetUnitId) {
-        return createActionMessage(matchId, playerId, "ATTACK", targetX, targetY, targetUnitId);
+    public String createAttackAction(String matchId, String playerId, String actingUnitId, int targetX, int targetY, String targetUnitId) {
+        return createActionMessage(matchId, playerId, "ATTACK", targetX, targetY, targetUnitId, actingUnitId);
     }
 
     /**
@@ -257,13 +259,14 @@ public class GameMessageHandler {
      *
      * @param matchId      The match ID
      * @param playerId     The player ID
+     * @param actingUnitId The ID of the unit performing the action
      * @param targetX      Movement target X position
      * @param targetY      Movement target Y position
      * @param targetUnitId The ID of the unit to attack
      * @return JSON string
      */
-    public String createMoveAndAttackAction(String matchId, String playerId, int targetX, int targetY, String targetUnitId) {
-        return createActionMessage(matchId, playerId, "MOVE_AND_ATTACK", targetX, targetY, targetUnitId);
+    public String createMoveAndAttackAction(String matchId, String playerId, String actingUnitId, int targetX, int targetY, String targetUnitId) {
+        return createActionMessage(matchId, playerId, "MOVE_AND_ATTACK", targetX, targetY, targetUnitId, actingUnitId);
     }
 
     /**
@@ -300,17 +303,21 @@ public class GameMessageHandler {
     /**
      * Create an END_TURN action message.
      *
-     * @param matchId  The match ID
-     * @param playerId The player ID
+     * @param matchId      The match ID
+     * @param playerId     The player ID
+     * @param actingUnitId The ID of the unit ending their turn
      * @return JSON string
      */
-    public String createEndTurnAction(String matchId, String playerId) {
+    public String createEndTurnAction(String matchId, String playerId, String actingUnitId) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"type\":\"action\",\"payload\":{");
         sb.append("\"matchId\":\"").append(escapeJson(matchId)).append("\",");
         sb.append("\"playerId\":\"").append(escapeJson(playerId)).append("\",");
-        sb.append("\"action\":{\"type\":\"END_TURN\"}");
-        sb.append("}}");
+        sb.append("\"action\":{\"type\":\"END_TURN\"");
+        if (actingUnitId != null) {
+            sb.append(",\"actingUnitId\":\"").append(escapeJson(actingUnitId)).append("\"");
+        }
+        sb.append("}}}");
         return sb.toString();
     }
 
@@ -365,7 +372,7 @@ public class GameMessageHandler {
         return "{\"type\":\"ping\",\"payload\":{}}";
     }
 
-    private String createActionMessage(String matchId, String playerId, String actionType, int targetX, int targetY, String targetUnitId) {
+    private String createActionMessage(String matchId, String playerId, String actionType, int targetX, int targetY, String targetUnitId, String actingUnitId) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"type\":\"action\",\"payload\":{");
         sb.append("\"matchId\":\"").append(escapeJson(matchId)).append("\",");
@@ -381,6 +388,10 @@ public class GameMessageHandler {
 
         if (targetUnitId != null) {
             sb.append(",\"targetUnitId\":\"").append(escapeJson(targetUnitId)).append("\"");
+        }
+
+        if (actingUnitId != null) {
+            sb.append(",\"actingUnitId\":\"").append(escapeJson(actingUnitId)).append("\"");
         }
 
         sb.append("}}}");
