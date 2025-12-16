@@ -23,10 +23,11 @@ This is the main reference for vibecoding the engine.
 
 ---
 
-## 3. GAME_RULES_V1.md
-**Formal game rule specification.**  
-Defines unit stats, movement rules, attack rules, turn structure, win conditions,
-and all logic constraints needed by RuleEngine.  
+## 3. GAME_RULES_MASTER_SPEC_V3.md
+**Master game specification (V3).**
+Combines core rules and game flow into a single document.
+Defines entities, unit archetypes, match lifecycle, battle mechanics,
+round-end processing, death/spawning logic, and implementation checklist.
 No protocol / networking details here.
 
 ---
@@ -39,9 +40,9 @@ and server-authoritative update flow.
 ---
 
 ### Reading Order (for AI agents)
-1. TECH_ARCH.md  
-2. ENGINE_SKELETON_V1.md  
-3. GAME_RULES_V1.md  
+1. TECH_ARCH.md
+2. ENGINE_SKELETON_V1.md
+3. GAME_RULES_MASTER_SPEC_V3.md
 4. WS_PROTOCOL_V1.md  
 
 The AI must respect this order and must not generate any code or specification

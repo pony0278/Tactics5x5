@@ -10,15 +10,14 @@ This index describes all V3 documentation files. Start with `V3_QUICK_REFERENCE.
 
 ```
 docs/
-├── README.md                  ← This file (START HERE)
-├── V3_QUICK_REFERENCE.md      ← Quick stats & numbers
-├── GAME_RULES_V3.md           ← Core gameplay rules
-├── GAME_FLOW_V3.md            ← Complete game flow & phases
-├── UNIT_TYPES_V3.md           ← Hero & Minion definitions
-├── BUFF_SYSTEM_V3.md          ← BUFF mechanics (6 types)
-├── SKILL_SYSTEM_V3.md         ← Hero skill architecture
-├── HERO_SKILLS_REFERENCE.md   ← Quick skill reference (中英對照)
-└── DESIGN_DECISIONS_V3.md     ← Confirmed design decisions
+├── README.md                       ← This file (START HERE)
+├── V3_QUICK_REFERENCE.md           ← Quick stats & numbers
+├── GAME_RULES_MASTER_SPEC_V3.md    ← Master spec (rules + flow combined)
+├── UNIT_TYPES_V3.md                ← Hero & Minion definitions
+├── BUFF_SYSTEM_V3.md               ← BUFF mechanics (6 types)
+├── SKILL_SYSTEM_V3.md              ← Hero skill architecture
+├── HERO_SKILLS_REFERENCE.md        ← Quick skill reference (中英對照)
+└── DESIGN_DECISIONS_V3.md          ← Confirmed design decisions
 ```
 
 ---
@@ -26,10 +25,9 @@ docs/
 ## Reading Order by Task
 
 ### Implementing Core Engine
-1. `GAME_RULES_V3.md` — Turn structure, victory condition, board rules
-2. `GAME_FLOW_V3.md` — Complete game phases, round processing
-3. `UNIT_TYPES_V3.md` — Unit stats, passive abilities
-4. `DESIGN_DECISIONS_V3.md` — Edge cases resolved
+1. `GAME_RULES_MASTER_SPEC_V3.md` — Master spec (rules + flow + implementation checklist)
+2. `UNIT_TYPES_V3.md` — Unit stats, passive abilities
+3. `DESIGN_DECISIONS_V3.md` — Edge cases resolved
 
 ### Implementing BUFF System
 1. `BUFF_SYSTEM_V3.md` — Full BUFF mechanics

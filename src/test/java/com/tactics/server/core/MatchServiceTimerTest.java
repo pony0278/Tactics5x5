@@ -1313,13 +1313,18 @@ class MatchServiceTimerTest {
         }
 
         @Test
-        @DisplayName("TR-003: Minion Decay during round end - no Timer")
+        @DisplayName("TR-003: Minion Decay during round end - no Timer (starting round 3)")
         void tr003_minionDecayDuringRoundEndNoTimer() {
             // Given: Minions alive at round end
+            // V3 Spec: Minion decay starts at round 3
             Unit hero1 = createHero("p1_hero", p1, 5, new Position(0, 0));
             Unit hero2 = createHero("p2_hero", p2, 5, new Position(4, 4));
             Unit minion1 = createMinion("p1_minion_1", p1, 3, new Position(1, 0));
-            GameState state = createStateWithUnits(Arrays.asList(hero1, hero2, minion1), p1);
+            // Create state at round 3 so decay will happen
+            GameState state = new GameState(board, Arrays.asList(hero1, hero2, minion1),
+                p1, false, null, Collections.emptyMap(),
+                Collections.emptyList(), Collections.emptyList(),
+                3, null, false, false);  // Start at round 3
             registry.createMatch("match-1", state);
 
             service.startTurnTimer("match-1");

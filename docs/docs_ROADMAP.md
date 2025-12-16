@@ -169,7 +169,7 @@ Screens:
 6. ResultScreen.java - victory/defeat
 
 Use colored rectangles for all UI.
-Follow GAME_FLOW_V3.md for transitions.
+Follow GAME_RULES_MASTER_SPEC_V3.md for transitions.
 ```
 
 ---

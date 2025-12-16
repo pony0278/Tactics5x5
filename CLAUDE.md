@@ -28,7 +28,7 @@ A 5x5 tactical board game featuring a game engine, WebSocket server, and cross-p
 │       ├── core/            # Match, MatchService, MatchRegistry
 │       ├── dto/             # Message objects
 │       └── ws/              # WebSocket handlers
-├── src/test/java/           # Tests (1010 passing)
+├── src/test/java/           # Tests (1056 passing)
 ├── client/                  # Legacy web frontend (HTML/CSS/JS)
 └── client-libgdx/           # LibGDX Client (NEW - Gradle subproject)
     ├── core/                # Shared client code
@@ -80,7 +80,7 @@ cd client-libgdx
 
 ## 🗓️ Development Roadmap
 
-**Current Phase**: Phase E - LibGDX + TeaVM Client (1010 tests passing)
+**Current Phase**: Phase E - LibGDX + TeaVM Client (1056 tests passing)
 
 | Phase | Description | Est. Time | Status |
 |-------|-------------|-----------|--------|
@@ -126,7 +126,7 @@ cd client-libgdx
 | ✅ | Phase C | Test Coverage (+160 tests) |
 | ✅ | Phase D | E2E Testing (+88 tests) |
 
-**Test Status**: 1010 tests passing
+**Test Status**: 1056 tests passing
 
 ---
 
@@ -225,15 +225,14 @@ dependencies {
 ### Game Rules (V3 - Current)
 | Document | Description |
 |----------|-------------|
-| `/docs/GAME_RULES_V3.md` | Core gameplay rules |
+| `/docs/GAME_RULES_MASTER_SPEC_V3.md` | Master spec (rules + flow combined) |
 | `/docs/BUFF_SYSTEM_V3.md` | 6 BUFF types |
 | `/docs/SKILL_SYSTEM_V3.md` | 18 hero skills |
-| `/docs/GAME_FLOW_V3.md` | Complete game phases |
 
 ### Protocol & Integration
 | Document | Description |
 |----------|-------------|
-| `/docs/WS_PROTOCOL_V1.md` | WebSocket message format |
+| `/docs/WS_PROTOCOL_V1.md` | WebSocket message format (V3 aligned) |
 | `/docs/docs_ROADMAP.md` | Full development roadmap |
 
 ---
@@ -271,16 +270,18 @@ dependencies {
 ```
 CLIENT                          SERVER
   │                               │
-  │──── JOIN_MATCH ──────────────>│
-  │<─── GAME_STATE ───────────────│
+  │──── join_match ──────────────>│
+  │<─── match_joined ─────────────│
   │                               │
-  │──── DRAFT_PICK ──────────────>│
-  │<─── GAME_STATE ───────────────│
+  │──── select_team ─────────────>│
+  │<─── draft_ready ──────────────│
+  │<─── state_update (BATTLE) ────│
   │                               │
-  │──── ACTION (MOVE/ATTACK) ────>│
-  │<─── GAME_STATE ───────────────│
+  │<─── your_turn ────────────────│
+  │──── action (MOVE/ATTACK) ────>│
+  │<─── state_update ─────────────│
   │                               │
-  │<─── GAME_OVER ────────────────│
+  │<─── game_over ────────────────│
 ```
 
 ---
@@ -361,7 +362,7 @@ CLIENT                          SERVER
 
 ## 📊 Test Coverage Summary
 
-**Total: 1010 tests passing**
+**Total: 1056 tests passing**
 
 ### By Feature
 | Feature | Tests |
@@ -376,6 +377,7 @@ CLIENT                          SERVER
 | Serialization | ~40 |
 | WebSocket/Server | ~50 |
 | E2E Tests | 88 |
+| Comprehensive E2E (V3 rules) | 46 |
 
 ---
 
@@ -474,12 +476,12 @@ Create in client-libgdx/core/src/main/java/com/tactics/client/screens/:
    - "Play Again" button
 
 Use colored rectangles for all UI elements.
-Follow GAME_FLOW_V3.md for screen transitions.
+Follow GAME_RULES_MASTER_SPEC_V3.md for screen transitions.
 ```
 
 ---
 
-*Last updated: 2025-12-10*
-*Tests: 1010 passing*
+*Last updated: 2025-12-16*
+*Tests: 1056 passing*
 *Current Phase: E - LibGDX + TeaVM/GWT Client*
 *GWT Build: ✅ Successful (html/build/dist/ ~5MB)*

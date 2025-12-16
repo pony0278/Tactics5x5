@@ -1,6 +1,7 @@
 package com.tactics.engine.rules;
 
 import com.tactics.engine.buff.BuffInstance;
+import com.tactics.engine.buff.BuffType;
 import com.tactics.engine.model.BuffTile;
 import com.tactics.engine.model.GameState;
 import com.tactics.engine.model.Obstacle;
@@ -26,6 +27,8 @@ public class TurnManager extends ActionExecutorBase {
     public TurnManager() {
         this.gameOverChecker = new GameOverChecker();
     }
+
+    // setRngProvider() inherited from ActionExecutorBase
 
     // =========================================================================
     // Result Classes
@@ -430,11 +433,117 @@ public class TurnManager extends ActionExecutorBase {
     }
 
     // =========================================================================
+    // System Death Auto-Spawn (V3 Spec Section 7.2)
+    // =========================================================================
+
+    /**
+     * Result of system death processing, containing updated lists.
+     */
+    public static class SystemDeathResult {
+        private final List<Unit> units;
+        private final List<Obstacle> obstacles;
+        private final List<BuffTile> buffTiles;
+
+        public SystemDeathResult(List<Unit> units, List<Obstacle> obstacles, List<BuffTile> buffTiles) {
+            this.units = units;
+            this.obstacles = obstacles;
+            this.buffTiles = buffTiles;
+        }
+
+        public List<Unit> getUnits() { return units; }
+        public List<Obstacle> getObstacles() { return obstacles; }
+        public List<BuffTile> getBuffTiles() { return buffTiles; }
+    }
+
+    /**
+     * Process system deaths (from BLEED, Decay, or Pressure) and auto-spawn map objects.
+     * V3 Spec Section 7.2 - Scenario B: System Death (Environment)
+     * - Odd Rounds (3, 5, 7...): Spawns OBSTACLE
+     * - Even Rounds (4, 6, 8...): Spawns BUFF_TILE
+     *
+     * @param unitsBefore Units before the system damage was applied
+     * @param unitsAfter Units after the system damage was applied
+     * @param currentObstacles Current obstacles on the board
+     * @param currentBuffTiles Current buff tiles on the board
+     * @param currentRound The current round number
+     * @return SystemDeathResult with updated units, obstacles, and buff tiles
+     */
+    public SystemDeathResult processSystemDeaths(List<Unit> unitsBefore, List<Unit> unitsAfter,
+                                                  List<Obstacle> currentObstacles, List<BuffTile> currentBuffTiles,
+                                                  int currentRound) {
+        List<Obstacle> newObstacles = new ArrayList<>(currentObstacles);
+        List<BuffTile> newBuffTiles = new ArrayList<>(currentBuffTiles);
+
+        // Find minions that died from system damage (excluding temporary units)
+        List<Unit> deadMinions = findSystemDeadMinions(unitsBefore, unitsAfter);
+
+        // Determine spawn type based on round parity (Odd = OBSTACLE, Even = BUFF_TILE)
+        boolean spawnObstacle = (currentRound % 2) == 1;  // Odd rounds
+
+        for (Unit deadMinion : deadMinions) {
+            Position deathPos = deadMinion.getPosition();
+
+            // V3 Spec Section 2.4 & 7.3: Overwrite Rule - remove existing map object at position
+            removeMapObjectAtPosition(newObstacles, newBuffTiles, deathPos);
+
+            if (spawnObstacle) {
+                String obstacleId = Obstacle.ID_PREFIX + deadMinion.getId() + "_" + currentRound;
+                newObstacles.add(new Obstacle(obstacleId, deathPos));
+            } else {
+                String tileId = "bufftile_" + deadMinion.getId() + "_" + currentRound;
+                BuffType buffType = getRandomBuffType();
+                newBuffTiles.add(new BuffTile(tileId, deathPos, buffType, 2, false));
+            }
+        }
+
+        return new SystemDeathResult(unitsAfter, newObstacles, newBuffTiles);
+    }
+
+    /**
+     * Find minions that died between two unit states (system death detection).
+     * Only includes non-temporary minions that were alive before and dead after.
+     */
+    private List<Unit> findSystemDeadMinions(List<Unit> unitsBefore, List<Unit> unitsAfter) {
+        // Build map of alive minions before damage
+        Map<String, Unit> aliveBeforeMap = new HashMap<>();
+        for (Unit u : unitsBefore) {
+            if (u.isAlive() && u.getCategory() == UnitCategory.MINION && !u.isTemporary()) {
+                aliveBeforeMap.put(u.getId(), u);
+            }
+        }
+
+        // Find minions that died
+        List<Unit> deadMinions = new ArrayList<>();
+        for (Unit u : unitsAfter) {
+            if (!u.isAlive() && u.getCategory() == UnitCategory.MINION
+                && !u.isTemporary() && aliveBeforeMap.containsKey(u.getId())) {
+                deadMinions.add(u);
+            }
+        }
+
+        // Sort by ID for deterministic order
+        deadMinions.sort((a, b) -> a.getId().compareTo(b.getId()));
+        return deadMinions;
+    }
+
+    /**
+     * Remove any existing map object (obstacle or buff tile) at the given position.
+     * Implements V3 Spec Section 2.4: Overwrite Rule.
+     */
+    private void removeMapObjectAtPosition(List<Obstacle> obstacles, List<BuffTile> buffTiles, Position pos) {
+        obstacles.removeIf(o -> o.getPosition().equals(pos));
+        buffTiles.removeIf(t -> t.getPosition().equals(pos) && !t.isTriggered());
+    }
+
+    // Note: getRandomBuffType() is inherited from ActionExecutorBase
+
+    // =========================================================================
     // Full Round End Processing
     // =========================================================================
 
     /**
      * Process a complete round end (called when all units have acted via END_TURN).
+     * V3 Spec Section 6: Round End Processing Order
      */
     public GameState processRoundEnd(GameState state, TurnEndResult turnEndResult,
                                      GameOverChecker.GameOverResult gameOver) {
@@ -446,40 +555,75 @@ public class TurnManager extends ActionExecutorBase {
             gameOver = gameOverAfterPrep;
         }
 
-        // Apply poison/bleed damage at round end (V3: moved from turn end to round end)
-        List<Unit> unitsAfterPoison = applyPoisonAndBleedDamage(prepResult.getUnits(), turnEndResult.getUnitBuffs());
+        // Track map objects for system death spawning
+        List<Obstacle> currentObstacles = new ArrayList<>(prepResult.getObstacles());
+        List<BuffTile> currentBuffTiles = new ArrayList<>(prepResult.getBuffTiles());
+        int currentRound = state.getCurrentRound();
 
-        GameOverChecker.GameOverResult gameOverAfterPoison = gameOverChecker.checkGameOver(unitsAfterPoison);
-        if (gameOverAfterPoison.isGameOver()) {
-            gameOver = gameOverAfterPoison;
+        // Step 1: Apply BLEED damage at round end
+        List<Unit> unitsBeforeBleed = prepResult.getUnits();
+        List<Unit> unitsAfterBleed = applyPoisonAndBleedDamage(unitsBeforeBleed, turnEndResult.getUnitBuffs());
+
+        GameOverChecker.GameOverResult gameOverAfterBleed = gameOverChecker.checkGameOver(unitsAfterBleed);
+        if (gameOverAfterBleed.isGameOver()) {
+            gameOver = gameOverAfterBleed;
         }
+
+        // Process system deaths from BLEED
+        SystemDeathResult bleedDeathResult = processSystemDeaths(
+            unitsBeforeBleed, unitsAfterBleed, currentObstacles, currentBuffTiles, currentRound);
+        currentObstacles = bleedDeathResult.getObstacles();
+        currentBuffTiles = bleedDeathResult.getBuffTiles();
 
         // Decrement temporary unit durations and remove expired ones BEFORE minion decay
-        // This ensures clones get their duration decremented even if they would die from decay
-        List<Unit> unitsAfterTempDecrement = decrementTemporaryDurations(unitsAfterPoison);
+        List<Unit> unitsAfterTempDecrement = decrementTemporaryDurations(unitsAfterBleed);
 
-        List<Unit> unitsAfterDecay = applyMinionDecay(unitsAfterTempDecrement);
+        // Step 2: Minion Decay (V3 Spec: starts at Round 3)
+        List<Unit> unitsAfterDecay = unitsAfterTempDecrement;
+        if (currentRound >= 3) {
+            List<Unit> unitsBeforeDecay = unitsAfterTempDecrement;
+            unitsAfterDecay = applyMinionDecay(unitsBeforeDecay);
 
-        GameOverChecker.GameOverResult gameOverAfterDecay = gameOverChecker.checkGameOver(unitsAfterDecay);
-        if (gameOverAfterDecay.isGameOver()) {
-            gameOver = gameOverAfterDecay;
+            GameOverChecker.GameOverResult gameOverAfterDecay = gameOverChecker.checkGameOver(unitsAfterDecay);
+            if (gameOverAfterDecay.isGameOver()) {
+                gameOver = gameOverAfterDecay;
+            }
+
+            // Process system deaths from Decay
+            SystemDeathResult decayDeathResult = processSystemDeaths(
+                unitsBeforeDecay, unitsAfterDecay, currentObstacles, currentBuffTiles, currentRound);
+            currentObstacles = decayDeathResult.getObstacles();
+            currentBuffTiles = decayDeathResult.getBuffTiles();
         }
 
+        // Step 3: Late Game Pressure (V3 Spec: starts at Round 8)
         List<Unit> unitsAfterPressure = unitsAfterDecay;
-        if (state.getCurrentRound() >= 8) {
-            unitsAfterPressure = applyRound8Pressure(unitsAfterDecay);
+        if (currentRound >= 8) {
+            List<Unit> unitsBeforePressure = unitsAfterDecay;
+            unitsAfterPressure = applyRound8Pressure(unitsBeforePressure);
 
             GameOverChecker.GameOverResult gameOverAfterPressure = gameOverChecker.checkGameOver(unitsAfterPressure);
             if (gameOverAfterPressure.isGameOver()) {
                 gameOver = gameOverAfterPressure;
             }
+
+            // Process system deaths from Pressure
+            SystemDeathResult pressureDeathResult = processSystemDeaths(
+                unitsBeforePressure, unitsAfterPressure, currentObstacles, currentBuffTiles, currentRound);
+            currentObstacles = pressureDeathResult.getObstacles();
+            currentBuffTiles = pressureDeathResult.getBuffTiles();
         }
 
-        List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(unitsAfterPressure);
+        // Step 5: Victory check already done above
 
-        // Decrement buff durations at round end (not per-turn)
+        // Step 6: Duration tick - decrement buff durations
+        List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(unitsAfterPressure);
         Map<String, List<BuffInstance>> buffsAfterDecrement = decrementBuffDurations(prepResult.getUnitBuffs());
 
+        // Decrement buff tile durations and remove expired
+        List<BuffTile> buffTilesAfterDecrement = decrementBuffTileDurations(currentBuffTiles);
+
+        // Step 7: Increment round (handled in GameState constructor below)
         return new GameState(
             state.getBoard(),
             unitsWithResetActions,
@@ -487,18 +631,37 @@ public class TurnManager extends ActionExecutorBase {
             gameOver.isGameOver(),
             gameOver.getWinner(),
             buffsAfterDecrement,
-            prepResult.getBuffTiles(),
-            prepResult.getObstacles(),
-            state.getCurrentRound() + 1,
-            state.getPendingDeathChoice(),
+            buffTilesAfterDecrement,
+            currentObstacles,
+            currentRound + 1,
+            null,  // Clear pending death choice at round end
             false,
             false
         );
     }
 
     /**
+     * Decrement buff tile durations and remove expired tiles.
+     */
+    private List<BuffTile> decrementBuffTileDurations(List<BuffTile> buffTiles) {
+        List<BuffTile> result = new ArrayList<>();
+        for (BuffTile tile : buffTiles) {
+            if (tile.isTriggered()) {
+                continue;  // Already triggered, remove it
+            }
+            int newDuration = tile.getDuration() - 1;
+            if (newDuration > 0) {
+                result.add(new BuffTile(tile.getId(), tile.getPosition(), tile.getBuffType(), newDuration, false));
+            }
+            // Duration <= 0: tile expired, don't add to result
+        }
+        return result;
+    }
+
+    /**
      * Process round end after an action (MOVE/ATTACK/USE_SKILL) when all units have acted.
      * Simplified version that works with the current state rather than TurnEndResult.
+     * V3 Spec Section 6: Round End Processing Order
      */
     public GameState processRoundEndAfterAction(GameState state) {
         // Execute preparing actions
@@ -506,39 +669,75 @@ public class TurnManager extends ActionExecutorBase {
 
         GameOverChecker.GameOverResult gameOver = gameOverChecker.checkGameOver(prepResult.getUnits());
 
-        // Apply poison/bleed damage at round end (V3: moved from turn end to round end)
-        List<Unit> unitsAfterPoison = applyPoisonAndBleedDamage(prepResult.getUnits(), state.getUnitBuffs());
+        // Track map objects for system death spawning
+        List<Obstacle> currentObstacles = new ArrayList<>(prepResult.getObstacles());
+        List<BuffTile> currentBuffTiles = new ArrayList<>(prepResult.getBuffTiles());
+        int currentRound = state.getCurrentRound();
 
-        GameOverChecker.GameOverResult gameOverAfterPoison = gameOverChecker.checkGameOver(unitsAfterPoison);
-        if (gameOverAfterPoison.isGameOver()) {
-            gameOver = gameOverAfterPoison;
+        // Step 1: Apply BLEED damage at round end
+        List<Unit> unitsBeforeBleed = prepResult.getUnits();
+        List<Unit> unitsAfterBleed = applyPoisonAndBleedDamage(unitsBeforeBleed, state.getUnitBuffs());
+
+        GameOverChecker.GameOverResult gameOverAfterBleed = gameOverChecker.checkGameOver(unitsAfterBleed);
+        if (gameOverAfterBleed.isGameOver()) {
+            gameOver = gameOverAfterBleed;
         }
+
+        // Process system deaths from BLEED
+        SystemDeathResult bleedDeathResult = processSystemDeaths(
+            unitsBeforeBleed, unitsAfterBleed, currentObstacles, currentBuffTiles, currentRound);
+        currentObstacles = bleedDeathResult.getObstacles();
+        currentBuffTiles = bleedDeathResult.getBuffTiles();
 
         // Decrement temporary unit durations and remove expired ones BEFORE minion decay
-        List<Unit> unitsAfterTempDecrement = decrementTemporaryDurations(unitsAfterPoison);
+        List<Unit> unitsAfterTempDecrement = decrementTemporaryDurations(unitsAfterBleed);
 
-        List<Unit> unitsAfterDecay = applyMinionDecay(unitsAfterTempDecrement);
+        // Step 2: Minion Decay (V3 Spec: starts at Round 3)
+        List<Unit> unitsAfterDecay = unitsAfterTempDecrement;
+        if (currentRound >= 3) {
+            List<Unit> unitsBeforeDecay = unitsAfterTempDecrement;
+            unitsAfterDecay = applyMinionDecay(unitsBeforeDecay);
 
-        GameOverChecker.GameOverResult gameOverAfterDecay = gameOverChecker.checkGameOver(unitsAfterDecay);
-        if (gameOverAfterDecay.isGameOver()) {
-            gameOver = gameOverAfterDecay;
+            GameOverChecker.GameOverResult gameOverAfterDecay = gameOverChecker.checkGameOver(unitsAfterDecay);
+            if (gameOverAfterDecay.isGameOver()) {
+                gameOver = gameOverAfterDecay;
+            }
+
+            // Process system deaths from Decay
+            SystemDeathResult decayDeathResult = processSystemDeaths(
+                unitsBeforeDecay, unitsAfterDecay, currentObstacles, currentBuffTiles, currentRound);
+            currentObstacles = decayDeathResult.getObstacles();
+            currentBuffTiles = decayDeathResult.getBuffTiles();
         }
 
+        // Step 3: Late Game Pressure (V3 Spec: starts at Round 8)
         List<Unit> unitsAfterPressure = unitsAfterDecay;
-        if (state.getCurrentRound() >= 8) {
-            unitsAfterPressure = applyRound8Pressure(unitsAfterDecay);
+        if (currentRound >= 8) {
+            List<Unit> unitsBeforePressure = unitsAfterDecay;
+            unitsAfterPressure = applyRound8Pressure(unitsBeforePressure);
 
             GameOverChecker.GameOverResult gameOverAfterPressure = gameOverChecker.checkGameOver(unitsAfterPressure);
             if (gameOverAfterPressure.isGameOver()) {
                 gameOver = gameOverAfterPressure;
             }
+
+            // Process system deaths from Pressure
+            SystemDeathResult pressureDeathResult = processSystemDeaths(
+                unitsBeforePressure, unitsAfterPressure, currentObstacles, currentBuffTiles, currentRound);
+            currentObstacles = pressureDeathResult.getObstacles();
+            currentBuffTiles = pressureDeathResult.getBuffTiles();
         }
 
-        List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(unitsAfterPressure);
+        // Step 5: Victory check already done above
 
-        // Decrement buff durations at round end (not per-turn)
+        // Step 6: Duration tick - decrement buff durations
+        List<Unit> unitsWithResetActions = resetActionsUsedAndPreparingState(unitsAfterPressure);
         Map<String, List<BuffInstance>> buffsAfterDecrement = decrementBuffDurations(prepResult.getUnitBuffs());
 
+        // Decrement buff tile durations and remove expired
+        List<BuffTile> buffTilesAfterDecrement = decrementBuffTileDurations(currentBuffTiles);
+
+        // Step 7: Increment round (handled in GameState constructor below)
         return new GameState(
             state.getBoard(),
             unitsWithResetActions,
@@ -546,10 +745,10 @@ public class TurnManager extends ActionExecutorBase {
             gameOver.isGameOver(),
             gameOver.getWinner(),
             buffsAfterDecrement,
-            prepResult.getBuffTiles(),
-            prepResult.getObstacles(),
-            state.getCurrentRound() + 1,
-            state.getPendingDeathChoice(),
+            buffTilesAfterDecrement,
+            currentObstacles,
+            currentRound + 1,
+            null,  // Clear pending death choice at round end
             false,
             false
         );

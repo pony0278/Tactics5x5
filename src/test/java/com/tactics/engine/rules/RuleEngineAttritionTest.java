@@ -118,16 +118,17 @@ class RuleEngineAttritionTest {
     class MinionDecayTests {
 
         @Test
-        @DisplayName("ATR1: Minions lose 1 HP at round end")
+        @DisplayName("ATR1: Minions lose 1 HP at round end (starting round 3)")
         void minionsLoseHpAtRoundEnd() {
             // Given: P1 TANK with 5 HP, P2 ARCHER with 3 HP, both have acted
+            // V3 Spec: Minion decay starts at round 3
             Unit p1Hero = withActionsUsed(createHero("p1_hero", p1, new Position(0, 0), 5));
             Unit p1Tank = withActionsUsed(createTank("p1_tank", p1, new Position(1, 0), 5));
             Unit p2Hero = withActionsUsed(createHero("p2_hero", p2, new Position(4, 4), 5));
             Unit p2Archer = withActionsUsed(createArcher("p2_archer", p2, new Position(3, 4), 3));
 
             GameState state = createStateAtRound(
-                Arrays.asList(p1Hero, p1Tank, p2Hero, p2Archer), p1, 1);
+                Arrays.asList(p1Hero, p1Tank, p2Hero, p2Archer), p1, 3);  // Start at round 3
 
             // When: P1 ends turn (triggers round end since all units acted)
             Action endTurn = new Action(ActionType.END_TURN, p1, null, null);
@@ -138,7 +139,7 @@ class RuleEngineAttritionTest {
             assertEquals(4, findUnitById(result, "p1_tank").getHp(), "P1 TANK should lose 1 HP (5->4)");
             assertEquals(5, findUnitById(result, "p2_hero").getHp(), "P2 Hero should be unaffected by decay");
             assertEquals(2, findUnitById(result, "p2_archer").getHp(), "P2 ARCHER should lose 1 HP (3->2)");
-            assertEquals(2, result.getCurrentRound(), "Round should increment");
+            assertEquals(4, result.getCurrentRound(), "Round should increment to 4");
         }
 
         @Test
@@ -161,15 +162,16 @@ class RuleEngineAttritionTest {
         }
 
         @Test
-        @DisplayName("ATR3: Minion with 1 HP dies from decay")
+        @DisplayName("ATR3: Minion with 1 HP dies from decay (starting round 3)")
         void minionDiesFromDecay() {
             // Given: P1 ASSASSIN with 1 HP (will die from decay)
+            // V3 Spec: Minion decay starts at round 3
             Unit p1Hero = withActionsUsed(createHero("p1_hero", p1, new Position(0, 0), 5));
             Unit p1Assassin = withActionsUsed(createAssassin("p1_assassin", p1, new Position(1, 0), 1));
             Unit p2Hero = withActionsUsed(createHero("p2_hero", p2, new Position(4, 4), 5));
 
             GameState state = createStateAtRound(
-                Arrays.asList(p1Hero, p1Assassin, p2Hero), p1, 1);
+                Arrays.asList(p1Hero, p1Assassin, p2Hero), p1, 3);  // Start at round 3
 
             // When: Round ends
             Action endTurn = new Action(ActionType.END_TURN, p1, null, null);
@@ -183,9 +185,10 @@ class RuleEngineAttritionTest {
         }
 
         @Test
-        @DisplayName("ATR4: All minion types affected equally")
+        @DisplayName("ATR4: All minion types affected equally (starting round 3)")
         void allMinionTypesAffected() {
             // Given: One of each minion type
+            // V3 Spec: Minion decay starts at round 3
             Unit p1Hero = withActionsUsed(createHero("p1_hero", p1, new Position(0, 0), 5));
             Unit p1Tank = withActionsUsed(createTank("p1_tank", p1, new Position(1, 0), 5));
             Unit p1Archer = withActionsUsed(createArcher("p1_archer", p1, new Position(2, 0), 3));
@@ -193,7 +196,7 @@ class RuleEngineAttritionTest {
             Unit p2Hero = withActionsUsed(createHero("p2_hero", p2, new Position(4, 4), 5));
 
             GameState state = createStateAtRound(
-                Arrays.asList(p1Hero, p1Tank, p1Archer, p1Assassin, p2Hero), p1, 1);
+                Arrays.asList(p1Hero, p1Tank, p1Archer, p1Assassin, p2Hero), p1, 3);  // Start at round 3
 
             // When: Round ends
             Action endTurn = new Action(ActionType.END_TURN, p1, null, null);
@@ -358,10 +361,11 @@ class RuleEngineAttritionTest {
             Unit p1Tank = withActionsUsed(createTank("p1_tank", p1, new Position(1, 0), 5));
             Unit p2Hero = withActionsUsed(createHero("p2_hero", p2, new Position(4, 4), 10));
 
+            // V3 Spec: Minion decay starts at round 3
             GameState state = createStateAtRound(
-                Arrays.asList(p1Hero, p1Tank, p2Hero), p1, 1);
+                Arrays.asList(p1Hero, p1Tank, p2Hero), p1, 3);
 
-            // Simulate 4 round ends
+            // Simulate 4 round ends (rounds 3->4, 4->5, 5->6, 6->7)
             for (int i = 0; i < 4; i++) {
                 // All units need actionsUsed=1 to trigger round end
                 List<Unit> unitsWithActions = state.getUnits().stream()
@@ -376,11 +380,11 @@ class RuleEngineAttritionTest {
                 state = ruleEngine.applyAction(state, endTurn);
             }
 
-            // After 4 rounds: TANK should have 1 HP (5 - 4 = 1)
+            // After 4 decay rounds (starting from round 3): TANK should have 1 HP (5 - 4 = 1)
             Unit tankAfter = findUnitById(state, "p1_tank");
-            assertEquals(1, tankAfter.getHp(), "TANK should have 1 HP after 4 rounds");
+            assertEquals(1, tankAfter.getHp(), "TANK should have 1 HP after 4 rounds of decay");
             assertTrue(tankAfter.isAlive(), "TANK should still be alive");
-            assertEquals(5, state.getCurrentRound(), "Should be at Round 5");
+            assertEquals(7, state.getCurrentRound(), "Should be at Round 7");
         }
     }
 }

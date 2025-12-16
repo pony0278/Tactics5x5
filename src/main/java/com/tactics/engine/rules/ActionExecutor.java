@@ -3,11 +3,13 @@ package com.tactics.engine.rules;
 import com.tactics.engine.action.Action;
 import com.tactics.engine.action.ActionType;
 import com.tactics.engine.buff.BuffInstance;
+import com.tactics.engine.buff.BuffType;
 import com.tactics.engine.model.BuffTile;
 import com.tactics.engine.model.DeathChoice;
 import com.tactics.engine.model.GameState;
 import com.tactics.engine.model.Obstacle;
 import com.tactics.engine.model.PlayerId;
+import com.tactics.engine.model.Position;
 import com.tactics.engine.model.Unit;
 import com.tactics.engine.skill.SkillDefinition;
 import com.tactics.engine.skill.SkillExecutor;
@@ -38,6 +40,7 @@ public class ActionExecutor {
     private final MoveExecutor moveExecutor;
     private final AttackExecutor attackExecutor;
     private final SkillExecutor skillExecutor;
+    private RngProvider rngProvider;
 
     public ActionExecutor() {
         this.gameOverChecker = new GameOverChecker();
@@ -45,13 +48,24 @@ public class ActionExecutor {
         this.moveExecutor = new MoveExecutor(gameOverChecker, turnManager);
         this.attackExecutor = new AttackExecutor(gameOverChecker, turnManager, moveExecutor);
         this.skillExecutor = new SkillExecutor();
+        this.rngProvider = new RngProvider();
     }
 
     public void setRngProvider(RngProvider rngProvider) {
+        this.rngProvider = rngProvider;
         this.turnManager.setRngProvider(rngProvider);
         this.moveExecutor.setRngProvider(rngProvider);
         this.attackExecutor.setRngProvider(rngProvider);
         this.skillExecutor.setRngProvider(rngProvider);
+    }
+
+    /**
+     * Get a random buff type for death choice buff tile spawn.
+     */
+    private BuffType getRandomBuffType() {
+        BuffType[] types = BuffType.values();
+        int roll = rngProvider.nextInt(types.length);
+        return types[roll];
     }
 
     // =========================================================================
@@ -196,18 +210,22 @@ public class ActionExecutor {
     private GameState applyDeathChoice(GameState state, Action action) {
         DeathChoice deathChoice = state.getPendingDeathChoice();
         DeathChoice.ChoiceType choiceType = action.getDeathChoiceType();
+        Position deathPos = deathChoice.getDeathPosition();
 
         List<Obstacle> newObstacles = new ArrayList<>(state.getObstacles());
         List<BuffTile> newBuffTiles = new ArrayList<>(state.getBuffTiles());
 
+        // V3 Spec Section 2.4 & 7.3: Overwrite Rule - remove existing map object at position
+        newObstacles.removeIf(o -> o.getPosition().equals(deathPos));
+        newBuffTiles.removeIf(t -> t.getPosition().equals(deathPos) && !t.isTriggered());
+
         if (choiceType == DeathChoice.ChoiceType.SPAWN_OBSTACLE) {
             String obstacleId = "obstacle_" + System.currentTimeMillis();
-            newObstacles.add(new Obstacle(obstacleId, deathChoice.getDeathPosition()));
+            newObstacles.add(new Obstacle(obstacleId, deathPos));
         } else if (choiceType == DeathChoice.ChoiceType.SPAWN_BUFF_TILE) {
             String tileId = "bufftile_" + System.currentTimeMillis();
-            newBuffTiles.add(new BuffTile(
-                tileId, deathChoice.getDeathPosition(), null, 2, false
-            ));
+            BuffType buffType = getRandomBuffType();  // Random buff type per spec
+            newBuffTiles.add(new BuffTile(tileId, deathPos, buffType, 2, false));
         }
 
         // Create intermediate state with death choice cleared

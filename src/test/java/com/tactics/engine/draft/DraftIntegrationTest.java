@@ -513,8 +513,9 @@ class DraftIntegrationTest {
         }
 
         @Test
-        @DisplayName("DI4.2: Play round, minions take decay damage")
+        @DisplayName("DI4.2: Play round, minions take decay damage (starting round 3)")
         void minionDecayDamage() {
+            // V3 Spec: Minion decay starts at round 3
             DraftState p1Draft = createCompleteDraft(
                 PlayerId.PLAYER_1, HeroClass.WARRIOR,
                 MinionType.TANK, MinionType.ARCHER,
@@ -525,6 +526,13 @@ class DraftIntegrationTest {
                 SkillRegistry.MAGE_ELEMENTAL_BLAST);
             DraftResult draftResult = new DraftResult(p1Draft, p2Draft);
             GameState state = setupService.createGameState(draftResult);
+
+            // Advance state to round 3 to test decay
+            state = new GameState(
+                state.getBoard(), state.getUnits(), state.getCurrentPlayer(),
+                state.isGameOver(), state.getWinner(), state.getUnitBuffs(),
+                state.getBuffTiles(), state.getObstacles(), 3,  // Set to round 3
+                state.getPendingDeathChoice(), false, false);
 
             // Check initial HP
             Unit p1Tank = findUnit(state, "p1_minion_1");

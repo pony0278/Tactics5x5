@@ -3,10 +3,10 @@
 ## File Structure
 ```
 docs/
-├── GAME_RULES_V3.md      # Core gameplay rules
-├── UNIT_TYPES_V3.md      # Hero & Minion definitions  
-├── BUFF_SYSTEM_V3.md     # BUFF mechanics
-└── V3_QUICK_REFERENCE.md # This file
+├── GAME_RULES_MASTER_SPEC_V3.md  # Master spec (rules + flow)
+├── UNIT_TYPES_V3.md              # Hero & Minion definitions
+├── BUFF_SYSTEM_V3.md             # BUFF mechanics
+└── V3_QUICK_REFERENCE.md         # This file
 ```
 
 ---
